@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
 declare module 'remark-heading-id' {
-  const remarkHeadingId: any
+  const remarkHeadingId: import('unified').Plugin<[], import('mdast').Root>
   export default remarkHeadingId
 }

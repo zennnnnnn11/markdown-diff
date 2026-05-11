@@ -150,7 +150,7 @@ Final content.
     const stripMeta = (o: any): any => {
       if (Array.isArray(o)) return o.map(stripMeta)
       if (o && typeof o === 'object') {
-        const { id, position, contentHash, ...rest } = o
+        const { id: _id, position: _position, contentHash: _contentHash, ...rest } = o
         for (const k of Object.keys(rest)) rest[k] = stripMeta(rest[k])
         return rest
       }
