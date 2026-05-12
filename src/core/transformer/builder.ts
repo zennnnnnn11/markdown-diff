@@ -24,7 +24,7 @@ import { createBlock } from './block-factory'
 import { createHeadingSection, createFrontmatterSection } from './section-factory'
 import { collectDefinition, collectFootnoteRefsFromBlock } from './collector'
 import { listItemToSection, blockquoteToSection, transformFootnoteDefinition } from './recursion'
-import { assignContentHashes, extractHeadingText } from './text'
+import { extractHeadingText } from './text'
 
 export function buildSections(root: Root): Section {
   const ctx = createContext()
@@ -67,9 +67,7 @@ export function buildSections(root: Root): Section {
     }
   }
 
-  const result = finalize(ctx)
-  assignContentHashes(result)
-  return result
+  return finalize(ctx)
 }
 
 function processHeading(ctx: TransformContext, node: Node): void {

@@ -39,7 +39,6 @@ export interface Section {
   quoteDepth?: number
   children: Section[]
   items: (Block | Section)[]
-  contentHash?: string
   definitions?: Block[]
   footnotes?: Section[]
   footnoteRefs?: FootnoteRef[]

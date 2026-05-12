@@ -65,7 +65,6 @@ Final content.
     expect(tree.children.length).toBeGreaterThanOrEqual(2)
     expect(tree.definitions).toBeDefined()
     expect(tree.footnotes).toBeDefined()
-    expect(tree.contentHash).toBeDefined()
 
     const kinds = allSections(tree).map((s) => s.kind)
     expect(kinds).toContain('heading')
@@ -150,7 +149,7 @@ Final content.
     const stripMeta = (o: any): any => {
       if (Array.isArray(o)) return o.map(stripMeta)
       if (o && typeof o === 'object') {
-        const { id: _id, position: _position, contentHash: _contentHash, ...rest } = o
+        const { id: _id, position: _position, ...rest } = o
         for (const k of Object.keys(rest)) rest[k] = stripMeta(rest[k])
         return rest
       }
