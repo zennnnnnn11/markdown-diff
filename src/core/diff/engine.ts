@@ -299,6 +299,16 @@ async function collectDeterministicCandidates(
       priority: 2,
       score: 1,
     })),
+    ...uniqueSharedHashes(
+      filterDefinitionIdentifiers(context.oldIndex),
+      filterDefinitionIdentifiers(context.newIndex),
+    ).map(([oldId, newId]) => ({
+      oldId,
+      newId,
+      matchKind: 'definition-identifier' as const,
+      priority: 1,
+      score: 1,
+    })),
   )
 
   return candidates
@@ -392,6 +402,7 @@ async function alignChildren(
   }
 
   await flushGap(context, oldParentId, newParentId, oldGap, newGap, changes, mode)
+  changes.splice(0, changes.length, ...(await rewriteChildrenWithExistingMatches(context, changes, mode)))
   markReorderedChildren(context, changes)
   return changes
 }
@@ -407,11 +418,21 @@ async function flushGap(
 ): Promise<void> {
   if (oldGap.length === 0 && newGap.length === 0) return
 
-  const pairs = await pairGapNodes(context, oldGap, newGap, oldParentId, newParentId)
+  const matchedPairs = collectGapMatches(context, oldGap, newGap)
+  const consumedOldByMatch = new Set(matchedPairs.map((entry) => entry.oldId))
+  const consumedNewByMatch = new Set(matchedPairs.map((entry) => entry.newId))
+  const residualOldGap = oldGap.filter((oldId) => !consumedOldByMatch.has(oldId))
+  const residualNewGap = newGap.filter((newId) => !consumedNewByMatch.has(newId))
+
+  for (const { pair } of matchedPairs) {
+    changes.push(await buildMatchedChange(context, pair, mode))
+  }
+
+  const pairs = await pairGapNodes(context, residualOldGap, residualNewGap, oldParentId, newParentId)
   const pairedOld = new Set(pairs.map((pair) => pair.oldId))
   const pairedNew = new Set(pairs.map((pair) => pair.newId))
 
-  for (const oldId of oldGap) {
+  for (const oldId of residualOldGap) {
     const aligned = pairs.find((pair) => pair.oldId === oldId)
     if (aligned) {
       changes.push(await buildAlignedChange(context, aligned, mode))
@@ -420,7 +441,7 @@ async function flushGap(
     changes.push(buildDeleteChange(context, oldId))
   }
 
-  for (const newId of newGap) {
+  for (const newId of residualNewGap) {
     if (pairedNew.has(newId)) continue
     changes.push(buildInsertChange(context, newId))
   }
@@ -428,6 +449,31 @@ async function flushGap(
   for (const pair of pairs) {
     if (!pairedOld.has(pair.oldId)) continue
   }
+}
+
+function collectGapMatches(
+  context: DiffContext,
+  oldGap: string[],
+  newGap: string[],
+): Array<{ oldId: string; newId: string; pair: MatchPair }> {
+  if (oldGap.length === 0 || newGap.length === 0) return []
+
+  const newGapSet = new Set(newGap)
+  const matched: Array<{ oldId: string; newId: string; pair: MatchPair }> = []
+  const consumedNew = new Set<string>()
+
+  for (const oldId of oldGap) {
+    const pair = context.matchesByOld.get(oldId)
+    if (!pair) continue
+    if (consumedNew.has(pair.newId)) continue
+    if (!newGapSet.has(pair.newId)) continue
+    if (context.matchesByNew.get(pair.newId)?.oldId !== oldId) continue
+
+    matched.push({ oldId, newId: pair.newId, pair })
+    consumedNew.add(pair.newId)
+  }
+
+  return matched
 }
 
 async function pairGapNodes(
@@ -2085,6 +2131,44 @@ async function rewriteChildrenWithFallbackPairs(
   return rewritten
 }
 
+async function rewriteChildrenWithExistingMatches(
+  context: DiffContext,
+  existingChildren: DiffChange[],
+  mode: 'global' | 'local',
+): Promise<DiffChange[]> {
+  const pendingInsertsByNewId = new Map<string, DiffChange>()
+  for (const child of existingChildren) {
+    if (child.primaryOp === 'insert' && child.newId) pendingInsertsByNewId.set(child.newId, child)
+  }
+
+  const consumedInsertIds = new Set<string>()
+  const rewritten: DiffChange[] = []
+
+  for (const child of existingChildren) {
+    if (child.primaryOp === 'insert' && child.newId && consumedInsertIds.has(child.newId)) continue
+
+    if (child.primaryOp === 'delete' && child.oldId) {
+      const pair = context.matchesByOld.get(child.oldId)
+      const pairedInsert = pair?.newId ? pendingInsertsByNewId.get(pair.newId) : undefined
+      if (
+        pair &&
+        pairedInsert &&
+        pairedInsert.primaryOp === 'insert' &&
+        context.matchesByNew.get(pair.newId)?.oldId === child.oldId &&
+        !consumedInsertIds.has(pair.newId)
+      ) {
+        rewritten.push(await buildMatchedChange(context, pair, mode))
+        consumedInsertIds.add(pair.newId)
+        continue
+      }
+    }
+
+    rewritten.push(child)
+  }
+
+  return rewritten
+}
+
 function convertChangeToMove(change: DiffChange, pair: MatchPair, role: 'source' | 'target'): void {
   change.primaryOp = 'move'
   change.pairKind = 'match'
@@ -2186,6 +2270,18 @@ function filterIdentityHashes(index: SemanticIndex, target: 'footnote' | 'defini
     const node = index.byId.get(id)
     if (!node) continue
     push(result, node.identityHash, id)
+  }
+  return result
+}
+
+function filterDefinitionIdentifiers(index: SemanticIndex): Map<string, string[]> {
+  const result = new Map<string, string[]>()
+  const ids = index.byBlockType.get('definition') ?? []
+  for (const id of ids) {
+    const node = index.byId.get(id)
+    const identifier = normalizeIdentifier((node?.block as any)?.identifier)
+    if (!node || !identifier) continue
+    push(result, identifier, id)
   }
   return result
 }

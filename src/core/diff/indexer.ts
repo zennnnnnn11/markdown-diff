@@ -397,7 +397,6 @@ async function computeBlockIdentityHash(block: Block): Promise<string> {
       type: block.type,
       url: (block as any).url,
       title: (block as any).title,
-      label: (block as any).label,
     })
   }
   return computeBlockSelfHash(block)

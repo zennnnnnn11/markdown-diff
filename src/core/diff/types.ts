@@ -12,6 +12,7 @@ export type MatchKind =
   | 'frontmatter-anchor'
   | 'footnote-identity'
   | 'definition-identity'
+  | 'definition-identifier'
   | 'local-heading-slug'
   | 'local-similarity'
   | 'local-identity'

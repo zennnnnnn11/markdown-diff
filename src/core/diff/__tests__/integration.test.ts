@@ -140,6 +140,36 @@ content`
     expect(definition?.status.metaChanged).toBe(true)
   })
 
+  it('recovers a pure definition rename as a clean match', async () => {
+    const result = await diffMarkdown(
+      '[repo]: https://example.com/guide "Docs"',
+      '[source]: https://example.com/guide "Docs"',
+    )
+    const definitions = flatten(result.root).filter((change) => change.blockType === 'definition')
+    const definition = definitions.find((change) => change.oldId && change.newId)
+
+    expect(definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert')).toBe(false)
+    expect(definition?.pairKind).toBe('match')
+    expect(definition?.primaryOp).toBe('equal')
+    expect(definition?.status.renamed).toBe(true)
+    expect(definition?.status.selfChanged).toBe(false)
+  })
+
+  it('recovers definition metadata updates when the identifier stays stable', async () => {
+    const result = await diffMarkdown(
+      '[docs]: https://example.com/docs/v1 "Documentation v1"',
+      '[docs]: https://example.com/docs/v2 "Documentation v2"',
+    )
+    const definitions = flatten(result.root).filter((change) => change.blockType === 'definition')
+    const definition = definitions.find((change) => change.oldId && change.newId)
+
+    expect(definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert')).toBe(false)
+    expect(definition?.pairKind).toBe('match')
+    expect(definition?.primaryOp).toBe('meta-update')
+    expect(definition?.status.metaChanged).toBe(true)
+    expect(definition?.status.renamed).toBe(false)
+  })
+
   it('detects code metadata update when content stays equal', async () => {
     const oldMarkdown = '```js\nconst x = 1\n```'
     const newMarkdown = '```ts\nconst x = 1\n```'

@@ -66,6 +66,21 @@ describe('diff negative regressions', () => {
     expect(footnotes.every((change) => change.status.renamed !== true)).toBe(true)
   })
 
+  it('does not create identifier-based definition matches when duplicate identifiers are ambiguous', async () => {
+    const result = await diffMarkdown(
+      [
+        '[docs]: https://example.com/one "One"',
+        '[docs]: https://example.com/two "Two"',
+      ].join('\n\n'),
+      [
+        '[docs]: https://example.com/three "Three"',
+        '[docs]: https://example.com/four "Four"',
+      ].join('\n\n'),
+    )
+
+    expect(result.matches.some((pair) => pair.matchKind === 'definition-identifier')).toBe(false)
+  })
+
   it('does not recover a heading move when slug matches but body similarity is weak', async () => {
     const result = await diffMarkdown(
       '# A\n\n## Moved\n\nalpha beta gamma\n\n# B',

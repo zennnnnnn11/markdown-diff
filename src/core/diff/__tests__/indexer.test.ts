@@ -116,6 +116,18 @@ After note[^1].
     expect(orderedTexts[2]).toContain('After note')
     expect(orderedTexts[3]).toContain('Footnote body')
   })
+
+  it('treats definition identity as url/title-based so pure label renames stay stable', async () => {
+    const oldTree = transformMarkdown(await parseMarkdown('[repo]: https://example.com/docs "Documentation"'))
+    const newTree = transformMarkdown(await parseMarkdown('[source]: https://example.com/docs "Documentation"'))
+    const oldIndex = await buildSemanticIndex(oldTree, 'old')
+    const newIndex = await buildSemanticIndex(newTree, 'new')
+    const oldDefinition = oldIndex.byId.get(oldIndex.byBlockType.get('definition')![0]!)
+    const newDefinition = newIndex.byId.get(newIndex.byBlockType.get('definition')![0]!)
+
+    expect(oldDefinition?.identityHash).toBe(newDefinition?.identityHash)
+    expect(oldDefinition?.selfHash).not.toBe(newDefinition?.selfHash)
+  })
 })
 
 describe('diff utils', () => {
