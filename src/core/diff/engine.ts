@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { InlineContent, Section } from '../transformer'
+import { computeAptedMatches, type AptedNode } from './apted'
 import { diffFrontmatter } from './frontmatter'
 import { buildSemanticIndex } from './indexer'
 import { resolveDiffOptions } from './options'
@@ -46,6 +47,10 @@ interface DiffContext {
   matchesByOld: Map<string, MatchPair>
   matchesByNew: Map<string, MatchPair>
   warnings: string[]
+}
+
+interface AptedDiffMeta {
+  node: NonNullable<ReturnType<SemanticIndex['byId']['get']>>
 }
 
 export async function diffMarkdownTrees(
@@ -613,7 +618,8 @@ async function maybeApplyStructuralFallback(
     return
   }
 
-  const fallbackPairs = collectStructuralFallbackPairs(context, change, oldNode.id, newNode.id)
+  const aptedMatches = computeStructuralAptedMatches(context, change)
+  const fallbackPairs = collectStructuralFallbackPairs(context, change, oldNode.id, newNode.id, aptedMatches)
   if (fallbackPairs.length === 0) {
     change.warnings.push('enhanced-local-recovery-no-candidates')
     return
@@ -1503,37 +1509,30 @@ function collectStructuralFallbackPairs(
   change: DiffChange,
   oldParentId: string,
   newParentId: string,
+  aptedMatches: Array<{ oldId: string; newId: string; tedCost: number }>,
 ): AlignedPair[] {
-  const deletes = change.children
-    .filter((child) => child.primaryOp === 'delete' && !!child.oldId)
-    .map((child) => child.oldId!)
-  const inserts = change.children
-    .filter((child) => child.primaryOp === 'insert' && !!child.newId)
-    .map((child) => child.newId!)
-  if (deletes.length === 0 || inserts.length === 0) return []
+  if (aptedMatches.length === 0) return []
 
-  type RawCandidate = AlignedPair
+  type RawCandidate = AlignedPair & { tedCost: number }
   const candidates: RawCandidate[] = []
   const scoresByOld = new Map<string, number[]>()
   const scoresByNew = new Map<string, number[]>()
 
-  for (const oldId of deletes) {
+  for (const { oldId, newId, tedCost } of aptedMatches) {
     const oldChild = context.oldIndex.byId.get(oldId)
-    if (!oldChild) continue
-    for (const newId of inserts) {
-      const newChild = context.newIndex.byId.get(newId)
-      if (!newChild || !isSameShape(oldChild, newChild)) continue
-      const score = computeStructuralFallbackScore(context, oldChild, newChild, oldParentId, newParentId)
-      push(scoresByOld, oldId, score)
-      push(scoresByNew, newId, score)
-      candidates.push({
-        oldId,
-        newId,
-        pairKind: 'align',
-        pairKey: makePairKey('align', oldId, newId),
-        score,
-      })
-    }
+    const newChild = context.newIndex.byId.get(newId)
+    if (!oldChild || !newChild || !isSameShape(oldChild, newChild)) continue
+    const score = computeStructuralFallbackScore(context, oldChild, newChild, oldParentId, newParentId)
+    push(scoresByOld, oldId, score)
+    push(scoresByNew, newId, score)
+    candidates.push({
+      oldId,
+      newId,
+      pairKind: 'align',
+      pairKey: makePairKey('align', oldId, newId),
+      score,
+      tedCost,
+    })
   }
 
   const filtered = candidates
@@ -1550,7 +1549,7 @@ function collectStructuralFallbackPairs(
         candidate.newMargin >= context.options.minUniquenessMargin
       )
     })
-    .sort((left, right) => (right.score ?? 0) - (left.score ?? 0))
+    .sort((left, right) => left.tedCost - right.tedCost || (right.score ?? 0) - (left.score ?? 0))
 
   const usedOld = new Set<string>()
   const usedNew = new Set<string>()
@@ -1562,6 +1561,73 @@ function collectStructuralFallbackPairs(
     pairs.push(candidate)
   }
   return pairs
+}
+
+function computeStructuralAptedMatches(
+  context: DiffContext,
+  change: DiffChange,
+): Array<{ oldId: string; newId: string; tedCost: number }> {
+  const deletes = change.children
+    .filter((child) => child.primaryOp === 'delete' && !!child.oldId)
+    .map((child) => child.oldId!)
+  const inserts = change.children
+    .filter((child) => child.primaryOp === 'insert' && !!child.newId)
+    .map((child) => child.newId!)
+  if (deletes.length === 0 || inserts.length === 0) return []
+
+  const oldForest = deletes
+    .map((oldId) => buildAptedTree(context.oldIndex, oldId))
+    .filter((node): node is AptedNode<AptedDiffMeta> => !!node)
+  const newForest = inserts
+    .map((newId) => buildAptedTree(context.newIndex, newId))
+    .filter((node): node is AptedNode<AptedDiffMeta> => !!node)
+  if (oldForest.length === 0 || newForest.length === 0) return []
+
+  const directOld = new Set(deletes)
+  const directNew = new Set(inserts)
+  return computeAptedMatches(oldForest, newForest, {
+    canMatch: (oldTree, newTree) => isSameShape(oldTree.meta.node, newTree.meta.node),
+    relabelCost: (oldTree, newTree) => {
+      const score = computeAptedRelabelScore(context, oldTree.meta.node, newTree.meta.node)
+      return 1 - Math.max(0, Math.min(1, score))
+    },
+    deleteCost: (node) => node.subtreeSize,
+    insertCost: (node) => node.subtreeSize,
+  })
+    .filter((match) => directOld.has(match.oldId) && directNew.has(match.newId))
+    .map((match) => ({
+      oldId: match.oldId,
+      newId: match.newId,
+      tedCost: match.cost,
+    }))
+}
+
+function buildAptedTree(
+  index: SemanticIndex,
+  id: string,
+): AptedNode<AptedDiffMeta> | undefined {
+  const node = index.byId.get(id)
+  if (!node) return undefined
+  return {
+    id: node.id,
+    subtreeSize: node.subtreeSize,
+    meta: { node },
+    children: (index.childrenById.get(id) ?? [])
+      .map((childId) => buildAptedTree(index, childId))
+      .filter((child): child is AptedNode<AptedDiffMeta> => !!child),
+  }
+}
+
+function computeAptedRelabelScore(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): number {
+  if (!isSameShape(oldNode, newNode)) return 0
+  if (oldNode.selfHash === newNode.selfHash) return 1
+  const pathBonus = oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash ? 0.1 : 0
+  const rangeBonus = sourceRangeCloseness(oldNode, newNode) * 0.05
+  return Math.max(0, Math.min(1, computeNodeSimilarity(oldNode, newNode, context.options, 1) + pathBonus + rangeBonus))
 }
 
 function computeStructuralFallbackScore(
