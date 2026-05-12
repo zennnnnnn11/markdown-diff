@@ -2,6 +2,7 @@
 import type { InlineContent, Section } from '../transformer'
 import { computeAptedMatches, type AptedNode } from './apted'
 import { diffFrontmatter } from './frontmatter'
+import { DIFF_HEURISTICS, sequenceTuning } from './heuristics'
 import { buildSemanticIndex } from './indexer'
 import { resolveDiffOptions } from './options'
 import { alignSequence, longestIncreasingSubsequence } from './sequence'
@@ -55,9 +56,6 @@ interface DiffContext {
 interface AptedDiffMeta {
   node: NonNullable<ReturnType<SemanticIndex['byId']['get']>>
 }
-
-const TEXT_SIM_RECALL_THRESHOLD = 24
-const TEXT_SIM_RECALL_LIMIT = 6
 
 export async function diffMarkdownTrees(
   oldRoot: Section,
@@ -621,21 +619,27 @@ function recallComparableNodes(
       (newNode): newNode is NonNullable<typeof newNode> =>
         !!newNode && !context.matchesByNew.has(newNode.id) && isSameShape(oldNode, newNode),
     )
-  if (sameShape.length <= TEXT_SIM_RECALL_LIMIT) return sameShape
+  if (sameShape.length <= DIFF_HEURISTICS.recall.maxComparableNodes) return sameShape
 
   const ranked = sameShape
     .map((newNode) => ({
       node: newNode,
       distance: simHashDistanceForRecall(oldNode, newNode),
       structuralBias:
-        (oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash ? 0 : 4) +
+        (oldNode.pathHash &&
+        newNode.pathHash &&
+        oldNode.pathHash === newNode.pathHash
+          ? 0
+          : DIFF_HEURISTICS.recall.pathMismatchPenalty) +
         Math.abs((oldNode.siblingIndex ?? 0) - (newNode.siblingIndex ?? 0)),
     }))
-    .filter((entry) => entry.distance === undefined || entry.distance <= TEXT_SIM_RECALL_THRESHOLD)
+    .filter(
+      (entry) => entry.distance === undefined || entry.distance <= DIFF_HEURISTICS.recall.textSimThreshold,
+    )
     .sort((left, right) => (left.distance ?? Number.POSITIVE_INFINITY) - (right.distance ?? Number.POSITIVE_INFINITY) || left.structuralBias - right.structuralBias)
 
   if (ranked.length === 0) return sameShape
-  return ranked.slice(0, TEXT_SIM_RECALL_LIMIT).map((entry) => entry.node)
+  return ranked.slice(0, DIFF_HEURISTICS.recall.maxComparableNodes).map((entry) => entry.node)
 }
 
 async function maybeApplyStructuralFallback(
@@ -772,7 +776,11 @@ async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Pr
     if (oldNode.kind === 'footnote' && newNode.kind === 'footnote') {
       const oldIdentifier = normalizeIdentifier((oldNode.section?.heading as any)?.identifier)
       const newIdentifier = normalizeIdentifier((newNode.section?.heading as any)?.identifier)
-      if (oldIdentifier !== newIdentifier && oldNode.identityHash === newNode.identityHash) {
+      if (
+        oldIdentifier !== newIdentifier &&
+        oldNode.identityHash === newNode.identityHash &&
+        hasUniqueIdentityRenameCandidate(context, oldNode, newNode)
+      ) {
         upgradeToMatch(change)
         change.primaryOp = 'equal'
         change.status.renamed = true
@@ -783,7 +791,11 @@ async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Pr
     if (oldNode.blockType === 'definition' && newNode.blockType === 'definition') {
       const oldIdentifier = normalizeIdentifier((oldNode.block as any)?.identifier)
       const newIdentifier = normalizeIdentifier((newNode.block as any)?.identifier)
-      if (oldIdentifier !== newIdentifier && oldNode.identityHash === newNode.identityHash) {
+      if (
+        oldIdentifier !== newIdentifier &&
+        oldNode.identityHash === newNode.identityHash &&
+        hasUniqueIdentityRenameCandidate(context, oldNode, newNode)
+      ) {
         upgradeToMatch(change)
         change.primaryOp = 'equal'
         change.status.renamed = true
@@ -861,6 +873,7 @@ async function computePresentationDiffs(context: DiffContext, root: DiffChange):
           oldNode.block?.children ?? [],
           newNode.block?.children ?? [],
           context.options.maxInlineDiffCost,
+          sequenceTuning(context.options),
         )
         change.inlineSpans = result.spans
         if (result.inlineStructureChanged) change.status.inlineStructureChanged = true
@@ -879,7 +892,11 @@ async function computePresentationDiffs(context: DiffContext, root: DiffChange):
     }
 
     if (oldNode.kind === 'heading' && newNode.kind === 'heading' && change.status.renamed) {
-      change.titleInlineSpans = await diffWordText(oldNode.section?.title ?? '', newNode.section?.title ?? '')
+      change.titleInlineSpans = await diffWordText(
+        oldNode.section?.title ?? '',
+        newNode.section?.title ?? '',
+        sequenceTuning(context.options),
+      )
     }
   }
 }
@@ -942,6 +959,7 @@ async function diffInlineNodes(
   oldChildren: InlineContent[],
   newChildren: InlineContent[],
   maxInlineDiffCost: number,
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
 ): Promise<{ spans: InlineSpan[]; inlineStructureChanged: boolean; deferred: boolean }> {
   if (oldChildren.length + newChildren.length > maxInlineDiffCost) {
     return {
@@ -955,7 +973,7 @@ async function diffInlineNodes(
   const edits = alignSequence(
     oldTokens.map((token) => token.hash),
     newTokens.map((token) => token.hash),
-    { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 },
+    sequenceOptions,
     'myers',
   )
 
@@ -967,7 +985,7 @@ async function diffInlineNodes(
   for (const edit of edits) {
     if (edit.op === 'equal') {
       if (oldGap.length > 0 || newGap.length > 0) {
-        const span = await buildInlineReplaceSpan(oldGap, newGap)
+        const span = await buildInlineReplaceSpan(oldGap, newGap, sequenceOptions)
         spans.push(span)
         if (span.oldTokens?.some((token) => token.type !== 'text') || span.newTokens?.some((token) => token.type !== 'text')) {
           inlineStructureChanged = true
@@ -991,7 +1009,7 @@ async function diffInlineNodes(
   }
 
   if (oldGap.length > 0 || newGap.length > 0) {
-    const span = await buildInlineReplaceSpan(oldGap, newGap)
+    const span = await buildInlineReplaceSpan(oldGap, newGap, sequenceOptions)
     spans.push(span)
     if (span.oldTokens?.some((token) => token.type !== 'text') || span.newTokens?.some((token) => token.type !== 'text')) {
       inlineStructureChanged = true
@@ -1005,7 +1023,7 @@ function diffCodeLines(oldValue: string, newValue: string, options: DiffOptions)
   const oldLines = oldValue.split(/\r?\n/u)
   const newLines = newValue.split(/\r?\n/u)
   const edits = alignSequence(oldLines, newLines, options, 'heckel')
-  const spans = coalesceLineDiffSpans(edits, oldLines, newLines)
+  const spans = coalesceLineDiffSpans(edits, oldLines, newLines, sequenceTuning(options))
 
   if (oldLines.length > options.longCodeLineThreshold || newLines.length > options.longCodeLineThreshold) {
     return foldLongCodeSpans(spans, options.codeFoldContextLines)
@@ -1037,12 +1055,17 @@ async function computeTableMetadataChange(
         const newCell = newRow[column] ?? []
         const oldText = extractInlineText(oldCell)
         const newText = extractInlineText(newCell)
-        const result = await diffInlineNodes(oldCell, newCell, options.maxInlineDiffCost)
+        const result = await diffInlineNodes(
+          oldCell,
+          newCell,
+          options.maxInlineDiffCost,
+          sequenceTuning(options),
+        )
         const spans = result.spans.length > 0 ? result.spans : [{
           op: 'replace' as const,
           oldText,
           newText,
-          wordSpans: diffWordTextSync(oldText, newText),
+          wordSpans: diffWordTextSync(oldText, newText, sequenceTuning(options)),
         }]
         if (!hasMeaningfulInlineDiff(spans, oldText, newText)) continue
         cellDiffs.push({
@@ -1062,13 +1085,17 @@ async function computeTableMetadataChange(
   }
 }
 
-async function diffWordText(oldText: string, newText: string): Promise<InlineSpan[]> {
+async function diffWordText(
+  oldText: string,
+  newText: string,
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
+): Promise<InlineSpan[]> {
   return [
     {
       op: oldText === newText ? 'equal' : 'replace',
       oldText,
       newText,
-      wordSpans: diffWordTextSync(oldText, newText),
+      wordSpans: diffWordTextSync(oldText, newText, sequenceOptions),
     },
   ]
 }
@@ -1076,14 +1103,19 @@ async function diffWordText(oldText: string, newText: string): Promise<InlineSpa
 function diffWordTextSync(
   oldText: string,
   newText: string,
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
 ): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
   const oldWords = tokenizeText(oldText)
   const newWords = tokenizeText(newText)
-  const edits = alignSequence(oldWords, newWords, { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 }, 'myers')
+  const edits = alignSequence(oldWords, newWords, sequenceOptions, 'myers')
   return coalesceTextSpans(edits, oldWords, newWords, ' ')
 }
 
-async function buildInlineReplaceSpan(oldTokens: InlineToken[], newTokens: InlineToken[]): Promise<InlineSpan> {
+async function buildInlineReplaceSpan(
+  oldTokens: InlineToken[],
+  newTokens: InlineToken[],
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
+): Promise<InlineSpan> {
   const oldText = oldTokens.map((token) => token.rawText).join('')
   const newText = newTokens.map((token) => token.rawText).join('')
   const textOnly = oldTokens.every((token) => token.type === 'text') && newTokens.every((token) => token.type === 'text')
@@ -1093,17 +1125,18 @@ async function buildInlineReplaceSpan(oldTokens: InlineToken[], newTokens: Inlin
     newText,
     oldTokens,
     newTokens,
-    wordSpans: textOnly ? diffWordTextSync(oldText, newText) : undefined,
+    wordSpans: textOnly ? diffWordTextSync(oldText, newText, sequenceOptions) : undefined,
   }
 }
 
 function diffCharacters(
   oldText: string,
   newText: string,
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
 ): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
   const oldChars = [...oldText]
   const newChars = [...newText]
-  const edits = alignSequence(oldChars, newChars, { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 }, 'myers')
+  const edits = alignSequence(oldChars, newChars, sequenceOptions, 'myers')
   return coalesceTextSpans(edits, oldChars, newChars, '')
 }
 
@@ -1157,6 +1190,7 @@ function coalesceLineDiffSpans(
   edits: Array<{ op: 'equal' | 'insert' | 'delete'; oldIndex?: number; newIndex?: number }>,
   oldLines: string[],
   newLines: string[],
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
 ): LineDiffSpan[] {
   const spans: LineDiffSpan[] = []
   let deleteIndexes: number[] = []
@@ -1177,7 +1211,7 @@ function coalesceLineDiffSpans(
             op: 'replace',
             oldLine,
             newLine,
-            charSpans: diffCharacters(oldLine, newLine),
+            charSpans: diffCharacters(oldLine, newLine, sequenceOptions),
           })
         } else if (oldLine !== undefined) {
           spans.push({ op: 'delete', oldLine })
@@ -1398,7 +1432,9 @@ function projectToken(context: DiffContext, childId: string, oppositeParentId: s
 
 function parentContextScore(context: DiffContext, oldParentId: string, newParentId: string): number {
   const pair = context.matchesByOld.get(oldParentId)
-  return pair?.newId === newParentId ? 1 : 0.7
+  return pair?.newId === newParentId
+    ? DIFF_HEURISTICS.context.matchedParentScore
+    : DIFF_HEURISTICS.context.unmatchedParentScore
 }
 
 function shouldUseShortHeadingFallback(
@@ -1410,7 +1446,12 @@ function shouldUseShortHeadingFallback(
 ): boolean {
   if (oldNode.kind !== 'heading' || newNode.kind !== 'heading') return false
   if (oldNode.section?.headingDepth !== newNode.section?.headingDepth) return false
-  if (Math.abs(oldNode.siblingIndex - newNode.siblingIndex) > 1) return false
+  if (
+    Math.abs(oldNode.siblingIndex - newNode.siblingIndex) >
+    DIFF_HEURISTICS.context.shortHeadingSiblingTolerance
+  ) {
+    return false
+  }
   if (context.matchesByOld.get(oldParentId)?.newId !== newParentId) return false
   if (!uniqueHeadingSiblingNames(context, oldNode, newNode)) return false
   return oldNode.headingBodyHash === newNode.headingBodyHash || (oldNode.logicalChildren.length === 0 && newNode.logicalChildren.length === 0)
@@ -1538,6 +1579,21 @@ function uniqueMoveHash(
     return node?.[key] === value
   })
   return oldMatches.length === 1 && newMatches.length === 1
+}
+
+function hasUniqueIdentityRenameCandidate(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  const oldCandidates = (context.oldIndex.byIdentityHash.get(oldNode.identityHash) ?? [])
+    .map((id) => context.oldIndex.byId.get(id))
+    .filter((candidate): candidate is NonNullable<typeof candidate> => !!candidate && isSameShape(candidate, oldNode))
+  const newCandidates = (context.newIndex.byIdentityHash.get(newNode.identityHash) ?? [])
+    .map((id) => context.newIndex.byId.get(id))
+    .filter((candidate): candidate is NonNullable<typeof candidate> => !!candidate && isSameShape(candidate, newNode))
+
+  return oldCandidates.length === 1 && newCandidates.length === 1
 }
 
 function shareMatchedNeighborContext(
@@ -1679,8 +1735,12 @@ function computeAptedRelabelScore(
 ): number {
   if (!isSameShape(oldNode, newNode)) return 0
   if (oldNode.selfHash === newNode.selfHash) return 1
-  const pathBonus = oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash ? 0.1 : 0
-  const rangeBonus = sourceRangeCloseness(oldNode, newNode) * 0.05
+  const pathBonus =
+    oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash
+      ? DIFF_HEURISTICS.fallback.aptedPathBonus
+      : 0
+  const rangeBonus =
+    sourceRangeCloseness(oldNode, newNode) * DIFF_HEURISTICS.fallback.aptedRangeBonusWeight
   const simHashBonus = simHashBonusForRecall(oldNode, newNode)
   return Math.max(
     0,
@@ -1697,7 +1757,7 @@ function withinTextRecallWindow(
   if (oldNode.contentOnlyHash === newNode.contentOnlyHash) return true
   if (oldNode.headingBodyHash && newNode.headingBodyHash && oldNode.headingBodyHash === newNode.headingBodyHash) return true
   const distance = simHashDistanceForRecall(oldNode, newNode)
-  return distance === undefined || distance <= TEXT_SIM_RECALL_THRESHOLD
+  return distance === undefined || distance <= DIFF_HEURISTICS.recall.textSimThreshold
 }
 
 function simHashDistanceForRecall(
@@ -1713,7 +1773,10 @@ function simHashBonusForRecall(
 ): number {
   const distance = simHashDistanceForRecall(oldNode, newNode)
   if (distance === undefined) return 0
-  return Math.max(0, (TEXT_SIM_RECALL_THRESHOLD - distance) / TEXT_SIM_RECALL_THRESHOLD) * 0.05
+  return (
+    Math.max(0, (DIFF_HEURISTICS.recall.textSimThreshold - distance) / DIFF_HEURISTICS.recall.textSimThreshold) *
+    DIFF_HEURISTICS.recall.simHashBonusWeight
+  )
 }
 
 function computeStructuralFallbackScore(
@@ -1727,12 +1790,25 @@ function computeStructuralFallbackScore(
   const oldChildren = context.oldIndex.childrenById.get(oldNode.id) ?? []
   const newChildren = context.newIndex.childrenById.get(newNode.id) ?? []
   const childShapeScore = childShapeSimilarity(context, oldChildren, newChildren)
-  const pathScore = oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash ? 1 : 0.7
+  const pathScore =
+    oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash
+      ? 1
+      : DIFF_HEURISTICS.fallback.score.pathMismatchScore
   const rangeScore = sourceRangeCloseness(oldNode, newNode)
-  const structuralBonus = oldChildren.length === newChildren.length && childShapeScore === 1 ? 0.2 : 0
+  const structuralBonus =
+    oldChildren.length === newChildren.length && childShapeScore === 1
+      ? DIFF_HEURISTICS.fallback.score.structuralBonus
+      : 0
   return Math.max(
     0,
-    Math.min(1, 0.35 * base + 0.3 * childShapeScore + 0.15 * pathScore + 0.1 * rangeScore + structuralBonus),
+    Math.min(
+      1,
+      DIFF_HEURISTICS.fallback.score.baseWeight * base +
+        DIFF_HEURISTICS.fallback.score.childShapeWeight * childShapeScore +
+        DIFF_HEURISTICS.fallback.score.pathWeight * pathScore +
+        DIFF_HEURISTICS.fallback.score.rangeWeight * rangeScore +
+        structuralBonus,
+    ),
   )
 }
 
@@ -1755,14 +1831,22 @@ function sourceRangeCloseness(
 ): number {
   const oldStart = oldNode.sourceRange?.start
   const newStart = newNode.sourceRange?.start
-  if (!oldStart || !newStart) return 0.7
+  if (!oldStart || !newStart) return DIFF_HEURISTICS.fallback.sourceRange.fallbackScore
   if (oldStart.line !== undefined && newStart.line !== undefined) {
-    return Math.max(0, 1 - Math.abs(oldStart.line - newStart.line) / 10)
+    return Math.max(
+      0,
+      1 - Math.abs(oldStart.line - newStart.line) / DIFF_HEURISTICS.fallback.sourceRange.lineDivisor,
+    )
   }
   if (oldStart.offset !== undefined && newStart.offset !== undefined) {
-    return Math.max(0, 1 - Math.abs(oldStart.offset - newStart.offset) / 400)
+    return Math.max(
+      0,
+      1 -
+        Math.abs(oldStart.offset - newStart.offset) /
+          DIFF_HEURISTICS.fallback.sourceRange.offsetDivisor,
+    )
   }
-  return 0.7
+  return DIFF_HEURISTICS.fallback.sourceRange.fallbackScore
 }
 
 async function rewriteChildrenWithFallbackPairs(

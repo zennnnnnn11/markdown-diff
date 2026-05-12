@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { DiffNode, DiffOptions } from './types'
+import { DIFF_HEURISTICS } from './heuristics'
 import { extractNodeText, jaccardSimilarity, sequenceSimilarity, tokenizeText } from './utils'
 
 export function computeNodeSimilarity(
@@ -30,7 +31,9 @@ export function computeNodeSimilarity(
     return footnoteOrDefinitionSimilarity(oldNode, newNode, options)
   }
 
-  if (oldNode.contentOnlyHash === newNode.contentOnlyHash) return 0.95
+  if (oldNode.contentOnlyHash === newNode.contentOnlyHash) {
+    return DIFF_HEURISTICS.similarity.genericContentOnlyScore
+  }
   return tokenSimilarity(oldNode.textTokens, newNode.textTokens, options)
 }
 
@@ -58,7 +61,10 @@ function paragraphSimilarity(
     oldNode.block?.children?.map((child) => child.type) ?? [],
     newNode.block?.children?.map((child) => child.type) ?? [],
   )
-  return clamp01(0.7 * textSimilarity + 0.3 * structureSimilarity)
+  return clamp01(
+    DIFF_HEURISTICS.similarity.paragraph.textWeight * textSimilarity +
+      DIFF_HEURISTICS.similarity.paragraph.structureWeight * structureSimilarity,
+  )
 }
 
 function headingSimilarity(
@@ -69,19 +75,31 @@ function headingSimilarity(
 ): number {
   const titleSimilarity = tokenSimilarity(oldNode.titleTokens, newNode.titleTokens, options)
   const hasChildren = (oldNode.logicalChildren.length ?? 0) > 0 && (newNode.logicalChildren.length ?? 0) > 0
-  const headingBodySimilarity = oldNode.headingBodyHash === newNode.headingBodyHash ? 1 : 0.5
-  const depthMatch = oldNode.section?.headingDepth === newNode.section?.headingDepth ? 1 : 0.6
+  const headingBodySimilarity =
+    oldNode.headingBodyHash === newNode.headingBodyHash
+      ? 1
+      : DIFF_HEURISTICS.similarity.heading.bodyHashMismatchScore
+  const depthMatch =
+    oldNode.section?.headingDepth === newNode.section?.headingDepth
+      ? 1
+      : DIFF_HEURISTICS.similarity.heading.depthMismatchScore
 
   if (hasChildren) {
+    const weights = DIFF_HEURISTICS.similarity.heading.withChildren
     return clamp01(
-      0.4 * titleSimilarity +
-        0.3 * headingBodySimilarity +
-        0.15 * depthMatch +
-        0.15 * structuralContext,
+      weights.titleWeight * titleSimilarity +
+        weights.bodyWeight * headingBodySimilarity +
+        weights.depthWeight * depthMatch +
+        weights.contextWeight * structuralContext,
     )
   }
 
-  return clamp01(0.6 * titleSimilarity + 0.2 * depthMatch + 0.2 * structuralContext)
+  const weights = DIFF_HEURISTICS.similarity.heading.leaf
+  return clamp01(
+    weights.titleWeight * titleSimilarity +
+      weights.depthWeight * depthMatch +
+      weights.contextWeight * structuralContext,
+  )
 }
 
 function codeSimilarity(
@@ -101,7 +119,8 @@ function codeSimilarity(
     sequenceSimilarity(oldLines, newLines),
     charSimilarity,
   )
-  const langBonus = oldNode.block?.lang === newNode.block?.lang ? 0.1 : 0
+  const langBonus =
+    oldNode.block?.lang === newNode.block?.lang ? DIFF_HEURISTICS.similarity.code.langBonus : 0
   return clamp01(lineSimilarity + langBonus)
 }
 
@@ -117,7 +136,11 @@ function tableSimilarity(
   const shapeSimilarity = Math.min(ratio(oldRows.length, newRows.length), ratio(maxColumns(oldRows), maxColumns(newRows)))
   const cellContentSimilarity = averageTableCellSimilarity(oldRows, newRows, options)
   const alignmentMatch = exactAlignmentRatio(oldAlign, newAlign)
-  return clamp01(0.3 * shapeSimilarity + 0.5 * cellContentSimilarity + 0.2 * alignmentMatch)
+  return clamp01(
+    DIFF_HEURISTICS.similarity.table.shapeWeight * shapeSimilarity +
+      DIFF_HEURISTICS.similarity.table.cellContentWeight * cellContentSimilarity +
+      DIFF_HEURISTICS.similarity.table.alignmentWeight * alignmentMatch,
+  )
 }
 
 function footnoteOrDefinitionSimilarity(
@@ -146,7 +169,11 @@ function definitionFieldSimilarity(
   const urlSimilarity = tokenSimilarity(tokenizeText(oldUrl), tokenizeText(newUrl), options)
   const titleSimilarity = tokenSimilarity(tokenizeText(oldTitle), tokenizeText(newTitle), options)
   const labelSimilarity = tokenSimilarity(tokenizeText(oldLabel), tokenizeText(newLabel), options)
-  return clamp01(0.5 * urlSimilarity + 0.25 * titleSimilarity + 0.25 * labelSimilarity)
+  return clamp01(
+    DIFF_HEURISTICS.similarity.definition.urlWeight * urlSimilarity +
+      DIFF_HEURISTICS.similarity.definition.titleWeight * titleSimilarity +
+      DIFF_HEURISTICS.similarity.definition.labelWeight * labelSimilarity,
+  )
 }
 
 function tokenSimilarity(
