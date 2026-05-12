@@ -31,6 +31,7 @@ import {
   jaccardSimilarity,
   makeMoveId,
   makePairKey,
+  multisetJaccardSimilarity,
   normalizeIdentifier,
   simHashHammingDistance,
   tokenizeText,
@@ -55,6 +56,59 @@ interface DiffContext {
 
 interface AptedDiffMeta {
   node: NonNullable<ReturnType<SemanticIndex['byId']['get']>>
+}
+
+class AnchorRegistry {
+  private globalAnchors: Array<{ oldPreorder: number; newPreorder: number }> = []
+
+  register(oldPreorder: number, newPreorder: number): void {
+    const existing = this.globalAnchors.find(
+      (anchor) => anchor.oldPreorder === oldPreorder && anchor.newPreorder === newPreorder,
+    )
+    if (existing) return
+
+    this.globalAnchors.push({ oldPreorder, newPreorder })
+    this.globalAnchors.sort((left, right) => left.oldPreorder - right.oldPreorder)
+  }
+
+  getGlobalInterval(oldPreorder: number, newTreeSize: number): { min: number; max: number } {
+    if (this.globalAnchors.length === 0) {
+      return {
+        min: 0,
+        max: Math.max(0, newTreeSize - 1),
+      }
+    }
+
+    let leftNewPreorder = -1
+    let rightNewPreorder = newTreeSize
+    for (const anchor of this.globalAnchors) {
+      if (anchor.oldPreorder < oldPreorder) {
+        leftNewPreorder = anchor.newPreorder
+        continue
+      }
+
+      if (anchor.oldPreorder > oldPreorder) {
+        rightNewPreorder = anchor.newPreorder
+        break
+      }
+    }
+
+    const min = Math.max(0, leftNewPreorder + 1)
+    const max = Math.min(newTreeSize - 1, rightNewPreorder - 1)
+    if (min > max) return { min, max }
+    return { min, max }
+  }
+}
+
+interface SiblingAnchorBounds {
+  leftOldAnchorIndex: number
+  rightOldAnchorIndex: number
+  leftNewAnchorIndex: number
+  rightNewAnchorIndex: number
+  oldMin: number
+  oldMax: number
+  newMin: number
+  newMax: number
 }
 
 export async function diffMarkdownTrees(
@@ -106,9 +160,11 @@ export async function diffMarkdownTrees(
 async function runDeterministicMatching(context: DiffContext): Promise<void> {
   const coveredOld = new Set<string>()
   const coveredNew = new Set<string>()
+  const anchors = new AnchorRegistry()
+  registerDeterministicAnchor(context, anchors, oldRootPair(context))
 
-  await applyExactSubtreeMatches(context, coveredOld, coveredNew)
-  const candidates = await collectDeterministicCandidates(context, coveredOld, coveredNew)
+  await applyExactSubtreeMatches(context, anchors, coveredOld, coveredNew)
+  const candidates = await collectDeterministicCandidates(context, anchors, coveredOld, coveredNew)
   const highestPriorityByOld = new Map<string, number>()
   const highestPriorityByNew = new Map<string, number>()
   for (const candidate of candidates) {
@@ -136,13 +192,15 @@ async function runDeterministicMatching(context: DiffContext): Promise<void> {
       if (discardedOld.has(candidate.oldId) || discardedNew.has(candidate.newId)) continue
       if (conflictingOld.has(candidate.oldId) || conflictingNew.has(candidate.newId)) continue
       if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId)) continue
-      addMatch(context, candidate.oldId, candidate.newId, candidate.matchKind, undefined, candidate.score)
+      const pair = addMatch(context, candidate.oldId, candidate.newId, candidate.matchKind, undefined, candidate.score)
+      registerDeterministicAnchor(context, anchors, pair)
     }
   }
 }
 
 async function applyExactSubtreeMatches(
   context: DiffContext,
+  anchors: AnchorRegistry,
   blockedOld: Set<string>,
   blockedNew: Set<string>,
 ): Promise<void> {
@@ -168,7 +226,8 @@ async function applyExactSubtreeMatches(
   for (const candidate of exactSubtrees) {
     if (blockedOld.has(candidate.oldId) || blockedNew.has(candidate.newId)) continue
     if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId)) continue
-    addMatch(context, candidate.oldId, candidate.newId, 'exact-subtree', undefined, 1)
+    const pair = addMatch(context, candidate.oldId, candidate.newId, 'exact-subtree', undefined, 1)
+    registerDeterministicAnchor(context, anchors, pair)
     coverDescendants(context.oldIndex, candidate.oldId, blockedOld)
     coverDescendants(context.newIndex, candidate.newId, blockedNew)
   }
@@ -176,12 +235,13 @@ async function applyExactSubtreeMatches(
 
 async function collectDeterministicCandidates(
   context: DiffContext,
+  anchors: AnchorRegistry,
   blockedOld: Set<string>,
   blockedNew: Set<string>,
 ): Promise<MatchCandidate[]> {
   const candidates: MatchCandidate[] = []
   const exactSelf = uniqueSharedHashes(context.oldIndex.bySelfHash, context.newIndex.bySelfHash)
-    .map(([oldId, newId]) => classifyExactSelfCandidate(context, oldId, newId))
+    .map(([oldId, newId]) => classifyExactSelfCandidate(context, anchors, oldId, newId))
     .filter((candidate): candidate is MatchCandidate => !!candidate)
   const exactDirect = uniqueSharedHashes(context.oldIndex.byDirectHash, context.newIndex.byDirectHash)
     .map(([oldId, newId]) => ({ oldId, newId, matchKind: 'exact-direct' as const, priority: 4, score: 1 }))
@@ -202,7 +262,7 @@ async function collectDeterministicCandidates(
         !blockedNew.has(candidate.newId) &&
         oldNode?.entity === 'section' &&
         newNode?.entity === 'section' &&
-        canDeterministicallyMatch(context, candidate.oldId, candidate.newId)
+        canDeterministicallyMatch(context, anchors, candidate.oldId, candidate.newId)
       )
     }),
   )
@@ -278,10 +338,7 @@ async function buildMatchedChange(
   }
 
   if (oldNode.entity === 'section' && newNode.entity === 'section') {
-    if (
-      pair.matchKind !== 'exact-subtree' &&
-      Math.max(oldNode.subtreeSize, newNode.subtreeSize) <= context.options.maxRecursiveSubtreeSize
-    ) {
+    if (pair.matchKind !== 'exact-subtree' && estimateSectionAlignmentCost(context, oldNode, newNode) <= context.options.maxRecursiveAlignmentCost) {
       change.children = await alignChildren(context, oldNode.id, newNode.id, mode)
       if (change.children.some((child) => child.primaryOp !== 'equal' || child.status.descendantChanged)) {
         change.status.descendantChanged = true
@@ -498,8 +555,7 @@ async function buildAlignedChange(
   }
 
   if (oldNode.entity === 'section' && newNode.entity === 'section') {
-    const budget = Math.max(oldNode.subtreeSize, newNode.subtreeSize)
-    if (budget <= context.options.maxLocalWindowSize) {
+    if (estimateSectionAlignmentCost(context, oldNode, newNode) <= context.options.maxLocalAlignmentCost) {
       await seedLocalMatches(context, oldNode.id, newNode.id)
       change.children = await alignChildren(context, oldNode.id, newNode.id, 'local')
       if (change.children.some((child) => child.primaryOp !== 'equal' || child.status.descendantChanged)) {
@@ -545,7 +601,7 @@ async function seedLocalMatches(context: DiffContext, oldParentId: string, newPa
   for (const oldId of oldChildren) {
     const oldNode = context.oldIndex.byId.get(oldId)
     if (!oldNode || context.matchesByOld.has(oldId)) continue
-    const comparables = recallComparableNodes(context, oldNode, newChildren)
+    const comparables = recallComparableNodes(context, oldNode, newChildren, oldParentId, newParentId)
     if (comparables.length === 0) continue
 
     const scores = comparables.map((newNode) => computeNodeSimilarity(oldNode, newNode, context.options, 1))
@@ -612,8 +668,11 @@ function recallComparableNodes(
   context: DiffContext,
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   newIds: string[],
+  oldParentId: string,
+  newParentId: string,
 ): Array<NonNullable<ReturnType<SemanticIndex['byId']['get']>>> {
-  const sameShape = newIds
+  const boundedIds = boundCandidateIdsBySiblingAnchors(context, oldNode, newIds, oldParentId, newParentId)
+  const sameShape = boundedIds
     .map((newId) => context.newIndex.byId.get(newId))
     .filter(
       (newNode): newNode is NonNullable<typeof newNode> =>
@@ -653,7 +712,7 @@ async function maybeApplyStructuralFallback(
   const unresolved = change.children.filter((child) => child.primaryOp !== 'equal').length
   const total = Math.max(oldChildren.length + newChildren.length, 1)
   if (total === 0 || unresolved / total <= context.options.aptedUnpairedThreshold) return
-  if (Math.max(oldNode.subtreeSize, newNode.subtreeSize) > context.options.aptedMaxSubtreeSize) {
+  if (estimateAptedRecoveryCost(change) > context.options.maxAptedCost) {
     change.warnings.push('enhanced-local-recovery-budget-exceeded')
     return
   }
@@ -872,7 +931,7 @@ async function computePresentationDiffs(context: DiffContext, root: DiffChange):
         const result = await diffInlineNodes(
           oldNode.block?.children ?? [],
           newNode.block?.children ?? [],
-          context.options.maxInlineDiffCost,
+          context.options.maxInlineDiffMatrixCost,
           sequenceTuning(context.options),
         )
         change.inlineSpans = result.spans
@@ -911,7 +970,13 @@ function validateTree(root: DiffChange, warnings: string[]): void {
     if (change.primaryOp === 'equal' && change.status.selfChanged && !change.status.renamed) warnings.push(`invalid-equal-state:${change.summary}`)
     if (change.status.isMatchPair && change.pairKind !== 'match') warnings.push(`invalid-match-kind:${change.summary}`)
     if (change.status.isAlignedPair && change.pairKind !== 'align') warnings.push(`invalid-align-kind:${change.summary}`)
-    if (change.primaryOp === 'meta-update' && !change.status.isMatchPair) warnings.push(`invalid-meta-pair:${change.summary}`)
+    if (
+      change.entity !== 'metadata' &&
+      change.primaryOp === 'meta-update' &&
+      !change.status.isMatchPair
+    ) {
+      warnings.push(`invalid-meta-pair:${change.summary}`)
+    }
     if (change.primaryOp === 'move' && (!change.logicalMoveId || !change.moveRole)) warnings.push(`invalid-move-link:${change.summary}`)
   }
 }
@@ -958,13 +1023,13 @@ function collectQuality(root: DiffChange, warnings: string[]): DiffQualitySummar
 async function diffInlineNodes(
   oldChildren: InlineContent[],
   newChildren: InlineContent[],
-  maxInlineDiffCost: number,
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
+  maxInlineDiffMatrixCost: number,
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
 ): Promise<{ spans: InlineSpan[]; inlineStructureChanged: boolean; deferred: boolean }> {
-  if (oldChildren.length + newChildren.length > maxInlineDiffCost) {
+  if (estimateInlineDiffCost(oldChildren, newChildren) > maxInlineDiffMatrixCost) {
     return {
       spans: [{ op: 'replace', oldText: extractInlineText(oldChildren), newText: extractInlineText(newChildren) }],
-      inlineStructureChanged: true,
+      inlineStructureChanged: false,
       deferred: true,
     }
   }
@@ -1058,7 +1123,7 @@ async function computeTableMetadataChange(
         const result = await diffInlineNodes(
           oldCell,
           newCell,
-          options.maxInlineDiffCost,
+          options.maxInlineDiffMatrixCost,
           sequenceTuning(options),
         )
         const spans = result.spans.length > 0 ? result.spans : [{
@@ -1088,7 +1153,7 @@ async function computeTableMetadataChange(
 async function diffWordText(
   oldText: string,
   newText: string,
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
 ): Promise<InlineSpan[]> {
   return [
     {
@@ -1103,7 +1168,7 @@ async function diffWordText(
 function diffWordTextSync(
   oldText: string,
   newText: string,
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
 ): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
   const oldWords = tokenizeText(oldText)
   const newWords = tokenizeText(newText)
@@ -1114,7 +1179,7 @@ function diffWordTextSync(
 async function buildInlineReplaceSpan(
   oldTokens: InlineToken[],
   newTokens: InlineToken[],
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
 ): Promise<InlineSpan> {
   const oldText = oldTokens.map((token) => token.rawText).join('')
   const newText = newTokens.map((token) => token.rawText).join('')
@@ -1132,7 +1197,7 @@ async function buildInlineReplaceSpan(
 function diffCharacters(
   oldText: string,
   newText: string,
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
 ): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
   const oldChars = [...oldText]
   const newChars = [...newText]
@@ -1190,7 +1255,7 @@ function coalesceLineDiffSpans(
   edits: Array<{ op: 'equal' | 'insert' | 'delete'; oldIndex?: number; newIndex?: number }>,
   oldLines: string[],
   newLines: string[],
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
 ): LineDiffSpan[] {
   const spans: LineDiffSpan[] = []
   let deleteIndexes: number[] = []
@@ -1307,6 +1372,7 @@ async function ensureMatchedToken(
   const newNode = context.newIndex.byId.get(newId)
   if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return undefined
 
+  if (!withinSiblingOffsetThreshold(context, oldNode, newNode)) return undefined
   const score = computeNodeSimilarity(oldNode, newNode, context.options, parentContextScore(context, oldParentId, newParentId))
   if (oldNode.selfHash === newNode.selfHash && score >= context.options.minSimilarity) {
     return addMatch(context, oldId, newId, 'exact-self-with-context', undefined, score)
@@ -1348,7 +1414,12 @@ function addMatch(
   return pair
 }
 
-function canDeterministicallyMatch(context: DiffContext, oldId: string, newId: string): boolean {
+function canDeterministicallyMatch(
+  context: DiffContext,
+  anchors: AnchorRegistry,
+  oldId: string,
+  newId: string,
+): boolean {
   const oldNode = context.oldIndex.byId.get(oldId)
   const newNode = context.newIndex.byId.get(newId)
   if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return false
@@ -1358,11 +1429,17 @@ function canDeterministicallyMatch(context: DiffContext, oldId: string, newId: s
     if (parentPair?.newId === newNode.parentId) return true
   }
 
-  if (Math.abs(oldNode.siblingIndex - newNode.siblingIndex) > context.options.preorderOffsetThreshold) return false
-  return hasLocalHashContext(context, oldNode, newNode)
+  if (!withinSiblingOffsetThreshold(context, oldNode, newNode)) return false
+  if (!isCandidateWithinAnchoredBounds(context, anchors, oldNode, newNode)) return false
+  return hasLocalHashContext(context, anchors, oldNode, newNode)
 }
 
-function classifyExactSelfCandidate(context: DiffContext, oldId: string, newId: string): MatchCandidate | undefined {
+function classifyExactSelfCandidate(
+  context: DiffContext,
+  anchors: AnchorRegistry,
+  oldId: string,
+  newId: string,
+): MatchCandidate | undefined {
   const oldNode = context.oldIndex.byId.get(oldId)
   const newNode = context.newIndex.byId.get(newId)
   if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return undefined
@@ -1374,28 +1451,48 @@ function classifyExactSelfCandidate(context: DiffContext, oldId: string, newId: 
     }
   }
 
-  if (Math.abs(oldNode.siblingIndex - newNode.siblingIndex) > context.options.preorderOffsetThreshold) return undefined
-  if (!hasLocalHashContext(context, oldNode, newNode)) return undefined
+  if (!withinSiblingOffsetThreshold(context, oldNode, newNode)) return undefined
+  if (!isCandidateWithinAnchoredBounds(context, anchors, oldNode, newNode)) return undefined
+  if (!hasLocalHashContext(context, anchors, oldNode, newNode)) return undefined
   return { oldId, newId, matchKind: 'exact-self-with-context', priority: 5, score: 1 }
 }
 
 function hasLocalHashContext(
   context: DiffContext,
+  anchors: AnchorRegistry,
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
 ): boolean {
   const oldSiblings = oldNode.parentId ? context.oldIndex.childrenById.get(oldNode.parentId) ?? [] : []
   const newSiblings = newNode.parentId ? context.newIndex.childrenById.get(newNode.parentId) ?? [] : []
-  const oldWindow = oldSiblings.slice(
-    Math.max(0, oldNode.siblingIndex - context.options.contextSiblingWindow),
-    oldNode.siblingIndex + context.options.contextSiblingWindow + 1,
-  )
-    .filter((candidateOldId) => candidateOldId !== oldNode.id)
-  const newWindow = newSiblings.slice(
-    Math.max(0, newNode.siblingIndex - context.options.contextSiblingWindow),
-    newNode.siblingIndex + context.options.contextSiblingWindow + 1,
-  )
-    .filter((candidateNewId) => candidateNewId !== newNode.id)
+
+  const siblingBounds =
+    oldNode.parentId && newNode.parentId
+      ? resolveSiblingAnchorBounds(context, oldNode.parentId, newNode.parentId, oldNode.siblingIndex)
+      : undefined
+
+  const oldWindow = sliceSiblingWitnessWindow(
+    oldSiblings,
+    oldNode.siblingIndex,
+    context.options.contextSiblingWindow,
+    siblingBounds?.oldMin,
+    siblingBounds?.oldMax,
+  ).filter((candidateOldId) => candidateOldId !== oldNode.id)
+
+  const newWindow = sliceSiblingWitnessWindow(
+    newSiblings,
+    newNode.siblingIndex,
+    context.options.contextSiblingWindow,
+    siblingBounds?.newMin,
+    siblingBounds?.newMax,
+  ).filter((candidateNewId) => {
+    if (candidateNewId === newNode.id) return false
+    if (siblingBounds) return true
+    const candidateNew = context.newIndex.byId.get(candidateNewId)
+    if (!candidateNew) return false
+    const interval = anchors.getGlobalInterval(oldNode.preorder, context.newIndex.nodesInPreorder.length)
+    return candidateNew.preorder >= interval.min && candidateNew.preorder <= interval.max
+  })
 
   return oldWindow.some((candidateOldId) => {
     const candidateOld = context.oldIndex.byId.get(candidateOldId)
@@ -1435,6 +1532,138 @@ function parentContextScore(context: DiffContext, oldParentId: string, newParent
   return pair?.newId === newParentId
     ? DIFF_HEURISTICS.context.matchedParentScore
     : DIFF_HEURISTICS.context.unmatchedParentScore
+}
+
+function oldRootPair(context: DiffContext): MatchPair | undefined {
+  return context.matchesByOld.get(context.oldIndex.rootId)
+}
+
+function shouldRegisterDeterministicAnchor(matchKind: MatchKind | undefined): boolean {
+  return matchKind === 'forced-root' || matchKind === 'exact-subtree' || matchKind === 'exact-self'
+}
+
+function registerDeterministicAnchor(
+  context: DiffContext,
+  anchors: AnchorRegistry,
+  pair: MatchPair | undefined,
+): void {
+  if (!pair || !shouldRegisterDeterministicAnchor(pair.matchKind)) return
+  const oldNode = context.oldIndex.byId.get(pair.oldId)
+  const newNode = context.newIndex.byId.get(pair.newId)
+  if (!oldNode || !newNode) return
+  anchors.register(oldNode.preorder, newNode.preorder)
+}
+
+function isCandidateWithinAnchoredBounds(
+  context: DiffContext,
+  anchors: AnchorRegistry,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  if (oldNode.parentId && newNode.parentId) {
+    const siblingBounds = resolveSiblingAnchorBounds(context, oldNode.parentId, newNode.parentId, oldNode.siblingIndex)
+    if (siblingBounds) {
+      return newNode.siblingIndex >= siblingBounds.newMin && newNode.siblingIndex <= siblingBounds.newMax
+    }
+  }
+
+  const interval = anchors.getGlobalInterval(oldNode.preorder, context.newIndex.nodesInPreorder.length)
+  return newNode.preorder >= interval.min && newNode.preorder <= interval.max
+}
+
+function resolveSiblingAnchorBounds(
+  context: DiffContext,
+  oldParentId: string,
+  newParentId: string,
+  oldSiblingIndex: number,
+): SiblingAnchorBounds | undefined {
+  const oldSiblings = context.oldIndex.childrenById.get(oldParentId) ?? []
+  const newSiblings = context.newIndex.childrenById.get(newParentId) ?? []
+  if (oldSiblings.length === 0 || newSiblings.length === 0) return undefined
+
+  let leftOldAnchorIndex = -1
+  let leftNewAnchorIndex = -1
+  for (let index = Math.min(oldSiblingIndex - 1, oldSiblings.length - 1); index >= 0; index--) {
+    const siblingId = oldSiblings[index]
+    if (!siblingId) continue
+    const pair = context.matchesByOld.get(siblingId)
+    if (!pair) continue
+    const matchedNode = context.newIndex.byId.get(pair.newId)
+    if (!matchedNode || matchedNode.parentId !== newParentId) continue
+    leftOldAnchorIndex = index
+    leftNewAnchorIndex = matchedNode.siblingIndex
+    break
+  }
+
+  let rightOldAnchorIndex = oldSiblings.length
+  let rightNewAnchorIndex = newSiblings.length
+  for (let index = Math.max(0, oldSiblingIndex + 1); index < oldSiblings.length; index++) {
+    const siblingId = oldSiblings[index]
+    if (!siblingId) continue
+    const pair = context.matchesByOld.get(siblingId)
+    if (!pair) continue
+    const matchedNode = context.newIndex.byId.get(pair.newId)
+    if (!matchedNode || matchedNode.parentId !== newParentId) continue
+    rightOldAnchorIndex = index
+    rightNewAnchorIndex = matchedNode.siblingIndex
+    break
+  }
+
+  if (leftOldAnchorIndex === -1 && rightOldAnchorIndex === oldSiblings.length) return undefined
+
+  const oldMin = Math.max(0, leftOldAnchorIndex + 1)
+  const oldMax = Math.min(oldSiblings.length - 1, rightOldAnchorIndex - 1)
+  const newMin = Math.max(0, leftNewAnchorIndex + 1)
+  const newMax = Math.min(newSiblings.length - 1, rightNewAnchorIndex - 1)
+  if (oldMin > oldMax || newMin > newMax) return undefined
+
+  return {
+    leftOldAnchorIndex,
+    rightOldAnchorIndex,
+    leftNewAnchorIndex,
+    rightNewAnchorIndex,
+    oldMin,
+    oldMax,
+    newMin,
+    newMax,
+  }
+}
+
+function boundCandidateIdsBySiblingAnchors(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newIds: string[],
+  oldParentId: string,
+  newParentId: string,
+): string[] {
+  const bounds = resolveSiblingAnchorBounds(context, oldParentId, newParentId, oldNode.siblingIndex)
+  if (!bounds) return newIds
+
+  const bounded = newIds.filter((newId) => {
+    const node = context.newIndex.byId.get(newId)
+    return !!node && node.siblingIndex >= bounds.newMin && node.siblingIndex <= bounds.newMax
+  })
+  return bounded.length > 0 ? bounded : newIds
+}
+
+function estimateSectionAlignmentCost(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): number {
+  const oldChildren = context.oldIndex.childrenById.get(oldNode.id)?.length ?? 0
+  const newChildren = context.newIndex.childrenById.get(newNode.id)?.length ?? 0
+  return oldChildren * newChildren + oldChildren + newChildren
+}
+
+function estimateAptedRecoveryCost(change: DiffChange): number {
+  const deletes = change.children.filter((child) => child.primaryOp === 'delete').length
+  const inserts = change.children.filter((child) => child.primaryOp === 'insert').length
+  return deletes * inserts
+}
+
+function estimateInlineDiffCost(oldChildren: InlineContent[], newChildren: InlineContent[]): number {
+  return oldChildren.length * newChildren.length
 }
 
 function shouldUseShortHeadingFallback(
@@ -1477,7 +1706,9 @@ function moveCandidateAllowed(context: DiffContext, deleted: DiffChange, inserte
   const oldNode = deleted.oldId ? context.oldIndex.byId.get(deleted.oldId) : undefined
   const newNode = inserted.newId ? context.newIndex.byId.get(inserted.newId) : undefined
   if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return false
-  if (Math.abs(oldNode.depth - newNode.depth) > context.options.moveDepthDiffMax) return false
+  if (Math.abs(oldNode.depth - newNode.depth) > context.options.moveDepthDiffMax && !hasCompatibleMovePath(oldNode, newNode)) {
+    return false
+  }
   if (oldNode.entity === 'section') {
     const ratio = oldNode.subtreeSize / Math.max(newNode.subtreeSize, 1)
     if (ratio < context.options.moveSubtreeSizeRatioMin || ratio > context.options.moveSubtreeSizeRatioMax) return false
@@ -1499,7 +1730,11 @@ function classifyMove(
   if (oldNode.subtreeHash === newNode.subtreeHash && uniqueMoveHash(deletes, inserts, context, 'subtreeHash', oldNode.subtreeHash)) {
     return 'move-exact'
   }
-  if (oldNode.entity === 'section' && oldNode.directHash === newNode.directHash && shareMatchedNeighborContext(context, oldNode, newNode)) {
+  if (
+    oldNode.entity === 'section' &&
+    oldNode.directHash === newNode.directHash &&
+    (shareMatchedNeighborContext(context, oldNode, newNode) || hasCompatibleMovePath(oldNode, newNode))
+  ) {
     return 'move-direct'
   }
   if (oldNode.kind === 'heading' && newNode.kind === 'heading' && oldNode.titleSlug === newNode.titleSlug) {
@@ -1522,6 +1757,23 @@ function computeHeadingMoveScore(
   if (oldNode.headingBodyHash && newNode.headingBodyHash && oldNode.headingBodyHash === newNode.headingBodyHash) return 1
   if (oldNode.contentOnlyHash === newNode.contentOnlyHash) return 1
   return jaccardSimilarity(oldNode.textTokens, newNode.textTokens)
+}
+
+function hasCompatibleMovePath(
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  if (oldNode.pathParts.length === 0 || newNode.pathParts.length === 0) return false
+  return longestCommonPathSuffix(oldNode.pathParts, newNode.pathParts) === Math.min(oldNode.pathParts.length, newNode.pathParts.length)
+}
+
+function longestCommonPathSuffix(left: readonly string[], right: readonly string[]): number {
+  let matches = 0
+  for (let leftIndex = left.length - 1, rightIndex = right.length - 1; leftIndex >= 0 && rightIndex >= 0; leftIndex--, rightIndex--) {
+    if (left[leftIndex] !== right[rightIndex]) break
+    matches++
+  }
+  return matches
 }
 
 function isUniqueHeadingMoveCandidate(
@@ -1547,13 +1799,9 @@ function isUniqueHeadingMoveCandidate(
           newId: newHeading.id,
           score: computeHeadingMoveScore(oldHeading, newHeading),
         })),
-    )
+  )
   const target = candidates.find((candidate) => candidate.oldId === oldId && candidate.newId === newId)
   if (!target || target.score !== score) return false
-
-  const sortedScores = candidates.map((candidate) => candidate.score).sort((left, right) => right - left)
-  if (sortedScores[0] !== score) return false
-  if (sortedScores.length > 1 && score - (sortedScores[1] ?? 0) < context.options.minUniquenessMargin) return false
 
   const oldScores = candidates.filter((candidate) => candidate.oldId === oldId).map((candidate) => candidate.score)
   const newScores = candidates.filter((candidate) => candidate.newId === newId).map((candidate) => candidate.score)
@@ -1822,7 +2070,7 @@ function childShapeSimilarity(context: DiffContext, oldChildren: string[], newCh
     .filter((node): node is NonNullable<typeof node> => !!node)
     .map((node) => (node.entity === 'section' ? `section:${node.kind}` : `block:${node.blockType}`))
   if (oldSignature.length === 0 && newSignature.length === 0) return 1
-  return jaccardSimilarity(oldSignature, newSignature)
+  return multisetJaccardSimilarity(oldSignature, newSignature)
 }
 
 function sourceRangeCloseness(
@@ -2025,6 +2273,29 @@ function maxColumns(rows: string[][]): number {
 
 function neighborIds(ids: string[], index: number): string[] {
   return [ids[index - 1], ids[index + 1]].filter((value): value is string => !!value)
+}
+
+function withinSiblingOffsetThreshold(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  return Math.abs((oldNode.siblingIndex ?? 0) - (newNode.siblingIndex ?? 0)) <= context.options.preorderOffsetThreshold
+}
+
+function sliceSiblingWitnessWindow(
+  siblingIds: string[],
+  centerIndex: number,
+  radius: number,
+  boundedMin?: number,
+  boundedMax?: number,
+): string[] {
+  const minIndex = boundedMin ?? 0
+  const maxIndex = boundedMax ?? siblingIds.length - 1
+  const start = Math.max(minIndex, centerIndex - radius)
+  const end = Math.min(maxIndex, centerIndex + radius)
+  if (start > end) return []
+  return siblingIds.slice(start, end + 1)
 }
 
 function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {

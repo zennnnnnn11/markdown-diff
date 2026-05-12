@@ -17,14 +17,18 @@ export type SequenceStrategy = 'auto' | 'myers' | 'heckel' | 'histogram'
 export function alignSequence<T>(
   oldValues: readonly T[],
   newValues: readonly T[],
-  options: Pick<DiffOptions, 'shortSequenceThreshold' | 'heckelUniqueRatio'>,
+  options: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
   strategy: SequenceStrategy = 'auto',
 ): SequenceEdit<T>[] {
   if (strategy === 'myers') return myersShortestEditScript(oldValues, newValues)
   if (strategy === 'heckel') return heckelAlign(oldValues, newValues)
   if (strategy === 'histogram') return histogramAlign(oldValues, newValues)
 
-  if (Math.max(oldValues.length, newValues.length) < options.shortSequenceThreshold) {
+  if (Math.max(oldValues.length, newValues.length) <= options.shortSequenceThreshold) {
+    return myersShortestEditScript(oldValues, newValues)
+  }
+
+  if (oldValues.length * newValues.length <= options.maxQuadraticSequenceCost) {
     return myersShortestEditScript(oldValues, newValues)
   }
 
@@ -296,7 +300,11 @@ function stitchFromAnchors<T>(
       ...alignSequence(
         oldValues.slice(oldStart, anchor.oldIndex),
         newValues.slice(newStart, anchor.newIndex),
-        { shortSequenceThreshold: Number.MAX_SAFE_INTEGER, heckelUniqueRatio: 1 },
+        {
+          shortSequenceThreshold: Number.MAX_SAFE_INTEGER,
+          maxQuadraticSequenceCost: Number.MAX_SAFE_INTEGER,
+          heckelUniqueRatio: 1,
+        },
         fallback,
       ).map((edit) => rebaseEdit(edit, oldStart, newStart)),
     )
@@ -314,7 +322,11 @@ function stitchFromAnchors<T>(
     ...alignSequence(
       oldValues.slice(oldStart),
       newValues.slice(newStart),
-      { shortSequenceThreshold: Number.MAX_SAFE_INTEGER, heckelUniqueRatio: 1 },
+      {
+        shortSequenceThreshold: Number.MAX_SAFE_INTEGER,
+        maxQuadraticSequenceCost: Number.MAX_SAFE_INTEGER,
+        heckelUniqueRatio: 1,
+      },
       fallback,
     ).map((edit) => rebaseEdit(edit, oldStart, newStart)),
   )

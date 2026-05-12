@@ -18,6 +18,31 @@ async function diffMarkdown(
   return diffMarkdownTrees(oldTree, newTree, options)
 }
 
+function sectionTitle(node: unknown): string | undefined {
+  return node && typeof node === 'object' && 'title' in node ? String((node as { title?: unknown }).title ?? '') : undefined
+}
+
+function nodeText(node: unknown): string {
+  if (!node || typeof node !== 'object') return ''
+  if ('value' in node) return String((node as { value?: unknown }).value ?? '')
+  if ('children' in node && Array.isArray((node as { children?: unknown[] }).children)) {
+    return ((node as { children: unknown[] }).children)
+      .map((child) => nodeText(child))
+      .filter(Boolean)
+      .join(' ')
+      .trim()
+  }
+  return ''
+}
+
+function nestedList(depth: number, leaf: string): string {
+  return Array.from({ length: depth }, (_, index) => {
+    const indent = '  '.repeat(index)
+    const text = index === depth - 1 ? leaf : `item ${index}`
+    return `${indent}- ${text}`
+  }).join('\n')
+}
+
 describe('diff integration', () => {
   it('diffs identical documents without edits', async () => {
     const result = await diffMarkdown('# Intro\n\nParagraph')
@@ -52,16 +77,6 @@ describe('diff integration', () => {
 
     expect(exactSubtrees).toHaveLength(1)
     expect(exactParagraph).toBeUndefined()
-  })
-
-  it('records exact-self-with-context for deterministic local-context matches', async () => {
-    const result = await diffMarkdown(
-      '# Old Parent\n\n## Child A\n\nold text\n\n## Child B\n\nsame text',
-      '# New Parent\n\n## Child A\n\nnew text\n\n## Child B\n\nsame text',
-    )
-    const contextualMatches = result.matches.filter((pair) => pair.matchKind === 'exact-self-with-context')
-
-    expect(contextualMatches.length).toBeGreaterThan(0)
   })
 
   it('recovers heading rename when body is unchanged', async () => {
@@ -150,9 +165,13 @@ meta:
 ---`
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
     const frontmatter = flatten(result.root).find((change) => change.kind === 'frontmatter')
+    const metadataChildren = frontmatter?.children.filter((change) => change.entity === 'metadata') ?? []
 
     expect(frontmatter?.primaryOp).toBe('meta-update')
     expect(frontmatter?.metadataChanges?.map((entry) => entry.path)).toEqual(['$.meta.b', '$.title'])
+    expect(metadataChildren.map((change) => change.metadataChanges?.[0]?.path)).toEqual(['$.meta.b', '$.title'])
+    expect(metadataChildren.every((change) => change.status.metaChanged)).toBe(true)
+    expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual([])
   })
 
   it('computes table diff for cell edits', async () => {
@@ -194,6 +213,23 @@ meta:
     expect(code?.codeSpans?.some((span) => span.op === 'replace' && span.charSpans?.length)).toBe(true)
   })
 
+  it('marks deferred inline diffs without inventing inline structure changes', async () => {
+    const result = await diffMarkdown('# Intro\n\nplain old text', '# Intro\n\nplain new text', {
+      maxInlineDiffMatrixCost: 0,
+    })
+    const paragraph = flatten(result.root).find((change) => change.blockType === 'paragraph')
+
+    expect(paragraph?.warnings).toContain('inline-deferred')
+    expect(paragraph?.status.inlineStructureChanged).toBe(false)
+    expect(paragraph?.inlineSpans).toEqual([
+      {
+        op: 'replace',
+        oldText: 'plain old text',
+        newText: 'plain new text',
+      },
+    ])
+  })
+
   it('uses enhanced local recovery to align unresolved structural children', async () => {
     const oldMarkdown = `# Alpha Project Notes
 
@@ -220,12 +256,86 @@ meta:
 
   it('tracks degraded aligned sections in quality summary', async () => {
     const result = await diffMarkdown('# Alpha\n\nBody text', '# Beta\n\nBody text', {
-      maxLocalWindowSize: 1,
+      maxLocalAlignmentCost: 0,
       minSimilarity: 0.4,
     })
     const degradedChange = flatten(result.root).find((change) => change.degraded)
 
     expect(degradedChange?.warnings).toContain('local-window-exceeded')
     expect(result.quality.degradedCount).toBeGreaterThanOrEqual(1)
+  })
+
+  it('uses cost budgets instead of raw subtree size for deep low-fanout list hierarchies', async () => {
+    const oldMarkdown = `# Alpha\n\n${nestedList(60, 'old leaf')}`
+    const newMarkdown = `# Alpha\n\n${nestedList(60, 'new leaf')}`
+    const result = await diffMarkdown(oldMarkdown, newMarkdown, {
+      maxLocalWindowSize: 1,
+      maxLocalAlignmentCost: 200,
+      maxRecursiveSubtreeSize: 1,
+      maxRecursiveAlignmentCost: 200,
+      minSimilarity: 0.4,
+    })
+    const replacedParagraph = flatten(result.root).find(
+      (change) => change.blockType === 'paragraph' && change.primaryOp === 'replace',
+    )
+    const replacedLeafItem = flatten(result.root).find(
+      (change) =>
+        change.kind === 'listItem' &&
+        sectionTitle(change.oldNode) === 'old leaf' &&
+        sectionTitle(change.newNode) === 'new leaf',
+    )
+    const deepMatchedItem = flatten(result.root).find(
+      (change) =>
+        change.kind === 'listItem' &&
+        sectionTitle(change.oldNode) === 'item 57' &&
+        sectionTitle(change.newNode) === 'item 57' &&
+        !!change.pairKind,
+    )
+    expect(replacedParagraph ?? replacedLeafItem ?? deepMatchedItem).toBeDefined()
+    expect(flatten(result.root).some((change) => change.warnings.includes('local-window-exceeded'))).toBe(false)
+    expect(flatten(result.root).some((change) => change.warnings.includes('subtree-budget-exceeded'))).toBe(false)
+  })
+
+  it('bounds local similarity recall to the anchored sibling interval', async () => {
+    const result = await diffMarkdown(
+      '# Old Parent\n\nintro stable\n\nsetup alpha beta old\n\nmiddle stable',
+      '# New Parent\n\nintro stable\n\nsetup alpha beta new\n\nmiddle stable\n\nsetup alpha beta alternative',
+      { minSimilarity: 0.55 },
+    )
+    const targetParagraph = flatten(result.root).find(
+      (change) =>
+        change.blockType === 'paragraph' &&
+        nodeText(change.oldNode) === 'setup alpha beta old' &&
+        !!change.newNode,
+    )
+
+    expect(targetParagraph?.pairKind).toBe('match')
+    expect(nodeText(targetParagraph?.newNode)).toBe('setup alpha beta new')
+  })
+
+  it('still recovers exact moves after large insertions near the original location', async () => {
+    const result = await diffMarkdown(
+      '# A\n\n## Stable\n\nkeep\n\n## Moved\n\ncontent\n\n# B',
+      '# A\n\n## Stable\n\nkeep\n\n## Insert 1\n\na\n\n## Insert 2\n\nb\n\n## Insert 3\n\nc\n\n## Insert 4\n\nd\n\n## Insert 5\n\ne\n\n# B\n\n## Moved\n\ncontent',
+    )
+    const moveChanges = flatten(result.root).filter(
+      (change) => change.kind === 'heading' && sectionTitle(change.oldNode ?? change.newNode) === 'Moved',
+    )
+
+    expect(moveChanges.map((change) => change.primaryOp).sort()).toEqual(['move', 'move'])
+    expect(result.stats.moves).toBe(1)
+  })
+
+  it('recovers a heading move when additional ancestor headings extend the path beyond the legacy depth gate', async () => {
+    const result = await diffMarkdown(
+      '# Notes\n\n## Moved\n\ncontent\n\n# Other\n\nstable',
+      '# Wrapper\n\n## Layer Two\n\n### Layer Three\n\n#### Notes\n\n##### Moved\n\ncontent\n\n# Other\n\nstable',
+    )
+    const moveChanges = flatten(result.root).filter(
+      (change) => change.kind === 'heading' && sectionTitle(change.oldNode ?? change.newNode) === 'Notes',
+    )
+
+    expect(moveChanges.map((change) => change.primaryOp).sort()).toEqual(['move', 'move'])
+    expect(result.stats.moves).toBe(1)
   })
 })

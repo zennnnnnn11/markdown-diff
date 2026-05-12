@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { parseMarkdown } from '../../parser'
 import { transformMarkdown } from '../../transformer'
 import { buildSemanticIndex, diffMarkdownTrees } from '../index'
-import { normalizeHeadingTitle, normalizeIdentifier, simHashHammingDistance, slugifyHeading } from '../utils'
+import {
+  extractNodeText,
+  multisetJaccardSimilarity,
+  normalizeHeadingTitle,
+  normalizeIdentifier,
+  simHashHammingDistance,
+  slugifyHeading,
+} from '../utils'
 
 describe('diff indexer', () => {
   it('builds semantic index from transformer root items, definitions, and footnotes', async () => {
@@ -67,6 +74,48 @@ Paragraph with [ref][docs] and footnote[^1].
       warningCount: 0,
     })
   })
+
+  it('assigns preorder indexes in parent-before-child order', async () => {
+    const tree = transformMarkdown(await parseMarkdown('# Intro\n\nParagraph\n\n## Child\n\nLeaf'))
+    const index = await buildSemanticIndex(tree, 'old')
+    const labels = index.nodesInPreorder.map((node) =>
+      node.entity === 'section' ? `${node.kind}:${node.section?.title ?? ''}` : `${node.blockType}:${extractNodeText(node.block)}`,
+    )
+
+    expect(labels[0]).toBe('root:')
+    expect(labels[1]).toBe('heading:Intro')
+    expect(labels[2]).toBe('paragraph:Paragraph')
+    expect(labels[3]).toBe('heading:Child')
+    expect(labels[4]).toBe('paragraph:Leaf')
+    expect(index.byId.get('root')?.preorder).toBe(0)
+  })
+
+  it('merges synthetic definitions and footnotes into root logical order by source position', async () => {
+    const markdown = `Before [docs][ref].
+
+[ref]: https://example.com "Docs"
+
+After note[^1].
+
+[^1]: Footnote body`
+    const tree = transformMarkdown(await parseMarkdown(markdown))
+    const index = await buildSemanticIndex(tree, 'old')
+    const rootChildren = index.childrenById.get(index.rootId) ?? []
+    const orderedKinds = rootChildren.map((id) => {
+      const node = index.byId.get(id)
+      return node?.entity === 'section' ? node.kind : node?.blockType
+    })
+    const orderedTexts = rootChildren.map((id) => {
+      const node = index.byId.get(id)
+      return node ? extractNodeText(node.raw) : ''
+    })
+
+    expect(orderedKinds).toEqual(['paragraph', 'definition', 'paragraph', 'footnote'])
+    expect(orderedTexts[0]).toContain('Before')
+    expect(orderedTexts[1]).toContain('https://example.com')
+    expect(orderedTexts[2]).toContain('After note')
+    expect(orderedTexts[3]).toContain('Footnote body')
+  })
 })
 
 describe('diff utils', () => {
@@ -80,5 +129,10 @@ describe('diff utils', () => {
     expect(simHashHammingDistance('0f', '0f')).toBe(0)
     expect(simHashHammingDistance('0f', '00')).toBe(4)
     expect(simHashHammingDistance(undefined, '00')).toBeUndefined()
+  })
+
+  it('accounts for duplicate tokens in multiset similarity', () => {
+    expect(multisetJaccardSimilarity(['paragraph', 'paragraph', 'blockquote'], ['paragraph', 'blockquote', 'blockquote'])).toBe(0.5)
+    expect(multisetJaccardSimilarity(['paragraph', 'paragraph'], ['paragraph', 'paragraph'])).toBe(1)
   })
 })

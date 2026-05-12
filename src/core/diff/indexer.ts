@@ -49,6 +49,7 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
     footnotes: new Map(),
     definitions: new Map(),
   }
+  let nextPreorder = 0
 
   const indexedRoot = buildLogicalTree(root, tree)
   await visit(indexedRoot, undefined, [])
@@ -76,6 +77,7 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
     parentId: string | undefined,
     headingPath: string[],
   ): Promise<DiffNode> {
+    const preorder = nextPreorder++
     const nextPath =
       current.entity === 'section' && current.kind === 'heading'
         ? [...headingPath, (current.raw as Section).title]
@@ -87,11 +89,10 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
       childNodes.push(await visit(child, current.id, nextPath))
     }
 
-    const preorder = nodesInPreorder.length
     const baseNode = await createDiffNode(current, childNodes, parentId, preorder, nextPath)
 
     byId.set(baseNode.id, baseNode)
-    nodesInPreorder.push(baseNode)
+    nodesInPreorder[preorder] = baseNode
     childrenById.set(baseNode.id, childNodes.map((child) => child.id))
     if (baseNode.kind) addToMap(byKind, baseNode.kind, baseNode.id)
     if (baseNode.blockType) addToMap(byBlockType, baseNode.blockType, baseNode.id)
@@ -140,26 +141,7 @@ function buildIndexedSection(
   const sourceId = section.id
   const id = section.id
   const nextPath = section.kind === 'heading' ? [...headingPath, section.title] : headingPath
-  const items = [...section.items]
-
-  if (section.kind === 'root') {
-    for (const [index, definition] of (section.definitions ?? []).entries()) {
-      if (!items.some((item) => item.id === definition.id)) {
-        items.push({
-          ...definition,
-          id: `synth:def:${tree}:${index}`,
-        })
-      }
-    }
-    for (const [index, footnote] of (section.footnotes ?? []).entries()) {
-      if (!items.some((item) => item.id === footnote.id)) {
-        items.push({
-          ...footnote,
-          id: `synth:fn:${tree}:${index}`,
-        })
-      }
-    }
-  }
+  const items = section.kind === 'root' ? mergeRootLogicalItems(section, tree) : [...section.items]
 
   return {
     id,
@@ -177,6 +159,53 @@ function buildIndexedSection(
         : buildIndexedBlock(item, tree, id, index, nextPath),
     ),
   }
+}
+
+function mergeRootLogicalItems(root: Section, tree: 'old' | 'new'): Array<Block | Section> {
+  const existingItems = [...root.items]
+  const existingIds = new Set(existingItems.map((item) => item.id))
+  const syntheticItems: Array<Block | Section> = []
+
+  for (const [index, definition] of (root.definitions ?? []).entries()) {
+    if (existingIds.has(definition.id)) continue
+    syntheticItems.push({
+      ...definition,
+      id: `synth:def:${tree}:${index}`,
+    })
+  }
+
+  for (const [index, footnote] of (root.footnotes ?? []).entries()) {
+    if (existingIds.has(footnote.id)) continue
+    syntheticItems.push({
+      ...footnote,
+      id: `synth:fn:${tree}:${index}`,
+    })
+  }
+
+  if (syntheticItems.length === 0) return existingItems
+
+  syntheticItems.sort((left, right) => compareSourceOffsets(getItemSourceOffset(left), getItemSourceOffset(right)))
+
+  const merged: Array<Block | Section> = []
+  let syntheticIndex = 0
+  for (const item of existingItems) {
+    const itemOffset = getItemSourceOffset(item)
+    while (
+      syntheticIndex < syntheticItems.length &&
+      compareSourceOffsets(getItemSourceOffset(syntheticItems[syntheticIndex]!), itemOffset) < 0
+    ) {
+      merged.push(syntheticItems[syntheticIndex]!)
+      syntheticIndex++
+    }
+    merged.push(item)
+  }
+
+  while (syntheticIndex < syntheticItems.length) {
+    merged.push(syntheticItems[syntheticIndex]!)
+    syntheticIndex++
+  }
+
+  return merged
 }
 
 function buildIndexedBlock(
@@ -377,6 +406,20 @@ async function computeBlockIdentityHash(block: Block): Promise<string> {
 function extractSectionIdentifier(section: Section): string | undefined {
   if (section.kind !== 'footnote') return undefined
   return normalizeIdentifier((section.heading as any)?.identifier)
+}
+
+function getItemSourceOffset(item: Block | Section): number | undefined {
+  if (isSection(item)) {
+    return (item.heading as any)?.position?.start?.offset as number | undefined
+  }
+  return (item as any)?.position?.start?.offset as number | undefined
+}
+
+function compareSourceOffsets(left?: number, right?: number): number {
+  if (left === undefined && right === undefined) return 0
+  if (left === undefined) return 1
+  if (right === undefined) return -1
+  return left - right
 }
 
 function addToMap<K>(map: Map<K, string[]>, key: K, value: string): void {

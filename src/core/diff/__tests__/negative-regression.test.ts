@@ -123,4 +123,19 @@ describe('diff negative regressions', () => {
     const exactSelfWithContext = result.matches.filter((pair) => pair.matchKind === 'exact-self-with-context')
     expect(exactSelfWithContext).toHaveLength(0)
   })
+
+  it('does not emit invalid-meta-pair warnings for frontmatter metadata leaf changes', async () => {
+    const result = await diffMarkdown(
+      `---
+title: Old
+owner: alice
+---`,
+      `---
+title: New
+owner: bob
+---`,
+    )
+
+    expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual([])
+  })
 })
