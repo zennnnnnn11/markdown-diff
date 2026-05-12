@@ -240,11 +240,25 @@ export interface DiffStats {
   renames: number
 }
 
+export interface DiffChangeIndex {
+  byOldId: Map<string, DiffChange>
+  byNewId: Map<string, DiffChange>
+  byPairKey: Map<string, DiffChange>
+}
+
+export interface DiffQualitySummary {
+  degradedCount: number
+  inlineDeferredCount: number
+  warningCount: number
+}
+
 export interface DiffResult {
   root: DiffChange
   oldIndex: SemanticIndex
   newIndex: SemanticIndex
   matches: MatchPair[]
+  changeIndex: DiffChangeIndex
   stats: DiffStats
+  quality: DiffQualitySummary
   warnings: string[]
 }

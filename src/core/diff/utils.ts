@@ -154,6 +154,18 @@ export async function charikarSimHash(tokens: readonly string[]): Promise<string
   return result.toString(16).padStart(16, '0')
 }
 
+export function simHashHammingDistance(left?: string, right?: string): number | undefined {
+  if (!left || !right) return undefined
+  const xor = BigInt(`0x${left}`) ^ BigInt(`0x${right}`)
+  let value = xor
+  let distance = 0
+  while (value !== 0n) {
+    distance += Number(value & 1n)
+    value >>= 1n
+  }
+  return distance
+}
+
 export function jaccardSimilarity(left: readonly string[], right: readonly string[]): number {
   const leftSet = new Set(left)
   const rightSet = new Set(right)

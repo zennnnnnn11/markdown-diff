@@ -95,6 +95,13 @@ content`
     expect(moveChanges).toHaveLength(2)
     expect(moveChanges.map((change) => change.moveRole).sort()).toEqual(['source', 'target'])
     expect(result.stats.moves).toBe(1)
+    const source = moveChanges.find((change) => change.moveRole === 'source')
+    const target = moveChanges.find((change) => change.moveRole === 'target')
+
+    expect(source?.oldId).toBeDefined()
+    expect(target?.newId).toBeDefined()
+    expect(source?.oldId ? result.changeIndex.byOldId.get(source.oldId) : undefined).toBe(source)
+    expect(target?.newId ? result.changeIndex.byNewId.get(target.newId) : undefined).toBe(target)
   })
 
   it('recovers footnote rename from identity match', async () => {
@@ -209,5 +216,16 @@ meta:
     expect(oldHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(false)
     expect(newHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(true)
     expect(newHeading?.warnings).not.toContain('enhanced-local-recovery-no-candidates')
+  })
+
+  it('tracks degraded aligned sections in quality summary', async () => {
+    const result = await diffMarkdown('# Alpha\n\nBody text', '# Beta\n\nBody text', {
+      maxLocalWindowSize: 1,
+      minSimilarity: 0.4,
+    })
+    const degradedChange = flatten(result.root).find((change) => change.degraded)
+
+    expect(degradedChange?.warnings).toContain('local-window-exceeded')
+    expect(result.quality.degradedCount).toBeGreaterThanOrEqual(1)
   })
 })

@@ -9,7 +9,9 @@ import { computeNodeSimilarity, isSameShape, uniquenessMargin } from './similari
 import type {
   AlignedPair,
   DiffChange,
+  DiffChangeIndex,
   DiffOptions,
+  DiffQualitySummary,
   DiffResult,
   DiffStatus,
   InlineSpan,
@@ -29,6 +31,7 @@ import {
   makeMoveId,
   makePairKey,
   normalizeIdentifier,
+  simHashHammingDistance,
   tokenizeText,
 } from './utils'
 
@@ -52,6 +55,9 @@ interface DiffContext {
 interface AptedDiffMeta {
   node: NonNullable<ReturnType<SemanticIndex['byId']['get']>>
 }
+
+const TEXT_SIM_RECALL_THRESHOLD = 24
+const TEXT_SIM_RECALL_LIMIT = 6
 
 export async function diffMarkdownTrees(
   oldRoot: Section,
@@ -84,13 +90,17 @@ export async function diffMarkdownTrees(
   await recoverRenamesAndMeta(context, root)
   await computePresentationDiffs(context, root)
   validateTree(root, context.warnings)
+  const changeIndex = buildChangeIndex(root)
+  const quality = collectQuality(root, context.warnings)
 
   return {
     root,
     oldIndex,
     newIndex,
     matches: [...context.matchesByOld.values()],
+    changeIndex,
     stats: collectStats(root),
+    quality,
     warnings: context.warnings,
   }
 }
@@ -537,9 +547,7 @@ async function seedLocalMatches(context: DiffContext, oldParentId: string, newPa
   for (const oldId of oldChildren) {
     const oldNode = context.oldIndex.byId.get(oldId)
     if (!oldNode || context.matchesByOld.has(oldId)) continue
-    const comparables = newChildren
-      .map((newId) => context.newIndex.byId.get(newId))
-      .filter((newNode): newNode is NonNullable<typeof newNode> => !!newNode && !context.matchesByNew.has(newNode.id) && isSameShape(oldNode, newNode))
+    const comparables = recallComparableNodes(context, oldNode, newChildren)
     if (comparables.length === 0) continue
 
     const scores = comparables.map((newNode) => computeNodeSimilarity(oldNode, newNode, context.options, 1))
@@ -600,6 +608,34 @@ function matchLocalBy(
     if (!newBucket || oldBucket.length !== 1 || newBucket.length !== 1) continue
     addMatch(context, oldBucket[0]!, newBucket[0]!, matchKind, undefined, 1)
   }
+}
+
+function recallComparableNodes(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newIds: string[],
+): Array<NonNullable<ReturnType<SemanticIndex['byId']['get']>>> {
+  const sameShape = newIds
+    .map((newId) => context.newIndex.byId.get(newId))
+    .filter(
+      (newNode): newNode is NonNullable<typeof newNode> =>
+        !!newNode && !context.matchesByNew.has(newNode.id) && isSameShape(oldNode, newNode),
+    )
+  if (sameShape.length <= TEXT_SIM_RECALL_LIMIT) return sameShape
+
+  const ranked = sameShape
+    .map((newNode) => ({
+      node: newNode,
+      distance: simHashDistanceForRecall(oldNode, newNode),
+      structuralBias:
+        (oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash ? 0 : 4) +
+        Math.abs((oldNode.siblingIndex ?? 0) - (newNode.siblingIndex ?? 0)),
+    }))
+    .filter((entry) => entry.distance === undefined || entry.distance <= TEXT_SIM_RECALL_THRESHOLD)
+    .sort((left, right) => (left.distance ?? Number.POSITIVE_INFINITY) - (right.distance ?? Number.POSITIVE_INFINITY) || left.structuralBias - right.structuralBias)
+
+  if (ranked.length === 0) return sameShape
+  return ranked.slice(0, TEXT_SIM_RECALL_LIMIT).map((entry) => entry.node)
 }
 
 async function maybeApplyStructuralFallback(
@@ -884,6 +920,22 @@ function collectStats(root: DiffChange) {
   }
   stats.moves = logicalMoves.size
   return stats
+}
+
+function collectQuality(root: DiffChange, warnings: string[]): DiffQualitySummary {
+  let degradedCount = 0
+  let inlineDeferredCount = 0
+
+  for (const change of collectChanges(root, () => true)) {
+    if (change.degraded) degradedCount++
+    if (change.warnings.includes('inline-deferred')) inlineDeferredCount++
+  }
+
+  return {
+    degradedCount,
+    inlineDeferredCount,
+    warningCount: warnings.length,
+  }
 }
 
 async function diffInlineNodes(
@@ -1586,7 +1638,9 @@ function computeStructuralAptedMatches(
   const directOld = new Set(deletes)
   const directNew = new Set(inserts)
   return computeAptedMatches(oldForest, newForest, {
-    canMatch: (oldTree, newTree) => isSameShape(oldTree.meta.node, newTree.meta.node),
+    canMatch: (oldTree, newTree) =>
+      isSameShape(oldTree.meta.node, newTree.meta.node) &&
+      withinTextRecallWindow(oldTree.meta.node, newTree.meta.node),
     relabelCost: (oldTree, newTree) => {
       const score = computeAptedRelabelScore(context, oldTree.meta.node, newTree.meta.node)
       return 1 - Math.max(0, Math.min(1, score))
@@ -1627,7 +1681,39 @@ function computeAptedRelabelScore(
   if (oldNode.selfHash === newNode.selfHash) return 1
   const pathBonus = oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash ? 0.1 : 0
   const rangeBonus = sourceRangeCloseness(oldNode, newNode) * 0.05
-  return Math.max(0, Math.min(1, computeNodeSimilarity(oldNode, newNode, context.options, 1) + pathBonus + rangeBonus))
+  const simHashBonus = simHashBonusForRecall(oldNode, newNode)
+  return Math.max(
+    0,
+    Math.min(1, computeNodeSimilarity(oldNode, newNode, context.options, 1) + pathBonus + rangeBonus + simHashBonus),
+  )
+}
+
+function withinTextRecallWindow(
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  if (oldNode.selfHash === newNode.selfHash) return true
+  if (oldNode.identityHash === newNode.identityHash) return true
+  if (oldNode.contentOnlyHash === newNode.contentOnlyHash) return true
+  if (oldNode.headingBodyHash && newNode.headingBodyHash && oldNode.headingBodyHash === newNode.headingBodyHash) return true
+  const distance = simHashDistanceForRecall(oldNode, newNode)
+  return distance === undefined || distance <= TEXT_SIM_RECALL_THRESHOLD
+}
+
+function simHashDistanceForRecall(
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): number | undefined {
+  return simHashHammingDistance(oldNode.textSimHash, newNode.textSimHash)
+}
+
+function simHashBonusForRecall(
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): number {
+  const distance = simHashDistanceForRecall(oldNode, newNode)
+  if (distance === undefined) return 0
+  return Math.max(0, (TEXT_SIM_RECALL_THRESHOLD - distance) / TEXT_SIM_RECALL_THRESHOLD) * 0.05
 }
 
 function computeStructuralFallbackScore(
@@ -1754,6 +1840,20 @@ function collectChanges(root: DiffChange, predicate: (change: DiffChange) => boo
     if (predicate(change)) result.push(change)
     for (const child of change.children) visit(child)
   }
+}
+
+function buildChangeIndex(root: DiffChange): DiffChangeIndex {
+  const byOldId = new Map<string, DiffChange>()
+  const byNewId = new Map<string, DiffChange>()
+  const byPairKey = new Map<string, DiffChange>()
+
+  for (const change of collectChanges(root, () => true)) {
+    if (change.oldId && !byOldId.has(change.oldId)) byOldId.set(change.oldId, change)
+    if (change.newId && !byNewId.has(change.newId)) byNewId.set(change.newId, change)
+    if (change.pairKey && !byPairKey.has(change.pairKey)) byPairKey.set(change.pairKey, change)
+  }
+
+  return { byOldId, byNewId, byPairKey }
 }
 
 function createStatus(overrides?: Partial<DiffStatus>): DiffStatus {

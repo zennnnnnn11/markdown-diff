@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parseMarkdown } from '../../parser'
 import { transformMarkdown } from '../../transformer'
 import { buildSemanticIndex, diffMarkdownTrees } from '../index'
-import { normalizeHeadingTitle, normalizeIdentifier, slugifyHeading } from '../utils'
+import { normalizeHeadingTitle, normalizeIdentifier, simHashHammingDistance, slugifyHeading } from '../utils'
 
 describe('diff indexer', () => {
   it('builds semantic index from transformer root items, definitions, and footnotes', async () => {
@@ -58,6 +58,14 @@ Paragraph with [ref][docs] and footnote[^1].
     expect(result.matches).toHaveLength(1)
     expect(result.oldIndex.rootId).toBe('root')
     expect(result.newIndex.rootId).toBe('root')
+    expect(result.changeIndex.byOldId.get('root')).toBe(result.root)
+    expect(result.changeIndex.byNewId.get('root')).toBe(result.root)
+    expect(result.changeIndex.byPairKey.get('match:root:root')).toBe(result.root)
+    expect(result.quality).toEqual({
+      degradedCount: 0,
+      inlineDeferredCount: 0,
+      warningCount: 0,
+    })
   })
 })
 
@@ -66,5 +74,11 @@ describe('diff utils', () => {
     expect(normalizeIdentifier('  Foo   BAR  ')).toBe('foo bar')
     expect(normalizeHeadingTitle('1. Getting Started')).toBe('getting started')
     expect(slugifyHeading('Hello, 世界!')).toBe('hello-世界')
+  })
+
+  it('computes simhash hamming distance on hex digests', () => {
+    expect(simHashHammingDistance('0f', '0f')).toBe(0)
+    expect(simHashHammingDistance('0f', '00')).toBe(4)
+    expect(simHashHammingDistance(undefined, '00')).toBeUndefined()
   })
 })
