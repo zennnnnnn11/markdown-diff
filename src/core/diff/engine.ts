@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { InlineContent, Section } from '../transformer'
+import { diffFrontmatter } from './frontmatter'
 import { buildSemanticIndex } from './indexer'
 import { resolveDiffOptions } from './options'
-import { longestCommonSubsequence, longestIncreasingSubsequence } from './sequence'
+import { alignSequence, longestIncreasingSubsequence } from './sequence'
 import { computeNodeSimilarity, isSameShape, uniquenessMargin } from './similarity'
 import type {
   AlignedPair,
@@ -10,19 +11,33 @@ import type {
   DiffOptions,
   DiffResult,
   DiffStatus,
+  InlineSpan,
+  InlineToken,
+  LineDiffSpan,
   MatchKind,
   MatchPair,
+  MetadataChange,
   SemanticIndex,
+  TableCellDiff,
+  TableDiff,
 } from './types'
 import {
+  buildInlineTokens,
   extractNodeText,
   jaccardSimilarity,
   makeMoveId,
   makePairKey,
-  normalizeHeadingTitle,
   normalizeIdentifier,
   tokenizeText,
 } from './utils'
+
+interface MatchCandidate {
+  oldId: string
+  newId: string
+  matchKind: MatchKind
+  priority: number
+  score: number
+}
 
 interface DiffContext {
   options: DiffOptions
@@ -33,14 +48,17 @@ interface DiffContext {
   warnings: string[]
 }
 
-export function diffMarkdownTrees(
+export async function diffMarkdownTrees(
   oldRoot: Section,
   newRoot: Section,
   options?: Partial<DiffOptions>,
-): DiffResult {
+): Promise<DiffResult> {
   const resolved = resolveDiffOptions(options)
-  const oldIndex = buildSemanticIndex(oldRoot, 'old')
-  const newIndex = buildSemanticIndex(newRoot, 'new')
+  const [oldIndex, newIndex] = await Promise.all([
+    buildSemanticIndex(oldRoot, 'old'),
+    buildSemanticIndex(newRoot, 'new'),
+  ])
+
   const context: DiffContext = {
     options: resolved,
     oldIndex,
@@ -51,15 +69,15 @@ export function diffMarkdownTrees(
   }
 
   addMatch(context, oldRoot.id, newRoot.id, 'forced-root')
-  runDeterministicMatching(context)
+  await runDeterministicMatching(context)
 
   const rootPair = context.matchesByOld.get(oldRoot.id)
-  if (!rootPair) throw new Error('Root match missing')
+  if (!rootPair) throw new Error('Root pair missing after deterministic matching')
 
-  const root = buildMatchedChange(context, rootPair)
-  recoverMoves(context, root)
-  recoverRenamesAndMeta(context, root)
-  computeInlineDiffs(context, root)
+  const root = await buildMatchedChange(context, rootPair, 'global')
+  await recoverMoves(context, root)
+  await recoverRenamesAndMeta(context, root)
+  await computePresentationDiffs(context, root)
   validateTree(root, context.warnings)
 
   return {
@@ -72,81 +90,91 @@ export function diffMarkdownTrees(
   }
 }
 
-function runDeterministicMatching(context: DiffContext): void {
-  const coveredOld = new Set<string>()
-  const coveredNew = new Set<string>()
+async function runDeterministicMatching(context: DiffContext): Promise<void> {
+  const candidates = await collectDeterministicCandidates(context)
+  const groupedByPriority = new Map<number, MatchCandidate[]>()
+  for (const candidate of candidates) push(groupedByPriority, candidate.priority, candidate)
 
-  const subtreeCandidates = collectUniqueHashCandidates(
-    context,
-    context.oldIndex.bySubtreeHash,
-    context.newIndex.bySubtreeHash,
-  ).sort((left, right) => right.oldNode.subtreeSize - left.oldNode.subtreeSize)
-
-  for (const candidate of subtreeCandidates) {
-    if (!isSameShape(candidate.oldNode, candidate.newNode)) continue
-    if (coveredOld.has(candidate.oldNode.id) || coveredNew.has(candidate.newNode.id)) continue
-    addMatch(context, candidate.oldNode.id, candidate.newNode.id, 'exact-subtree')
-    coverDescendants(context.oldIndex, candidate.oldNode.id, coveredOld)
-    coverDescendants(context.newIndex, candidate.newNode.id, coveredNew)
+  for (const priority of [...groupedByPriority.keys()].sort((left, right) => right - left)) {
+    const bucket = groupedByPriority.get(priority) ?? []
+    const conflictingOld = collectConflicts(bucket.map((candidate) => candidate.oldId))
+    const conflictingNew = collectConflicts(bucket.map((candidate) => candidate.newId))
+    for (const candidate of bucket) {
+      if (conflictingOld.has(candidate.oldId) || conflictingNew.has(candidate.newId)) continue
+      if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId)) continue
+      addMatch(context, candidate.oldId, candidate.newId, candidate.matchKind, undefined, candidate.score)
+    }
   }
-
-  matchUniqueHashes(context, context.oldIndex.bySelfHash, context.newIndex.bySelfHash, 'exact-self')
-  matchUniqueHashes(context, context.oldIndex.byDirectHash, context.newIndex.byDirectHash, 'exact-direct', {
-    sectionsOnly: true,
-  })
-  matchFrontmatter(context)
-  matchUniqueHashes(
-    context,
-    filterMapByIds(context.oldIndex.byKind, context.oldIndex.byId, 'footnote', 'identity'),
-    filterMapByIds(context.newIndex.byKind, context.newIndex.byId, 'footnote', 'identity'),
-    'footnote-identity',
-  )
-  matchUniqueHashes(
-    context,
-    filterMapByIds(context.oldIndex.byBlockType, context.oldIndex.byId, 'definition', 'identity'),
-    filterMapByIds(context.newIndex.byBlockType, context.newIndex.byId, 'definition', 'identity'),
-    'definition-identity',
-  )
 }
 
-function matchUniqueHashes(
+async function collectDeterministicCandidates(context: DiffContext): Promise<MatchCandidate[]> {
+  const candidates: MatchCandidate[] = []
+  const exactSubtrees = uniqueSharedHashes(context.oldIndex.bySubtreeHash, context.newIndex.bySubtreeHash)
+    .map(([oldId, newId]) => ({ oldId, newId, matchKind: 'exact-subtree' as const, priority: 6, score: 1 }))
+  const exactSelf = uniqueSharedHashes(context.oldIndex.bySelfHash, context.newIndex.bySelfHash)
+    .map(([oldId, newId]) => ({ oldId, newId, matchKind: 'exact-self' as const, priority: 5, score: 1 }))
+  const exactDirect = uniqueSharedHashes(context.oldIndex.byDirectHash, context.newIndex.byDirectHash)
+    .map(([oldId, newId]) => ({ oldId, newId, matchKind: 'exact-direct' as const, priority: 4, score: 1 }))
+
+  candidates.push(
+    ...exactSubtrees.filter((candidate) => canDeterministicallyMatch(context, candidate.oldId, candidate.newId, true)),
+    ...exactSelf.filter((candidate) => canDeterministicallyMatch(context, candidate.oldId, candidate.newId, false)),
+    ...exactDirect.filter((candidate) => {
+      const oldNode = context.oldIndex.byId.get(candidate.oldId)
+      const newNode = context.newIndex.byId.get(candidate.newId)
+      return (
+        oldNode?.entity === 'section' &&
+        newNode?.entity === 'section' &&
+        canDeterministicallyMatch(context, candidate.oldId, candidate.newId, false)
+      )
+    }),
+  )
+
+  const oldFrontmatter = context.oldIndex.byKind.get('frontmatter') ?? []
+  const newFrontmatter = context.newIndex.byKind.get('frontmatter') ?? []
+  if (oldFrontmatter.length === 1 && newFrontmatter.length === 1) {
+    candidates.push({
+      oldId: oldFrontmatter[0]!,
+      newId: newFrontmatter[0]!,
+      matchKind: 'frontmatter-anchor',
+      priority: 1,
+      score: 1,
+    })
+  }
+
+  candidates.push(
+    ...uniqueSharedHashes(filterIdentityHashes(context.oldIndex, 'footnote'), filterIdentityHashes(context.newIndex, 'footnote')).map(
+      ([oldId, newId]) => ({
+        oldId,
+        newId,
+        matchKind: 'footnote-identity' as const,
+        priority: 3,
+        score: 1,
+      }),
+    ),
+    ...uniqueSharedHashes(
+      filterIdentityHashes(context.oldIndex, 'definition'),
+      filterIdentityHashes(context.newIndex, 'definition'),
+    ).map(([oldId, newId]) => ({
+      oldId,
+      newId,
+      matchKind: 'definition-identity' as const,
+      priority: 2,
+      score: 1,
+    })),
+  )
+
+  return candidates
+}
+
+async function buildMatchedChange(
   context: DiffContext,
-  oldMap: Map<string, string[]>,
-  newMap: Map<string, string[]>,
-  matchKind: MatchKind,
-  options?: { sectionsOnly?: boolean },
-): void {
-  for (const [hash, oldIds] of oldMap) {
-    const newIds = newMap.get(hash)
-    if (!newIds || oldIds.length !== 1 || newIds.length !== 1) continue
-    const oldNode = context.oldIndex.byId.get(oldIds[0]!)
-    const newNode = context.newIndex.byId.get(newIds[0]!)
-    if (!oldNode || !newNode) continue
-    if (options?.sectionsOnly && (oldNode.entity !== 'section' || newNode.entity !== 'section')) continue
-    if (!isSameShape(oldNode, newNode)) continue
-    if (!canContextuallyMatch(context, oldNode.id, newNode.id, matchKind)) continue
-    addMatch(context, oldNode.id, newNode.id, matchKind)
-  }
-}
-
-function matchFrontmatter(context: DiffContext): void {
-  const oldFrontmatter = context.oldIndex.byKind.get('frontmatter')
-  const newFrontmatter = context.newIndex.byKind.get('frontmatter')
-  if (oldFrontmatter?.length === 1 && newFrontmatter?.length === 1) {
-    addMatch(context, oldFrontmatter[0]!, newFrontmatter[0]!, 'frontmatter-anchor')
-  }
-}
-
-function buildMatchedChange(context: DiffContext, pair: MatchPair): DiffChange {
+  pair: MatchPair,
+  mode: 'global' | 'local',
+): Promise<DiffChange> {
   const oldNode = context.oldIndex.byId.get(pair.oldId)
   const newNode = context.newIndex.byId.get(pair.newId)
   if (!oldNode || !newNode) throw new Error(`Missing nodes for pair ${pair.pairKey}`)
-
-  const status = createStatus({
-    isMatchPair: true,
-    selfChanged: oldNode.selfHash !== newNode.selfHash,
-    descendantChanged: oldNode.subtreeHash !== newNode.subtreeHash,
-  })
 
   const change: DiffChange = {
     entity: oldNode.entity,
@@ -158,10 +186,15 @@ function buildMatchedChange(context: DiffContext, pair: MatchPair): DiffChange {
     newNode: newNode.raw,
     pairKey: pair.pairKey,
     pairKind: 'match',
-    primaryOp: status.selfChanged ? 'replace' : 'equal',
-    status,
+    primaryOp: oldNode.selfHash === newNode.selfHash ? 'equal' : 'replace',
+    status: createStatus({
+      isMatchPair: true,
+      selfChanged: oldNode.selfHash !== newNode.selfHash,
+      descendantChanged: oldNode.subtreeHash !== newNode.subtreeHash,
+    }),
     matchKind: pair.matchKind,
-    summary: buildSummary('match', oldNode, newNode),
+    score: pair.score,
+    summary: `Matched ${labelForNode(oldNode)}`,
     children: [],
     warnings: [],
     logicalMoveId: pair.logicalMoveId,
@@ -172,131 +205,207 @@ function buildMatchedChange(context: DiffContext, pair: MatchPair): DiffChange {
       pair.matchKind !== 'exact-subtree' &&
       Math.max(oldNode.subtreeSize, newNode.subtreeSize) <= context.options.maxRecursiveSubtreeSize
     ) {
-      change.children = alignChildren(context, oldNode.id, newNode.id, 'global')
+      change.children = await alignChildren(context, oldNode.id, newNode.id, mode)
+      if (change.children.some((child) => child.primaryOp !== 'equal' || child.status.descendantChanged)) {
+        change.status.descendantChanged = true
+      }
     } else if (pair.matchKind !== 'exact-subtree') {
       change.degraded = true
       change.warnings.push('subtree-budget-exceeded')
-    }
-
-    if (change.children.some((child) => child.primaryOp !== 'equal' || child.status.descendantChanged)) {
-      change.status.descendantChanged = true
-    }
-    if (!change.status.selfChanged && change.status.descendantChanged) {
-      change.primaryOp = 'equal'
     }
   }
 
   return change
 }
 
-function alignChildren(
+async function alignChildren(
   context: DiffContext,
   oldParentId: string,
   newParentId: string,
   mode: 'global' | 'local',
-): DiffChange[] {
+): Promise<DiffChange[]> {
   const oldChildren = context.oldIndex.childrenById.get(oldParentId) ?? []
   const newChildren = context.newIndex.childrenById.get(newParentId) ?? []
-  const oldTokens = oldChildren.map((childId) => projectToken(context, childId, oldParentId, newParentId))
-  const newTokens = newChildren.map((childId) => projectToken(context, childId, oldParentId, newParentId))
-  const anchors = longestCommonSubsequence(oldTokens, newTokens)
+  const oldTokens = oldChildren.map((childId) => projectToken(context, childId, newParentId))
+  const newTokens = newChildren.map((childId) => projectToken(context, childId, oldParentId))
+  const edits = alignSequence(oldTokens, newTokens, context.options)
   const changes: DiffChange[] = []
 
-  let oldCursor = 0
-  let newCursor = 0
+  let oldGap: string[] = []
+  let newGap: string[] = []
 
-  for (const anchor of anchors) {
-    materializeRanges(
-      context,
-      oldParentId,
-      newParentId,
-      oldChildren.slice(oldCursor, anchor.oldIndex),
-      newChildren.slice(newCursor, anchor.newIndex),
-      changes,
-      mode,
-    )
+  for (const edit of edits) {
+    if (edit.op === 'equal') {
+      await flushGap(context, oldParentId, newParentId, oldGap, newGap, changes, mode)
+      oldGap = []
+      newGap = []
 
-    const oldId = oldChildren[anchor.oldIndex]
-    const newId = newChildren[anchor.newIndex]
-    if (oldId && newId) {
-      ensureContextualMatch(context, oldId, newId)
-      const pair = context.matchesByOld.get(oldId)
-      if (pair) {
-        changes.push(buildMatchedChange(context, pair))
-      } else {
-        const aligned = createAlignedPair(context, oldId, newId, oldParentId, newParentId)
-        if (aligned) {
-          changes.push(buildAlignedChange(context, aligned, mode))
-        } else {
-          changes.push(buildDeleteChange(context, oldId))
-          changes.push(buildInsertChange(context, newId))
-        }
+      const oldId = oldChildren[edit.oldIndex!]
+      const newId = newChildren[edit.newIndex!]
+      if (!oldId || !newId) continue
+
+      const ensuredPair = await ensureMatchedToken(context, oldId, newId, oldParentId, newParentId)
+      if (ensuredPair) changes.push(await buildMatchedChange(context, ensuredPair, mode))
+      else {
+        const aligned = await createAlignedPair(context, oldId, newId, oldParentId, newParentId)
+        if (aligned) changes.push(await buildAlignedChange(context, aligned, mode))
       }
+      continue
     }
 
-    oldCursor = anchor.oldIndex + 1
-    newCursor = anchor.newIndex + 1
+    if (edit.op === 'delete' && edit.oldIndex !== undefined) oldGap.push(oldChildren[edit.oldIndex]!)
+    if (edit.op === 'insert' && edit.newIndex !== undefined) newGap.push(newChildren[edit.newIndex]!)
   }
 
-  materializeRanges(
-    context,
-    oldParentId,
-    newParentId,
-    oldChildren.slice(oldCursor),
-    newChildren.slice(newCursor),
-    changes,
-    mode,
-  )
+  await flushGap(context, oldParentId, newParentId, oldGap, newGap, changes, mode)
   markReorderedChildren(context, changes)
   return changes
 }
 
-function materializeRanges(
+async function flushGap(
   context: DiffContext,
   oldParentId: string,
   newParentId: string,
-  oldRange: string[],
-  newRange: string[],
+  oldGap: string[],
+  newGap: string[],
   changes: DiffChange[],
   mode: 'global' | 'local',
-): void {
-  let oldIndex = 0
-  let newIndex = 0
+): Promise<void> {
+  if (oldGap.length === 0 && newGap.length === 0) return
 
-  while (oldIndex < oldRange.length || newIndex < newRange.length) {
-    const oldId = oldRange[oldIndex]
-    const newId = newRange[newIndex]
+  const pairs = await pairGapNodes(context, oldGap, newGap, oldParentId, newParentId)
+  const pairedOld = new Set(pairs.map((pair) => pair.oldId))
+  const pairedNew = new Set(pairs.map((pair) => pair.newId))
 
-    if (oldId && newId) {
-      const aligned = createAlignedPair(context, oldId, newId, oldParentId, newParentId)
-      if (aligned) {
-        changes.push(buildAlignedChange(context, aligned, mode))
-        oldIndex++
-        newIndex++
-        continue
-      }
+  for (const oldId of oldGap) {
+    const aligned = pairs.find((pair) => pair.oldId === oldId)
+    if (aligned) {
+      changes.push(await buildAlignedChange(context, aligned, mode))
+      continue
     }
+    changes.push(buildDeleteChange(context, oldId))
+  }
 
-    if (oldId) {
-      changes.push(buildDeleteChange(context, oldId))
-      oldIndex++
-    }
-    if (newId) {
-      changes.push(buildInsertChange(context, newId))
-      newIndex++
-    }
+  for (const newId of newGap) {
+    if (pairedNew.has(newId)) continue
+    changes.push(buildInsertChange(context, newId))
+  }
+
+  for (const pair of pairs) {
+    if (!pairedOld.has(pair.oldId)) continue
   }
 }
 
-function buildAlignedChange(
+async function pairGapNodes(
   context: DiffContext,
-  aligned: AlignedPair | undefined,
-  mode: 'global' | 'local',
-): DiffChange {
-  if (!aligned) {
-    throw new Error('Aligned pair missing')
+  oldIds: string[],
+  newIds: string[],
+  oldParentId: string,
+  newParentId: string,
+): Promise<AlignedPair[]> {
+  if (oldIds.length === 0 || newIds.length === 0) return []
+
+  type Candidate = AlignedPair & { oldScores: number[]; newScores: number[] }
+  const candidates: Candidate[] = []
+
+  for (const oldId of oldIds) {
+    const oldNode = context.oldIndex.byId.get(oldId)
+    if (!oldNode) continue
+    const comparable = newIds
+      .map((newId) => {
+        const newNode = context.newIndex.byId.get(newId)
+        if (!newNode || !isSameShape(oldNode, newNode)) return undefined
+        return { newId, newNode }
+      })
+      .filter((entry): entry is { newId: string; newNode: NonNullable<typeof entry>['newNode'] } => !!entry)
+
+    const scores = comparable.map(({ newNode }) =>
+      computeNodeSimilarity(oldNode, newNode, context.options, parentContextScore(context, oldParentId, newParentId)),
+    )
+
+    comparable.forEach(({ newId, newNode }, index) => {
+      const score = scores[index] ?? 0
+      const shortHeadingFallback = shouldUseShortHeadingFallback(context, oldNode, newNode, oldParentId, newParentId)
+      if (!shortHeadingFallback && score < context.options.minSimilarity) return
+
+      const reverseComparable = oldIds
+        .map((candidateOldId) => context.oldIndex.byId.get(candidateOldId))
+        .filter((candidateOld): candidateOld is NonNullable<typeof candidateOld> => !!candidateOld && isSameShape(candidateOld, newNode))
+      const reverseScores = reverseComparable.map((candidateOld) =>
+        computeNodeSimilarity(candidateOld, newNode, context.options, parentContextScore(context, oldParentId, newParentId)),
+      )
+
+      candidates.push({
+        oldId,
+        newId,
+        pairKind: 'align',
+        pairKey: makePairKey('align', oldId, newId),
+        score,
+        shortHeadingFallback,
+        oldScores: scores,
+        newScores: reverseScores,
+      })
+    })
   }
 
+  candidates.sort((left, right) => (right.score ?? 0) - (left.score ?? 0))
+  const usedOld = new Set<string>()
+  const usedNew = new Set<string>()
+  const result: AlignedPair[] = []
+
+  for (const candidate of candidates) {
+    if (usedOld.has(candidate.oldId) || usedNew.has(candidate.newId)) continue
+    const oldMargin = uniquenessMargin(candidate.oldScores)
+    const newMargin = uniquenessMargin(candidate.newScores)
+    const permit =
+      candidate.shortHeadingFallback ||
+      (oldMargin >= context.options.minUniquenessMargin && newMargin >= context.options.minUniquenessMargin) ||
+      (candidate.oldScores.length === 1 && candidate.newScores.length === 1)
+    if (!permit) continue
+
+    usedOld.add(candidate.oldId)
+    usedNew.add(candidate.newId)
+    result.push(candidate)
+  }
+
+  return result
+}
+
+async function createAlignedPair(
+  context: DiffContext,
+  oldId: string,
+  newId: string,
+  oldParentId: string,
+  newParentId: string,
+): Promise<AlignedPair | undefined> {
+  const oldNode = context.oldIndex.byId.get(oldId)
+  const newNode = context.newIndex.byId.get(newId)
+  if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return undefined
+
+  const score = computeNodeSimilarity(
+    oldNode,
+    newNode,
+    context.options,
+    parentContextScore(context, oldParentId, newParentId),
+  )
+  const shortHeadingFallback = shouldUseShortHeadingFallback(context, oldNode, newNode, oldParentId, newParentId)
+  if (!shortHeadingFallback && score < context.options.minSimilarity) return undefined
+
+  return {
+    oldId,
+    newId,
+    pairKind: 'align',
+    pairKey: makePairKey('align', oldId, newId),
+    score,
+    shortHeadingFallback,
+  }
+}
+
+async function buildAlignedChange(
+  context: DiffContext,
+  aligned: AlignedPair,
+  mode: 'global' | 'local',
+): Promise<DiffChange> {
   const oldNode = context.oldIndex.byId.get(aligned.oldId)
   const newNode = context.newIndex.byId.get(aligned.newId)
   if (!oldNode || !newNode) throw new Error(`Missing aligned nodes ${aligned.pairKey}`)
@@ -318,19 +427,17 @@ function buildAlignedChange(
       descendantChanged: oldNode.subtreeHash !== newNode.subtreeHash,
     }),
     score: aligned.score,
-    summary: buildSummary('align', oldNode, newNode),
+    summary: `Aligned ${labelForNode(oldNode)}`,
     children: [],
     warnings: [],
     shortHeadingFallback: aligned.shortHeadingFallback,
   }
 
   if (oldNode.entity === 'section' && newNode.entity === 'section') {
-    const childBudget =
-      (context.oldIndex.childrenById.get(oldNode.id)?.length ?? 0) +
-      (context.newIndex.childrenById.get(newNode.id)?.length ?? 0)
-    if (childBudget <= context.options.maxLocalWindowSize) {
-      seedLocalMatches(context, oldNode.id, newNode.id)
-      change.children = alignChildren(context, oldNode.id, newNode.id, 'local')
+    const budget = Math.max(oldNode.subtreeSize, newNode.subtreeSize)
+    if (budget <= context.options.maxLocalWindowSize) {
+      await seedLocalMatches(context, oldNode.id, newNode.id)
+      change.children = await alignChildren(context, oldNode.id, newNode.id, 'local')
       if (change.children.some((child) => child.primaryOp !== 'equal' || child.status.descendantChanged)) {
         change.status.descendantChanged = true
       }
@@ -342,6 +449,10 @@ function buildAlignedChange(
       change.degraded = true
       change.warnings.push('local-window-exceeded')
     }
+
+    if (context.options.enhancedLocalRecovery) {
+      maybeApplyStructuralFallback(context, change, oldNode, newNode)
+    }
   }
 
   if (mode === 'local' && oldNode.selfHash === newNode.selfHash && change.status.descendantChanged) {
@@ -352,61 +463,101 @@ function buildAlignedChange(
   return change
 }
 
-function seedLocalMatches(context: DiffContext, oldParentId: string, newParentId: string): void {
+async function seedLocalMatches(context: DiffContext, oldParentId: string, newParentId: string): Promise<void> {
   const oldChildren = context.oldIndex.childrenById.get(oldParentId) ?? []
   const newChildren = context.newIndex.childrenById.get(newParentId) ?? []
+
+  matchLocalBy(context, oldChildren, newChildren, (node) => node?.selfHash, 'exact-self-with-context')
+  matchLocalBy(context, oldChildren, newChildren, (node) => (node?.kind === 'heading' ? node.titleSlug : undefined), 'local-heading-slug')
   matchLocalBy(
     context,
     oldChildren,
     newChildren,
-    (node) => node?.selfHash,
-    'exact-self-with-context',
-  )
-  matchLocalBy(
-    context,
-    oldChildren,
-    newChildren,
-    (node) => (node?.kind === 'heading' ? node.titleSlug : undefined),
-    'local-heading-slug',
-  )
-  matchLocalBy(
-    context,
-    oldChildren,
-    newChildren,
-    (node) =>
-      node && (node.kind === 'footnote' || node.blockType === 'definition')
-        ? node.identityHash
-        : undefined,
+    (node) => (node && (node.kind === 'footnote' || node.blockType === 'definition') ? node.identityHash : undefined),
     'local-identity',
   )
+
+  const similarityCandidates: MatchCandidate[] = []
+  for (const oldId of oldChildren) {
+    const oldNode = context.oldIndex.byId.get(oldId)
+    if (!oldNode || context.matchesByOld.has(oldId)) continue
+    const comparables = newChildren
+      .map((newId) => context.newIndex.byId.get(newId))
+      .filter((newNode): newNode is NonNullable<typeof newNode> => !!newNode && !context.matchesByNew.has(newNode.id) && isSameShape(oldNode, newNode))
+    if (comparables.length === 0) continue
+
+    const scores = comparables.map((newNode) => computeNodeSimilarity(oldNode, newNode, context.options, 1))
+    const bestIndex = scores.findIndex((score) => score === Math.max(...scores))
+    const bestScore = scores[bestIndex] ?? 0
+    if (bestScore < context.options.minSimilarity) continue
+    if (uniquenessMargin(scores) < context.options.minUniquenessMargin) continue
+
+    const bestNew = comparables[bestIndex]
+    if (!bestNew) continue
+
+    const reverseCandidates = oldChildren
+      .map((candidateId) => context.oldIndex.byId.get(candidateId))
+      .filter((candidate): candidate is NonNullable<typeof candidate> => !!candidate && !context.matchesByOld.has(candidate.id) && isSameShape(candidate, bestNew))
+    const reverseScores = reverseCandidates.map((candidate) => computeNodeSimilarity(candidate, bestNew, context.options, 1))
+    if (uniquenessMargin(reverseScores) < context.options.minUniquenessMargin) continue
+
+    similarityCandidates.push({
+      oldId,
+      newId: bestNew.id,
+      matchKind: 'local-similarity',
+      priority: 1,
+      score: bestScore,
+    })
+  }
+
+  for (const candidate of similarityCandidates.sort((left, right) => right.score - left.score)) {
+    if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId)) continue
+    addMatch(context, candidate.oldId, candidate.newId, candidate.matchKind, undefined, candidate.score)
+  }
 }
 
 function matchLocalBy(
   context: DiffContext,
   oldIds: string[],
   newIds: string[],
-  getKey: (node: ReturnType<SemanticIndex['byId']['get']>) => string | undefined,
+  getKey: (node: SemanticIndex['byId'] extends Map<string, infer T> ? T | undefined : never) => string | undefined,
   matchKind: MatchKind,
 ): void {
   const oldBuckets = new Map<string, string[]>()
   const newBuckets = new Map<string, string[]>()
+
   for (const oldId of oldIds) {
     const node = context.oldIndex.byId.get(oldId)
     const key = getKey(node)
-    if (!node || !key || context.matchesByOld.has(node.id)) continue
-    push(oldBuckets, key, node.id)
+    if (!node || !key || context.matchesByOld.has(oldId)) continue
+    push(oldBuckets, key, oldId)
   }
   for (const newId of newIds) {
     const node = context.newIndex.byId.get(newId)
     const key = getKey(node)
-    if (!node || !key || context.matchesByNew.has(node.id)) continue
-    push(newBuckets, key, node.id)
+    if (!node || !key || context.matchesByNew.has(newId)) continue
+    push(newBuckets, key, newId)
   }
+
   for (const [key, oldBucket] of oldBuckets) {
     const newBucket = newBuckets.get(key)
     if (!newBucket || oldBucket.length !== 1 || newBucket.length !== 1) continue
-    addMatch(context, oldBucket[0]!, newBucket[0]!, matchKind)
+    addMatch(context, oldBucket[0]!, newBucket[0]!, matchKind, undefined, 1)
   }
+}
+
+function maybeApplyStructuralFallback(
+  context: DiffContext,
+  change: DiffChange,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): void {
+  const oldChildren = context.oldIndex.childrenById.get(oldNode.id) ?? []
+  const newChildren = context.newIndex.childrenById.get(newNode.id) ?? []
+  const unresolved = change.children.filter((child) => child.primaryOp !== 'equal').length
+  const total = Math.max(oldChildren.length + newChildren.length, 1)
+  if (total === 0 || unresolved / total <= context.options.aptedUnpairedThreshold) return
+  change.warnings.push('enhanced-local-recovery-fallback')
 }
 
 function buildDeleteChange(context: DiffContext, oldId: string): DiffChange {
@@ -443,42 +594,41 @@ function buildInsertChange(context: DiffContext, newId: string): DiffChange {
   }
 }
 
-function expandChildren(
-  context: DiffContext,
-  parentId: string,
-  op: 'delete' | 'insert',
-): DiffChange[] {
+function expandChildren(context: DiffContext, parentId: string, op: 'delete' | 'insert'): DiffChange[] {
   const index = op === 'delete' ? context.oldIndex : context.newIndex
-  const childIds = index.childrenById.get(parentId) ?? []
-  return childIds.map((childId) =>
+  return (index.childrenById.get(parentId) ?? []).map((childId) =>
     op === 'delete' ? buildDeleteChange(context, childId) : buildInsertChange(context, childId),
   )
 }
 
-function recoverMoves(context: DiffContext, root: DiffChange): void {
+async function recoverMoves(context: DiffContext, root: DiffChange): Promise<void> {
   const deletes = collectChanges(root, (change) => change.primaryOp === 'delete' && !!change.oldId)
   const inserts = collectChanges(root, (change) => change.primaryOp === 'insert' && !!change.newId)
-  const usedDeletes = new Set<string>()
-  const usedInserts = new Set<string>()
+  const coveredOld = new Set<string>()
+  const coveredNew = new Set<string>()
 
   const candidates = deletes.flatMap((deleted) =>
     inserts
-      .map((inserted) => ({ deleted, inserted, score: moveScore(context, deleted, inserted) }))
-      .filter((candidate) => candidate.score > 0),
+      .map((inserted) => ({ deleted, inserted }))
+      .filter(({ deleted: oldChange, inserted: newChange }) => moveCandidateAllowed(context, oldChange, newChange)),
   )
-  candidates.sort((left, right) => right.score - left.score)
+
+  candidates.sort((left, right) => subtreeSizeOfChange(context, right.deleted, right.inserted) - subtreeSizeOfChange(context, left.deleted, left.inserted))
 
   for (const candidate of candidates) {
-    const oldId = candidate.deleted.oldId
-    const newId = candidate.inserted.newId
-    if (!oldId || !newId || usedDeletes.has(oldId) || usedInserts.has(newId)) continue
-    const matchKind = classifyMove(context, oldId, newId)
+    const oldId = candidate.deleted.oldId!
+    const newId = candidate.inserted.newId!
+    if (coveredOld.has(oldId) || coveredNew.has(newId)) continue
+
+    const matchKind = classifyMove(context, oldId, newId, deletes, inserts)
     if (!matchKind) continue
 
-    const pair = addMatch(context, oldId, newId, matchKind, makeMoveId(oldId, newId), candidate.score)
+    const logicalMoveId = makeMoveId(oldId, newId)
+    const pair = addMatch(context, oldId, newId, matchKind, logicalMoveId, 1)
     if (!pair) continue
-    usedDeletes.add(oldId)
-    usedInserts.add(newId)
+
+    coverDescendants(context.oldIndex, oldId, coveredOld)
+    coverDescendants(context.newIndex, newId, coveredNew)
     convertChangeToMove(candidate.deleted, pair, 'source')
     convertChangeToMove(candidate.inserted, pair, 'target')
     candidate.deleted.children = []
@@ -486,7 +636,7 @@ function recoverMoves(context: DiffContext, root: DiffChange): void {
   }
 }
 
-function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): void {
+async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Promise<void> {
   for (const change of collectChanges(root, () => true)) {
     if (!change.oldId || !change.newId) continue
     const oldNode = context.oldIndex.byId.get(change.oldId)
@@ -494,11 +644,12 @@ function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): void {
     if (!oldNode || !newNode) continue
 
     if (oldNode.kind === 'heading' && newNode.kind === 'heading') {
-      if (oldNode.normalizedTitle !== newNode.normalizedTitle && uniqueHeadingSiblingNames(context, oldNode, newNode)) {
+      const titlesDiffer = oldNode.normalizedTitle !== newNode.normalizedTitle
+      if (titlesDiffer && uniqueHeadingSiblingNames(context, oldNode, newNode)) {
         if (oldNode.headingBodyHash === newNode.headingBodyHash) {
           upgradeToMatch(change)
-          change.status.renamed = true
           change.primaryOp = 'equal'
+          change.status.renamed = true
           change.status.selfChanged = false
         } else if (oldNode.contentOnlyHash === newNode.contentOnlyHash) {
           change.status.renamed = true
@@ -512,8 +663,8 @@ function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): void {
       const newIdentifier = normalizeIdentifier((newNode.section?.heading as any)?.identifier)
       if (oldIdentifier !== newIdentifier && oldNode.identityHash === newNode.identityHash) {
         upgradeToMatch(change)
-        change.status.renamed = true
         change.primaryOp = 'equal'
+        change.status.renamed = true
         change.status.selfChanged = false
       }
     }
@@ -523,11 +674,16 @@ function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): void {
       const newIdentifier = normalizeIdentifier((newNode.block as any)?.identifier)
       if (oldIdentifier !== newIdentifier && oldNode.identityHash === newNode.identityHash) {
         upgradeToMatch(change)
-        change.status.renamed = true
         change.primaryOp = 'equal'
+        change.status.renamed = true
         change.status.selfChanged = false
-      } else if (oldNode.contentOnlyHash !== newNode.contentOnlyHash) {
+      } else if (oldIdentifier !== newIdentifier) {
+        change.status.renamed = true
         change.status.metaChanged = true
+      } else if (oldNode.identityHash !== newNode.identityHash) {
+        change.primaryOp = 'meta-update'
+        change.status.metaChanged = true
+        change.status.selfChanged = false
       }
     }
 
@@ -537,6 +693,19 @@ function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): void {
         change.primaryOp = 'meta-update'
         change.status.metaChanged = true
         change.status.selfChanged = false
+      }
+    }
+
+    if (oldNode.blockType === 'table' && newNode.blockType === 'table') {
+      const tableMeta = computeTableMetadataChange(oldNode, newNode)
+      if (tableMeta.structureChanged && !tableMeta.shapeChanged && tableMeta.cellDiffs.length === 0) {
+        upgradeToMatch(change)
+        change.primaryOp = 'meta-update'
+        change.status.metaChanged = true
+        change.status.selfChanged = false
+        change.tableDiff = tableMeta
+      } else {
+        change.tableDiff = tableMeta
       }
     }
 
@@ -550,17 +719,25 @@ function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): void {
     }
 
     if (oldNode.kind === 'frontmatter' && newNode.kind === 'frontmatter') {
-      if ((oldNode.section?.frontmatterValue ?? '') !== (newNode.section?.frontmatterValue ?? '')) {
+      const metadataChanges = diffFrontmatter(
+        oldNode.section?.frontmatterType,
+        oldNode.section?.frontmatterValue,
+        newNode.section?.frontmatterType,
+        newNode.section?.frontmatterValue,
+      )
+      if (metadataChanges.length > 0) {
         upgradeToMatch(change)
         change.primaryOp = 'meta-update'
         change.status.metaChanged = true
         change.status.selfChanged = false
+        change.metadataChanges = metadataChanges
+        change.children = metadataChanges.map((entry) => metadataChangeToDiff(entry))
       }
     }
   }
 }
 
-function computeInlineDiffs(context: DiffContext, root: DiffChange): void {
+async function computePresentationDiffs(context: DiffContext, root: DiffChange): Promise<void> {
   for (const change of collectChanges(root, () => true)) {
     if (!change.oldId || !change.newId) continue
     const oldNode = context.oldIndex.byId.get(change.oldId)
@@ -569,44 +746,42 @@ function computeInlineDiffs(context: DiffContext, root: DiffChange): void {
 
     if (oldNode.entity === 'block' && newNode.entity === 'block') {
       if (oldNode.blockType === 'paragraph' && newNode.blockType === 'paragraph') {
-        change.inlineSpans = diffInlineNodes(
-          oldNode.block?.children ?? [],
-          newNode.block?.children ?? [],
-          context.options.maxInlineDiffCost,
-        )
-        if (change.inlineSpans.some((span) => span.op === 'replace' && span.oldTokens && span.newTokens)) {
-          change.status.inlineStructureChanged = true
+        const result = await diffInlineNodes(oldNode.block?.children ?? [], newNode.block?.children ?? [], context.options.maxInlineDiffCost)
+        change.inlineSpans = result.spans
+        if (result.inlineStructureChanged) change.status.inlineStructureChanged = true
+        if (result.deferred) change.warnings.push('inline-deferred')
+      }
+
+      if (oldNode.blockType === 'code' && newNode.blockType === 'code') {
+        if (oldNode.contentOnlyHash !== newNode.contentOnlyHash) {
+          change.codeSpans = diffCodeLines(String(oldNode.block?.value ?? ''), String(newNode.block?.value ?? ''), context.options)
         }
       }
-      if (oldNode.blockType === 'code' && newNode.blockType === 'code') {
-        change.codeSpans = diffCodeLines(String(oldNode.block?.value ?? ''), String(newNode.block?.value ?? ''))
+
+      if (oldNode.blockType === 'table' && newNode.blockType === 'table') {
+        change.tableDiff ??= computeTableMetadataChange(oldNode, newNode)
       }
     }
 
     if (oldNode.kind === 'heading' && newNode.kind === 'heading' && change.status.renamed) {
-      change.titleInlineSpans = diffTextTokens(oldNode.section?.title ?? '', newNode.section?.title ?? '')
+      change.titleInlineSpans = await diffWordText(oldNode.section?.title ?? '', newNode.section?.title ?? '')
     }
   }
 }
 
 function validateTree(root: DiffChange, warnings: string[]): void {
   for (const change of collectChanges(root, () => true)) {
-    if (change.primaryOp === 'insert' || change.primaryOp === 'delete') {
-      if (change.status.isMatchPair || change.status.isAlignedPair) {
-        warnings.push(`invalid-pair-state:${change.summary}`)
-      }
+    if ((change.primaryOp === 'insert' || change.primaryOp === 'delete') && (change.status.isMatchPair || change.status.isAlignedPair)) {
+      warnings.push(`invalid-pair-state:${change.summary}`)
     }
-    if (change.primaryOp === 'move' && !change.status.moved) {
-      warnings.push(`invalid-move-state:${change.summary}`)
-    }
-    if (change.primaryOp === 'meta-update' && !change.status.metaChanged) {
-      warnings.push(`invalid-meta-state:${change.summary}`)
-    }
+    if (change.primaryOp === 'move' && !change.status.moved) warnings.push(`invalid-move-state:${change.summary}`)
+    if (change.primaryOp === 'meta-update' && !change.status.metaChanged) warnings.push(`invalid-meta-state:${change.summary}`)
+    if (change.primaryOp === 'equal' && change.status.selfChanged && !change.status.renamed) warnings.push(`invalid-equal-state:${change.summary}`)
   }
 }
 
 function collectStats(root: DiffChange) {
-  const moves = new Set<string>()
+  const logicalMoves = new Set<string>()
   const stats = {
     inserts: 0,
     deletes: 0,
@@ -622,191 +797,270 @@ function collectStats(root: DiffChange) {
     if (change.primaryOp === 'replace') stats.replaces++
     if (change.primaryOp === 'meta-update') stats.metaUpdates++
     if (change.status.renamed) stats.renames++
-    if (change.logicalMoveId) moves.add(change.logicalMoveId)
+    if (change.logicalMoveId) logicalMoves.add(change.logicalMoveId)
   }
-
-  stats.moves = moves.size
+  stats.moves = logicalMoves.size
   return stats
 }
 
-function diffInlineNodes(
+async function diffInlineNodes(
   oldChildren: InlineContent[],
   newChildren: InlineContent[],
   maxInlineDiffCost: number,
-) {
+): Promise<{ spans: InlineSpan[]; inlineStructureChanged: boolean; deferred: boolean }> {
   if (oldChildren.length + newChildren.length > maxInlineDiffCost) {
-    return [{ op: 'replace' as const, oldTokens: oldChildren, newTokens: newChildren }]
-  }
-
-  const oldTokens = oldChildren.map((child) => inlineTokenKey(child))
-  const newTokens = newChildren.map((child) => inlineTokenKey(child))
-  const anchors = longestCommonSubsequence(oldTokens, newTokens)
-  const spans: Array<{
-    op: 'equal' | 'insert' | 'delete' | 'replace'
-    oldText?: string
-    newText?: string
-    oldTokens?: InlineContent[]
-    newTokens?: InlineContent[]
-  }> = []
-
-  let oldCursor = 0
-  let newCursor = 0
-  for (const anchor of anchors) {
-    if (oldCursor < anchor.oldIndex || newCursor < anchor.newIndex) {
-      spans.push({
-        op: 'replace',
-        oldTokens: oldChildren.slice(oldCursor, anchor.oldIndex),
-        newTokens: newChildren.slice(newCursor, anchor.newIndex),
-        oldText: oldChildren.slice(oldCursor, anchor.oldIndex).map((node) => extractNodeText(node)).join(''),
-        newText: newChildren.slice(newCursor, anchor.newIndex).map((node) => extractNodeText(node)).join(''),
-      })
+    return {
+      spans: [{ op: 'replace', oldText: extractInlineText(oldChildren), newText: extractInlineText(newChildren) }],
+      inlineStructureChanged: true,
+      deferred: true,
     }
-    spans.push({
-      op: 'equal',
-      oldTokens: [oldChildren[anchor.oldIndex]!],
-      newTokens: [newChildren[anchor.newIndex]!],
-      oldText: extractNodeText(oldChildren[anchor.oldIndex]),
-      newText: extractNodeText(newChildren[anchor.newIndex]),
-    })
-    oldCursor = anchor.oldIndex + 1
-    newCursor = anchor.newIndex + 1
   }
 
-  if (oldCursor < oldChildren.length || newCursor < newChildren.length) {
-    spans.push({
-      op: 'replace',
-      oldTokens: oldChildren.slice(oldCursor),
-      newTokens: newChildren.slice(newCursor),
-      oldText: oldChildren.slice(oldCursor).map((node) => extractNodeText(node)).join(''),
-      newText: newChildren.slice(newCursor).map((node) => extractNodeText(node)).join(''),
-    })
+  const [oldTokens, newTokens] = await Promise.all([buildInlineTokens(oldChildren), buildInlineTokens(newChildren)])
+  const edits = alignSequence(
+    oldTokens.map((token) => token.hash),
+    newTokens.map((token) => token.hash),
+    { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 },
+  )
+
+  const spans: InlineSpan[] = []
+  let oldGap: InlineToken[] = []
+  let newGap: InlineToken[] = []
+  let inlineStructureChanged = false
+
+  for (const edit of edits) {
+    if (edit.op === 'equal') {
+      if (oldGap.length > 0 || newGap.length > 0) {
+        const span = await buildInlineReplaceSpan(oldGap, newGap)
+        spans.push(span)
+        if (span.oldTokens?.some((token) => token.type !== 'text') || span.newTokens?.some((token) => token.type !== 'text')) {
+          inlineStructureChanged = true
+        }
+        oldGap = []
+        newGap = []
+      }
+
+      spans.push({
+        op: 'equal',
+        oldText: oldTokens[edit.oldIndex!]?.rawText,
+        newText: newTokens[edit.newIndex!]?.rawText,
+        oldTokens: [oldTokens[edit.oldIndex!]!],
+        newTokens: [newTokens[edit.newIndex!]!],
+      })
+      continue
+    }
+
+    if (edit.op === 'delete' && edit.oldIndex !== undefined) oldGap.push(oldTokens[edit.oldIndex]!)
+    if (edit.op === 'insert' && edit.newIndex !== undefined) newGap.push(newTokens[edit.newIndex]!)
   }
 
-  return spans
+  if (oldGap.length > 0 || newGap.length > 0) {
+    const span = await buildInlineReplaceSpan(oldGap, newGap)
+    spans.push(span)
+    if (span.oldTokens?.some((token) => token.type !== 'text') || span.newTokens?.some((token) => token.type !== 'text')) {
+      inlineStructureChanged = true
+    }
+  }
+
+  return { spans, inlineStructureChanged, deferred: false }
 }
 
-function diffCodeLines(oldValue: string, newValue: string) {
+function diffCodeLines(oldValue: string, newValue: string, options: DiffOptions): LineDiffSpan[] {
   const oldLines = oldValue.split(/\r?\n/u)
   const newLines = newValue.split(/\r?\n/u)
-  const anchors = longestCommonSubsequence(oldLines, newLines)
-  const spans: Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldLine?: string; newLine?: string }> = []
+  const edits = alignSequence(oldLines, newLines, options)
+  const spans: LineDiffSpan[] = []
 
-  let oldCursor = 0
-  let newCursor = 0
-  for (const anchor of anchors) {
-    while (oldCursor < anchor.oldIndex || newCursor < anchor.newIndex) {
-      const oldLine = oldCursor < anchor.oldIndex ? oldLines[oldCursor] : undefined
-      const newLine = newCursor < anchor.newIndex ? newLines[newCursor] : undefined
-      spans.push({
-        op: oldLine !== undefined && newLine !== undefined ? 'replace' : oldLine !== undefined ? 'delete' : 'insert',
-        oldLine,
-        newLine,
-      })
-      if (oldLine !== undefined) oldCursor++
-      if (newLine !== undefined) newCursor++
+  for (const edit of edits) {
+    if (edit.op === 'equal') {
+      spans.push({ op: 'equal', oldLine: oldLines[edit.oldIndex!], newLine: newLines[edit.newIndex!] })
+      continue
     }
 
-    spans.push({ op: 'equal', oldLine: oldLines[anchor.oldIndex], newLine: newLines[anchor.newIndex] })
-    oldCursor = anchor.oldIndex + 1
-    newCursor = anchor.newIndex + 1
+    if (edit.op === 'delete') {
+      spans.push({ op: 'delete', oldLine: oldLines[edit.oldIndex!] })
+      continue
+    }
+
+    if (edit.op === 'insert') {
+      spans.push({ op: 'insert', newLine: newLines[edit.newIndex!] })
+    }
   }
 
-  while (oldCursor < oldLines.length || newCursor < newLines.length) {
-    const oldLine = oldCursor < oldLines.length ? oldLines[oldCursor] : undefined
-    const newLine = newCursor < newLines.length ? newLines[newCursor] : undefined
-    spans.push({
-      op: oldLine !== undefined && newLine !== undefined ? 'replace' : oldLine !== undefined ? 'delete' : 'insert',
-      oldLine,
-      newLine,
-    })
-    if (oldLine !== undefined) oldCursor++
-    if (newLine !== undefined) newCursor++
-  }
-
-  return spans
-}
-
-function diffTextTokens(oldText: string, newText: string) {
-  const oldTokens = tokenizeText(oldText)
-  const newTokens = tokenizeText(newText)
-  const anchors = longestCommonSubsequence(oldTokens, newTokens)
-  const spans: Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> = []
-
-  let oldCursor = 0
-  let newCursor = 0
-  for (const anchor of anchors) {
-    if (oldCursor < anchor.oldIndex || newCursor < anchor.newIndex) {
-      spans.push({
+  for (let index = 0; index < spans.length - 1; index++) {
+    const current = spans[index]
+    const next = spans[index + 1]
+    if (current?.op === 'delete' && next?.op === 'insert') {
+      spans.splice(index, 2, {
         op: 'replace',
-        oldText: oldTokens.slice(oldCursor, anchor.oldIndex).join(' '),
-        newText: newTokens.slice(newCursor, anchor.newIndex).join(' '),
+        oldLine: current.oldLine,
+        newLine: next.newLine,
+        charSpans: diffCharacters(current.oldLine ?? '', next.newLine ?? ''),
+      })
+      continue
+    }
+    if (current?.op === 'insert' && next?.op === 'delete') {
+      spans.splice(index, 2, {
+        op: 'replace',
+        oldLine: next.oldLine,
+        newLine: current.newLine,
+        charSpans: diffCharacters(next.oldLine ?? '', current.newLine ?? ''),
       })
     }
-    spans.push({ op: 'equal', oldText: oldTokens[anchor.oldIndex], newText: newTokens[anchor.newIndex] })
-    oldCursor = anchor.oldIndex + 1
-    newCursor = anchor.newIndex + 1
   }
-  if (oldCursor < oldTokens.length || newCursor < newTokens.length) {
-    spans.push({
-      op: 'replace',
-      oldText: oldTokens.slice(oldCursor).join(' '),
-      newText: newTokens.slice(newCursor).join(' '),
-    })
+
+  if (oldLines.length > options.longCodeLineThreshold || newLines.length > options.longCodeLineThreshold) {
+    return foldLongCodeSpans(spans, options.codeFoldContextLines)
   }
   return spans
 }
 
-function createAlignedPair(
+function computeTableMetadataChange(
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): TableDiff {
+  const oldRows = readTableCells(oldNode.block)
+  const newRows = readTableCells(newNode.block)
+  const oldAlign = Array.isArray(oldNode.block?.align) ? (oldNode.block.align as string[]) : []
+  const newAlign = Array.isArray(newNode.block?.align) ? (newNode.block.align as string[]) : []
+  const shapeChanged = oldRows.length !== newRows.length || maxColumns(oldRows) !== maxColumns(newRows)
+  const alignmentChanged = JSON.stringify(oldAlign) !== JSON.stringify(newAlign)
+  const cellDiffs: TableCellDiff[] = []
+
+  if (!shapeChanged) {
+    for (let row = 0; row < oldRows.length; row++) {
+      const oldRow = oldRows[row] ?? []
+      const newRow = newRows[row] ?? []
+      for (let column = 0; column < oldRow.length; column++) {
+        const oldCell = oldRow[column] ?? ''
+        const newCell = newRow[column] ?? ''
+        if (oldCell === newCell) continue
+        cellDiffs.push({
+          row,
+          column,
+          spans: [{
+            op: 'replace',
+            oldText: oldCell,
+            newText: newCell,
+            wordSpans: diffWordTextSync(oldCell, newCell),
+          }],
+        })
+      }
+    }
+  }
+
+  return {
+    structureChanged: shapeChanged || alignmentChanged,
+    shapeChanged,
+    alignmentChanged,
+    cellDiffs,
+  }
+}
+
+async function diffWordText(oldText: string, newText: string): Promise<InlineSpan[]> {
+  return [
+    {
+      op: oldText === newText ? 'equal' : 'replace',
+      oldText,
+      newText,
+      wordSpans: diffWordTextSync(oldText, newText),
+    },
+  ]
+}
+
+function diffWordTextSync(
+  oldText: string,
+  newText: string,
+): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
+  const oldWords = tokenizeText(oldText)
+  const newWords = tokenizeText(newText)
+  const edits = alignSequence(oldWords, newWords, { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 })
+  return edits.map((edit) => ({
+    op: edit.op === 'equal' ? 'equal' : edit.op === 'delete' ? 'delete' : 'insert',
+    oldText: edit.oldIndex !== undefined ? oldWords[edit.oldIndex] : undefined,
+    newText: edit.newIndex !== undefined ? newWords[edit.newIndex] : undefined,
+  }))
+}
+
+async function buildInlineReplaceSpan(oldTokens: InlineToken[], newTokens: InlineToken[]): Promise<InlineSpan> {
+  const oldText = oldTokens.map((token) => token.rawText).join('')
+  const newText = newTokens.map((token) => token.rawText).join('')
+  const textOnly = oldTokens.every((token) => token.type === 'text') && newTokens.every((token) => token.type === 'text')
+  return {
+    op: 'replace',
+    oldText,
+    newText,
+    oldTokens,
+    newTokens,
+    wordSpans: textOnly ? diffWordTextSync(oldText, newText) : undefined,
+  }
+}
+
+function diffCharacters(
+  oldText: string,
+  newText: string,
+): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
+  const oldChars = [...oldText]
+  const newChars = [...newText]
+  const edits = alignSequence(oldChars, newChars, { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 })
+  return edits.map((edit) => ({
+    op: edit.op === 'equal' ? 'equal' : edit.op === 'delete' ? 'delete' : 'insert',
+    oldText: edit.oldIndex !== undefined ? oldChars[edit.oldIndex] : undefined,
+    newText: edit.newIndex !== undefined ? newChars[edit.newIndex] : undefined,
+  }))
+}
+
+function foldLongCodeSpans(spans: LineDiffSpan[], contextLines: number): LineDiffSpan[] {
+  const changed = spans
+    .map((span, index) => ({ span, index }))
+    .filter(({ span }) => span.op !== 'equal')
+    .map(({ index }) => index)
+  if (changed.length === 0) return spans.slice(0, contextLines * 2)
+
+  const keep = new Set<number>()
+  for (const index of changed) {
+    for (let cursor = Math.max(0, index - contextLines); cursor <= Math.min(spans.length - 1, index + contextLines); cursor++) {
+      keep.add(cursor)
+    }
+  }
+  for (let index = 0; index < Math.min(contextLines, spans.length); index++) keep.add(index)
+  for (let index = Math.max(0, spans.length - contextLines); index < spans.length; index++) keep.add(index)
+
+  return spans.filter((_, index) => keep.has(index))
+}
+
+function metadataChangeToDiff(change: MetadataChange): DiffChange {
+  return {
+    entity: 'metadata',
+    primaryOp: 'meta-update',
+    status: createStatus({ metaChanged: true }),
+    summary: `${change.op} metadata ${change.path}`,
+    metadataChanges: [change],
+    children: [],
+    warnings: [],
+  }
+}
+
+async function ensureMatchedToken(
   context: DiffContext,
   oldId: string,
   newId: string,
   oldParentId: string,
   newParentId: string,
-): AlignedPair | undefined {
+): Promise<MatchPair | undefined> {
+  const existing = context.matchesByOld.get(oldId)
+  if (existing?.newId === newId) return existing
+
   const oldNode = context.oldIndex.byId.get(oldId)
   const newNode = context.newIndex.byId.get(newId)
   if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return undefined
-  if (context.matchesByOld.has(oldId) || context.matchesByNew.has(newId)) return undefined
 
-  const parentContext = parentPairMatches(context, oldParentId, newParentId) ? 1 : 0.7
-  const similarity = computeNodeSimilarity(oldNode, newNode, parentContext)
-  const shortHeadingFallback = shouldUseShortHeadingFallback(context, oldNode, newNode, oldParentId, newParentId)
-  if (!shortHeadingFallback && similarity < context.options.minSimilarity) return undefined
-
-  return {
-    oldId,
-    newId,
-    pairKind: 'align',
-    pairKey: makePairKey('align', oldId, newId),
-    score: similarity,
-    shortHeadingFallback,
+  const score = computeNodeSimilarity(oldNode, newNode, context.options, parentContextScore(context, oldParentId, newParentId))
+  if (oldNode.selfHash === newNode.selfHash && score >= context.options.minSimilarity) {
+    return addMatch(context, oldId, newId, 'exact-self-with-context', undefined, score)
   }
-}
 
-function shouldUseShortHeadingFallback(
-  context: DiffContext,
-  oldNode: ReturnType<SemanticIndex['byId']['get']>,
-  newNode: ReturnType<SemanticIndex['byId']['get']>,
-  oldParentId: string,
-  newParentId: string,
-): boolean {
-  if (!oldNode || !newNode) return false
-  if (oldNode.kind !== 'heading' || newNode.kind !== 'heading') return false
-  if (oldNode.section?.headingDepth !== newNode.section?.headingDepth) return false
-  if (!parentPairMatches(context, oldParentId, newParentId)) return false
-  if (Math.abs(oldNode.siblingIndex - newNode.siblingIndex) > 1) return false
-  if (oldNode.headingBodyHash !== newNode.headingBodyHash) return false
-  return uniqueHeadingSiblingNames(context, oldNode, newNode)
-}
-
-function ensureContextualMatch(context: DiffContext, oldId: string, newId: string): void {
-  if (context.matchesByOld.has(oldId) || context.matchesByNew.has(newId)) return
-  const oldNode = context.oldIndex.byId.get(oldId)
-  const newNode = context.newIndex.byId.get(newId)
-  if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return
-  if (oldNode.selfHash === newNode.selfHash) {
-    addMatch(context, oldId, newId, 'exact-self-with-context')
-  }
+  return undefined
 }
 
 function addMatch(
@@ -823,7 +1077,6 @@ function addMatch(
     if (existingOld && existingOld.newId === newId) {
       if (logicalMoveId && !existingOld.logicalMoveId) existingOld.logicalMoveId = logicalMoveId
       if (score !== undefined) existingOld.score = score
-      if (matchKind.startsWith('move-')) existingOld.matchKind = matchKind
       return existingOld
     }
     return undefined
@@ -843,126 +1096,180 @@ function addMatch(
   return pair
 }
 
-function canContextuallyMatch(
+function canDeterministicallyMatch(
   context: DiffContext,
   oldId: string,
   newId: string,
-  matchKind: MatchKind,
+  allowRootlessSubtree: boolean,
 ): boolean {
   const oldNode = context.oldIndex.byId.get(oldId)
   const newNode = context.newIndex.byId.get(newId)
-  if (!oldNode || !newNode) return false
-  if (context.matchesByOld.has(oldId) || context.matchesByNew.has(newId)) return false
-  if (matchKind === 'exact-subtree') return true
+  if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return false
 
-  if (oldNode.parentId && newNode.parentId && parentPairMatches(context, oldNode.parentId, newNode.parentId)) {
+  if (oldNode.parentId && newNode.parentId) {
+    const parentPair = context.matchesByOld.get(oldNode.parentId)
+    if (parentPair?.newId === newNode.parentId) return true
+  }
+
+  if (allowRootlessSubtree && oldNode.parentId === context.oldIndex.rootId && newNode.parentId === context.newIndex.rootId) {
     return true
   }
 
-  return (
-    Math.abs(oldNode.siblingIndex - newNode.siblingIndex) <= context.options.preorderOffsetThreshold ||
-    Math.abs(oldNode.preorder - newNode.preorder) <= context.options.preorderOffsetThreshold
+  if (Math.abs(oldNode.siblingIndex - newNode.siblingIndex) > context.options.preorderOffsetThreshold) return false
+  return hasLocalHashContext(context, oldNode, newNode)
+}
+
+function hasLocalHashContext(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  const oldSiblings = oldNode.parentId ? context.oldIndex.childrenById.get(oldNode.parentId) ?? [] : []
+  const newSiblings = newNode.parentId ? context.newIndex.childrenById.get(newNode.parentId) ?? [] : []
+  const oldWindow = oldSiblings.slice(
+    Math.max(0, oldNode.siblingIndex - context.options.contextSiblingWindow),
+    oldNode.siblingIndex + context.options.contextSiblingWindow + 1,
   )
+  const newWindow = newSiblings.slice(
+    Math.max(0, newNode.siblingIndex - context.options.contextSiblingWindow),
+    newNode.siblingIndex + context.options.contextSiblingWindow + 1,
+  )
+
+  return oldWindow.some((candidateOldId) => {
+    const candidateOld = context.oldIndex.byId.get(candidateOldId)
+    if (!candidateOld) return false
+    return newWindow.some((candidateNewId) => {
+      const candidateNew = context.newIndex.byId.get(candidateNewId)
+      return !!candidateNew && candidateOld.selfHash === candidateNew.selfHash
+    })
+  })
 }
 
-function parentPairMatches(context: DiffContext, oldParentId: string, newParentId: string): boolean {
-  const parentPair = context.matchesByOld.get(oldParentId)
-  return parentPair?.newId === newParentId
-}
-
-function collectUniqueHashCandidates(
-  context: DiffContext,
-  oldMap: Map<string, string[]>,
-  newMap: Map<string, string[]>,
-) {
-  const candidates: Array<{ oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>; newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>> }> = []
-  for (const [hash, oldIds] of oldMap) {
-    const newIds = newMap.get(hash)
-    if (!newIds || oldIds.length !== 1 || newIds.length !== 1) continue
-    const oldNode = context.oldIndex.byId.get(oldIds[0]!)
-    const newNode = context.newIndex.byId.get(newIds[0]!)
-    if (!oldNode || !newNode) continue
-    candidates.push({ oldNode, newNode })
-  }
-  return candidates
-}
-
-function coverDescendants(index: SemanticIndex, id: string, covered: Set<string>): void {
-  covered.add(id)
-  const children = index.childrenById.get(id) ?? []
-  for (const child of children) {
-    coverDescendants(index, child, covered)
-  }
-}
-
-function projectToken(
-  context: DiffContext,
-  childId: string,
-  oldParentId: string,
-  newParentId: string,
-): string {
-  const oldPair = context.matchesByOld.get(childId)
-  if (oldPair) {
-    const newNode = context.newIndex.byId.get(oldPair.newId)
-    if (newNode && newNode.parentId === newParentId) return `MATCHED:${oldPair.pairKey}`
-  }
-
-  const newPair = context.matchesByNew.get(childId)
-  if (newPair) {
-    const oldNode = context.oldIndex.byId.get(newPair.oldId)
-    if (oldNode && oldNode.parentId === oldParentId) return `MATCHED:${newPair.pairKey}`
+function projectToken(context: DiffContext, childId: string, oppositeParentId: string): string {
+  const match = context.matchesByOld.get(childId) ?? context.matchesByNew.get(childId)
+  if (match) {
+    const oppositeId = context.matchesByOld.has(childId) ? match.newId : match.oldId
+    const oppositeNode = context.newIndex.byId.get(oppositeId) ?? context.oldIndex.byId.get(oppositeId)
+    if (oppositeNode?.parentId === oppositeParentId) return `MATCHED:${match.pairKey}`
   }
 
   const node = context.oldIndex.byId.get(childId) ?? context.newIndex.byId.get(childId)
   return `SELF:${node?.selfHash ?? childId}`
 }
 
-function moveScore(context: DiffContext, deleted: DiffChange, inserted: DiffChange): number {
-  if (!deleted.oldId || !inserted.newId) return 0
-  const oldNode = context.oldIndex.byId.get(deleted.oldId)
-  const newNode = context.newIndex.byId.get(inserted.newId)
-  if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return 0
-  if (oldNode.entity === 'section') {
-    const ratio = oldNode.subtreeSize / Math.max(newNode.subtreeSize, 1)
-    if (ratio < 0.3 || ratio > 3) return 0
-  }
-  return computeNodeSimilarity(oldNode, newNode)
+function parentContextScore(context: DiffContext, oldParentId: string, newParentId: string): number {
+  const pair = context.matchesByOld.get(oldParentId)
+  return pair?.newId === newParentId ? 1 : 0.7
 }
 
-function classifyMove(context: DiffContext, oldId: string, newId: string): MatchKind | undefined {
+function shouldUseShortHeadingFallback(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  oldParentId: string,
+  newParentId: string,
+): boolean {
+  if (oldNode.kind !== 'heading' || newNode.kind !== 'heading') return false
+  if (oldNode.section?.headingDepth !== newNode.section?.headingDepth) return false
+  if (Math.abs(oldNode.siblingIndex - newNode.siblingIndex) > 1) return false
+  if (context.matchesByOld.get(oldParentId)?.newId !== newParentId) return false
+  if (!uniqueHeadingSiblingNames(context, oldNode, newNode)) return false
+  return oldNode.headingBodyHash === newNode.headingBodyHash || (oldNode.logicalChildren.length === 0 && newNode.logicalChildren.length === 0)
+}
+
+function uniqueHeadingSiblingNames(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  const oldSiblings = oldNode.parentId ? context.oldIndex.childrenById.get(oldNode.parentId) ?? [] : []
+  const newSiblings = newNode.parentId ? context.newIndex.childrenById.get(newNode.parentId) ?? [] : []
+  const duplicateOld = oldSiblings
+    .map((id) => context.oldIndex.byId.get(id))
+    .some((candidate) => candidate && candidate.id !== oldNode.id && candidate.kind === 'heading' && candidate.normalizedTitle === newNode.normalizedTitle)
+  const duplicateNew = newSiblings
+    .map((id) => context.newIndex.byId.get(id))
+    .some((candidate) => candidate && candidate.id !== newNode.id && candidate.kind === 'heading' && candidate.normalizedTitle === oldNode.normalizedTitle)
+  return !duplicateOld && !duplicateNew
+}
+
+function moveCandidateAllowed(context: DiffContext, deleted: DiffChange, inserted: DiffChange): boolean {
+  const oldNode = deleted.oldId ? context.oldIndex.byId.get(deleted.oldId) : undefined
+  const newNode = inserted.newId ? context.newIndex.byId.get(inserted.newId) : undefined
+  if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return false
+  if (Math.abs(oldNode.depth - newNode.depth) > context.options.moveDepthDiffMax) return false
+  if (oldNode.entity === 'section') {
+    const ratio = oldNode.subtreeSize / Math.max(newNode.subtreeSize, 1)
+    if (ratio < context.options.moveSubtreeSizeRatioMin || ratio > context.options.moveSubtreeSizeRatioMax) return false
+  }
+  return true
+}
+
+function classifyMove(
+  context: DiffContext,
+  oldId: string,
+  newId: string,
+  deletes: DiffChange[],
+  inserts: DiffChange[],
+): MatchKind | undefined {
   const oldNode = context.oldIndex.byId.get(oldId)
   const newNode = context.newIndex.byId.get(newId)
   if (!oldNode || !newNode) return undefined
 
-  if (oldNode.subtreeHash === newNode.subtreeHash) return 'move-exact'
-  if (oldNode.entity === 'section' && oldNode.directHash === newNode.directHash) return 'move-direct'
+  if (oldNode.subtreeHash === newNode.subtreeHash && uniqueMoveHash(deletes, inserts, context, 'subtreeHash', oldNode.subtreeHash)) {
+    return 'move-exact'
+  }
+  if (oldNode.entity === 'section' && oldNode.directHash === newNode.directHash && shareMatchedNeighborContext(context, oldNode, newNode)) {
+    return 'move-direct'
+  }
   if (oldNode.kind === 'heading' && newNode.kind === 'heading' && oldNode.titleSlug === newNode.titleSlug) {
-    const scores = [computeNodeSimilarity(oldNode, newNode), siblingHeadingCompetition(context, oldNode, newNode)]
-    if (
-      (oldNode.headingBodyHash === newNode.headingBodyHash ||
-        jaccardSimilarity(oldNode.textTokens, newNode.textTokens) >= context.options.minSimilarity) &&
-      uniquenessMargin(scores) >= 0
-    ) {
+    const candidates = inserts
+      .map((change) => change.newId ? context.newIndex.byId.get(change.newId) : undefined)
+      .filter((candidate): candidate is NonNullable<typeof candidate> => !!candidate && candidate.kind === 'heading' && candidate.titleSlug === oldNode.titleSlug)
+      .map((candidate) => computeNodeSimilarity(oldNode, candidate, context.options, 0.7))
+    const score = oldNode.headingBodyHash === newNode.headingBodyHash ? 1 : jaccardSimilarity(oldNode.textTokens, newNode.textTokens)
+    if (score >= context.options.minSimilarity && uniquenessMargin(candidates) >= context.options.minUniquenessMargin) {
       return 'move-heading'
     }
   }
-  if (oldNode.blockType === 'code' && newNode.blockType === 'code' && oldNode.contentOnlyHash === newNode.contentOnlyHash) {
+  if (oldNode.blockType === 'code' && newNode.blockType === 'code' && oldNode.contentOnlyHash === newNode.contentOnlyHash && uniqueMoveHash(deletes, inserts, context, 'contentOnlyHash', oldNode.contentOnlyHash)) {
     return 'move-code'
   }
   return undefined
 }
 
-function siblingHeadingCompetition(
+function uniqueMoveHash(
+  deletes: DiffChange[],
+  inserts: DiffChange[],
+  context: DiffContext,
+  key: 'subtreeHash' | 'contentOnlyHash',
+  value: string,
+): boolean {
+  const oldMatches = deletes.filter((change) => {
+    const node = change.oldId ? context.oldIndex.byId.get(change.oldId) : undefined
+    return node?.[key] === value
+  })
+  const newMatches = inserts.filter((change) => {
+    const node = change.newId ? context.newIndex.byId.get(change.newId) : undefined
+    return node?.[key] === value
+  })
+  return oldMatches.length === 1 && newMatches.length === 1
+}
+
+function shareMatchedNeighborContext(
   context: DiffContext,
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-): number {
-  const candidates = (context.newIndex.byKind.get('heading') ?? [])
-    .map((id) => context.newIndex.byId.get(id))
-    .filter((node): node is NonNullable<typeof node> => !!node && node.id !== newNode.id && node.titleSlug === oldNode.titleSlug)
-    .map((node) => computeNodeSimilarity(oldNode, node))
-  if (candidates.length === 0) return 0
-  return Math.max(...candidates)
+): boolean {
+  if (!oldNode.parentId || !newNode.parentId) return false
+  const oldSiblings = context.oldIndex.childrenById.get(oldNode.parentId) ?? []
+  const newSiblings = context.newIndex.childrenById.get(newNode.parentId) ?? []
+  const oldNeighborIds = neighborIds(oldSiblings, oldNode.siblingIndex)
+  const newNeighborIds = neighborIds(newSiblings, newNode.siblingIndex)
+  return oldNeighborIds.some((oldNeighborId) => {
+    const pair = context.matchesByOld.get(oldNeighborId)
+    return !!pair && newNeighborIds.includes(pair.newId)
+  })
 }
 
 function convertChangeToMove(change: DiffChange, pair: MatchPair, role: 'source' | 'target'): void {
@@ -982,31 +1289,8 @@ function upgradeToMatch(change: DiffChange): void {
   if (!change.oldId || !change.newId) return
   change.pairKind = 'match'
   change.pairKey = makePairKey('match', change.oldId, change.newId)
-  change.status.isAlignedPair = false
   change.status.isMatchPair = true
-}
-
-function uniqueHeadingSiblingNames(
-  context: DiffContext,
-  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-): boolean {
-  const oldSiblings = oldNode.parentId ? context.oldIndex.childrenById.get(oldNode.parentId) ?? [] : []
-  const newSiblings = newNode.parentId ? context.newIndex.childrenById.get(newNode.parentId) ?? [] : []
-  const duplicateOld = oldSiblings
-    .map((id) => context.oldIndex.byId.get(id))
-    .some((node) => node && node.id !== oldNode.id && node.kind === 'heading' && node.normalizedTitle === newNode.normalizedTitle)
-  const duplicateNew = newSiblings
-    .map((id) => context.newIndex.byId.get(id))
-    .some((node) => node && node.id !== newNode.id && node.kind === 'heading' && node.normalizedTitle === oldNode.normalizedTitle)
-  return !duplicateOld && !duplicateNew
-}
-
-function inlineTokenKey(node: InlineContent): string {
-  const text = extractNodeText(node)
-  const normalized = normalizeHeadingTitle(text)
-  const suffix = Array.isArray(node.children) ? `:${node.children.length}` : ''
-  return `${node.type}:${normalized}${suffix}`
+  change.status.isAlignedPair = false
 }
 
 function markReorderedChildren(context: DiffContext, changes: DiffChange[]): void {
@@ -1019,11 +1303,11 @@ function markReorderedChildren(context: DiffContext, changes: DiffChange[]): voi
       newOrder: context.newIndex.byId.get(change.newId!)?.siblingIndex ?? index,
     }))
 
-  const lis = new Set(longestIncreasingSubsequence(paired.map((item) => item.newOrder)))
-  paired.forEach((item, index) => {
+  const lis = new Set(longestIncreasingSubsequence(paired.map((entry) => entry.newOrder)))
+  paired.forEach((entry, index) => {
     if (!lis.has(index)) {
-      item.change.reordered = true
-      item.change.status.movedWithinParent = true
+      entry.change.reordered = true
+      entry.change.status.movedWithinParent = true
     }
   })
 }
@@ -1037,21 +1321,6 @@ function collectChanges(root: DiffChange, predicate: (change: DiffChange) => boo
     if (predicate(change)) result.push(change)
     for (const child of change.children) visit(child)
   }
-}
-
-function buildSummary(
-  mode: 'match' | 'align',
-  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-  _newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-): string {
-  const label = labelForNode(oldNode)
-  if (mode === 'match') return `Matched ${label}`
-  return `Aligned ${label}`
-}
-
-function labelForNode(node: NonNullable<ReturnType<SemanticIndex['byId']['get']>>): string {
-  if (node.entity === 'section') return `${node.kind ?? 'section'} section`
-  return `${node.blockType ?? 'block'} block`
 }
 
 function createStatus(overrides?: Partial<DiffStatus>): DiffStatus {
@@ -1069,27 +1338,74 @@ function createStatus(overrides?: Partial<DiffStatus>): DiffStatus {
   }
 }
 
-function push(map: Map<string, string[]>, key: string, value: string): void {
-  const current = map.get(key)
-  if (current) current.push(value)
-  else map.set(key, [value])
+function labelForNode(node: NonNullable<ReturnType<SemanticIndex['byId']['get']>>): string {
+  return node.entity === 'section' ? `${node.kind ?? 'section'} section` : `${node.blockType ?? 'block'} block`
 }
 
-function filterMapByIds(
-  source: Map<string | number, string[]>,
-  byId: SemanticIndex['byId'],
-  targetKey: string,
-  mode: 'identity',
-): Map<string, string[]> {
+function uniqueSharedHashes(oldMap: Map<string, string[]>, newMap: Map<string, string[]>): Array<[string, string]> {
+  const pairs: Array<[string, string]> = []
+  for (const [hash, oldIds] of oldMap) {
+    const newIds = newMap.get(hash)
+    if (!newIds || oldIds.length !== 1 || newIds.length !== 1) continue
+    pairs.push([oldIds[0]!, newIds[0]!])
+  }
+  return pairs
+}
+
+function filterIdentityHashes(index: SemanticIndex, target: 'footnote' | 'definition'): Map<string, string[]> {
   const result = new Map<string, string[]>()
-  for (const [key, ids] of source) {
-    if (String(key) !== targetKey) continue
-    for (const id of ids) {
-      const node = byId.get(id)
-      if (!node) continue
-      const hash = mode === 'identity' ? node.identityHash : node.selfHash
-      push(result, hash, id)
-    }
+  const ids = target === 'footnote' ? index.byKind.get('footnote') ?? [] : index.byBlockType.get('definition') ?? []
+  for (const id of ids) {
+    const node = index.byId.get(id)
+    if (!node) continue
+    push(result, node.identityHash, id)
   }
   return result
+}
+
+function collectConflicts(ids: string[]): Set<string> {
+  const counts = new Map<string, number>()
+  ids.forEach((id) => counts.set(id, (counts.get(id) ?? 0) + 1))
+  return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([id]) => id))
+}
+
+function subtreeSizeOfChange(context: DiffContext, deleted: DiffChange, inserted: DiffChange): number {
+  const oldNode = deleted.oldId ? context.oldIndex.byId.get(deleted.oldId) : undefined
+  const newNode = inserted.newId ? context.newIndex.byId.get(inserted.newId) : undefined
+  return Math.max(oldNode?.subtreeSize ?? 0, newNode?.subtreeSize ?? 0)
+}
+
+function coverDescendants(index: SemanticIndex, id: string, covered: Set<string>): void {
+  covered.add(id)
+  for (const child of index.childrenById.get(id) ?? []) coverDescendants(index, child, covered)
+}
+
+function extractInlineText(nodes: InlineContent[]): string {
+  return nodes.map((node) => extractNodeText(node)).join('')
+}
+
+function readTableCells(block: any): string[][] {
+  if (!block || !Array.isArray(block.children)) return []
+  return block.children.map((row: any) =>
+    Array.isArray(row.children)
+      ? row.children.map((cell: any) => extractNodeText(cell))
+      : [],
+  )
+}
+
+function maxColumns(rows: string[][]): number {
+  return rows.reduce((max, row) => Math.max(max, row.length), 0)
+}
+
+function neighborIds(ids: string[], index: number): string[] {
+  return [ids[index - 1], ids[index + 1]].filter((value): value is string => !!value)
+}
+
+function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
+  const existing = map.get(key)
+  if (existing) {
+    existing.push(value)
+    return
+  }
+  map.set(key, [value])
 }

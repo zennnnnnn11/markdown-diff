@@ -90,4 +90,47 @@ content`
     expect(code?.status.metaChanged).toBe(true)
     expect(code?.status.selfChanged).toBe(false)
   })
+
+  it('builds path-level frontmatter metadata changes', async () => {
+    const oldMarkdown = `---
+title: Old
+meta:
+  a: 1
+---`
+    const newMarkdown = `---
+title: New
+meta:
+  a: 1
+  b: 2
+---`
+    const result = await diffMarkdown(oldMarkdown, newMarkdown)
+    const frontmatter = flatten(result.root).find((change) => change.kind === 'frontmatter')
+
+    expect(frontmatter?.primaryOp).toBe('meta-update')
+    expect(frontmatter?.metadataChanges?.map((entry) => entry.path)).toEqual(['$.meta.b', '$.title'])
+  })
+
+  it('computes table diff for cell edits', async () => {
+    const oldMarkdown = `| a | b |
+| - | - |
+| 1 | 2 |`
+    const newMarkdown = `| a | b |
+| - | - |
+| 1 | 3 |`
+    const result = await diffMarkdown(oldMarkdown, newMarkdown)
+    const table = flatten(result.root).find((change) => change.blockType === 'table')
+
+    expect(table?.tableDiff?.cellDiffs).toHaveLength(1)
+    expect(table?.tableDiff?.cellDiffs[0]).toMatchObject({ row: 1, column: 1 })
+  })
+
+  it('computes code replace spans with char-level detail', async () => {
+    const oldMarkdown = '```ts\nconst x = 1\n```'
+    const newMarkdown = '```ts\nconst x = 2\n```'
+    const result = await diffMarkdown(oldMarkdown, newMarkdown)
+    const code = flatten(result.root).find((change) => change.blockType === 'code')
+
+    expect(code?.primaryOp).toBe('replace')
+    expect(code?.codeSpans?.some((span) => span.op === 'replace' && span.charSpans?.length)).toBe(true)
+  })
 })

@@ -5,15 +5,34 @@ import {
   charikarSimHash,
   extractInlineStructure,
   extractNodeText,
+  hashCanonical,
+  hashText,
+  isSection,
+  mergeSourceRanges,
   normalizeHeadingTitle,
   normalizeIdentifier,
-  serializeInline,
+  pathHashInput,
   slugifyHeading,
-  stableHash128,
+  sourceRangeFromPosition,
+  structuredTextTokens,
   tokenizeText,
 } from './utils'
 
-export function buildSemanticIndex(root: Section, tree: 'old' | 'new'): SemanticIndex {
+interface IndexedRawNode {
+  id: string
+  sourceId: string
+  tree: 'old' | 'new'
+  raw: Section | Block
+  entity: 'section' | 'block'
+  kind?: Section['kind']
+  blockType?: string
+  parentId?: string
+  siblingIndex: number
+  pathParts: string[]
+  logicalChildren: IndexedRawNode[]
+}
+
+export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Promise<SemanticIndex> {
   const byId = new Map<string, DiffNode>()
   const nodesInPreorder: DiffNode[] = []
   const childrenById = new Map<string, string[]>()
@@ -25,12 +44,14 @@ export function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Semantic
   const bySubtreeHash = new Map<string, string[]>()
   const byIdentityHash = new Map<string, string[]>()
   const byHeadingBodyHash = new Map<string, string[]>()
+  const byPathHash = new Map<string, string[]>()
   const backlinks: BacklinkIndex = {
     footnotes: new Map(),
     definitions: new Map(),
   }
 
-  visitSection(root, undefined, 0)
+  const indexedRoot = buildLogicalTree(root, tree)
+  await visit(indexedRoot, undefined, [])
 
   return {
     tree,
@@ -46,151 +67,232 @@ export function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Semantic
     bySubtreeHash,
     byIdentityHash,
     byHeadingBodyHash,
+    byPathHash,
     backlinks,
   }
 
-  function visitSection(section: Section, parentId: string | undefined, siblingIndex: number): DiffNode {
-    const logicalChildren = getLogicalChildren(section)
+  async function visit(
+    current: IndexedRawNode,
+    parentId: string | undefined,
+    headingPath: string[],
+  ): Promise<DiffNode> {
+    const nextPath =
+      current.entity === 'section' && current.kind === 'heading'
+        ? [...headingPath, (current.raw as Section).title]
+        : headingPath
+
     const childNodes: DiffNode[] = []
+    for (let index = 0; index < current.logicalChildren.length; index++) {
+      const child = current.logicalChildren[index]!
+      childNodes.push(await visit(child, current.id, nextPath))
+    }
+
     const preorder = nodesInPreorder.length
-    const normalizedTitle = normalizeHeadingTitle(section.title)
-    const titleTokens = tokenizeText(normalizedTitle)
+    const baseNode = await createDiffNode(current, childNodes, parentId, preorder, nextPath)
 
-    for (let index = 0; index < logicalChildren.length; index++) {
-      const child = logicalChildren[index]!
-      const childNode = isSection(child)
-        ? visitSection(child, section.id, index)
-        : visitBlock(child, section.id, index)
-      childNodes.push(childNode)
+    byId.set(baseNode.id, baseNode)
+    nodesInPreorder.push(baseNode)
+    childrenById.set(baseNode.id, childNodes.map((child) => child.id))
+    if (baseNode.kind) addToMap(byKind, baseNode.kind, baseNode.id)
+    if (baseNode.blockType) addToMap(byBlockType, baseNode.blockType, baseNode.id)
+    if (baseNode.section?.headingDepth !== undefined) addToMap(byHeadingDepth, baseNode.section.headingDepth, baseNode.id)
+    addToMap(bySelfHash, baseNode.selfHash, baseNode.id)
+    addToMap(byDirectHash, baseNode.directHash, baseNode.id)
+    addToMap(bySubtreeHash, baseNode.subtreeHash, baseNode.id)
+    addToMap(byIdentityHash, baseNode.identityHash, baseNode.id)
+    if (baseNode.headingBodyHash) addToMap(byHeadingBodyHash, baseNode.headingBodyHash, baseNode.id)
+    if (baseNode.pathHash) addToMap(byPathHash, baseNode.pathHash, baseNode.id)
+
+    if (baseNode.entity === 'block' && baseNode.block) {
+      registerBacklinks(baseNode.block, baseNode.id)
+    }
+    if (baseNode.entity === 'section' && baseNode.section?.heading) {
+      registerBacklinks(baseNode.section.heading, baseNode.id)
     }
 
-    const selfHash = computeSectionSelfHash(section, normalizedTitle)
-    const directHash = stableHash128({
-      selfHash,
-      children: childNodes.map((child) => child.selfHash),
-    })
-    const subtreeHash = stableHash128({
-      selfHash,
-      children: childNodes.map((child) => child.subtreeHash),
-    })
-    const identityHash = computeSectionIdentityHash(section, childNodes)
-    const headingBodyHash = computeHeadingBodyHash(section, childNodes)
-    const text = extractNodeText(section)
-    const textTokens = tokenizeText(text)
-    const node: DiffNode = {
-      id: section.id,
-      tree,
-      entity: 'section',
-      raw: section,
-      section,
-      kind: section.kind,
-      parentId,
-      preorder,
-      subtreeSize: 1 + childNodes.reduce((total, child) => total + child.subtreeSize, 0),
-      siblingIndex,
-      selfHash,
-      directHash,
-      subtreeHash,
-      identityHash,
-      contentOnlyHash: stableHash128(text),
-      headingBodyHash,
-      textSimHash: charikarSimHash(textTokens),
-      normalizedTitle,
-      titleSlug: slugifyHeading(section.title),
-      titleTokens,
-      textTokens,
-    }
-
-    byId.set(node.id, node)
-    nodesInPreorder.push(node)
-    childrenById.set(
-      node.id,
-      childNodes.map((child) => child.id),
-    )
-    addToMap(byKind, section.kind, node.id)
-    if (section.headingDepth !== undefined) addToMap(byHeadingDepth, section.headingDepth, node.id)
-    addToMap(bySelfHash, selfHash, node.id)
-    addToMap(byDirectHash, directHash, node.id)
-    addToMap(bySubtreeHash, subtreeHash, node.id)
-    addToMap(byIdentityHash, identityHash, node.id)
-    if (headingBodyHash) addToMap(byHeadingBodyHash, headingBodyHash, node.id)
-
-    return node
+    return baseNode
   }
 
-  function visitBlock(block: Block, parentId: string | undefined, siblingIndex: number): DiffNode {
-    const preorder = nodesInPreorder.length
-    const selfHash = computeBlockSelfHash(block)
+  function registerBacklinks(block: Block, holderId: string): void {
+    if (block.type === 'footnoteReference') {
+      addToMap(backlinks.footnotes, normalizeIdentifier((block as any).identifier), holderId)
+    }
+    if (block.type === 'linkReference' || block.type === 'imageReference' || block.type === 'definition') {
+      addToMap(backlinks.definitions, normalizeIdentifier((block as any).identifier), holderId)
+    }
+    if (Array.isArray(block.children)) {
+      for (const child of block.children) registerBacklinks(child, holderId)
+    }
+  }
+}
+
+function buildLogicalTree(root: Section, tree: 'old' | 'new'): IndexedRawNode {
+  return buildIndexedSection(root, tree, undefined, 0, [])
+}
+
+function buildIndexedSection(
+  section: Section,
+  tree: 'old' | 'new',
+  parentId: string | undefined,
+  siblingIndex: number,
+  headingPath: string[],
+): IndexedRawNode {
+  const sourceId = section.id
+  const id = section.id
+  const nextPath = section.kind === 'heading' ? [...headingPath, section.title] : headingPath
+  const items = [...section.items]
+
+  if (section.kind === 'root') {
+    items.push(
+      ...(section.definitions ?? []).map((definition, index) => ({
+        ...definition,
+        id: `synth:def:${tree}:${index}`,
+      })),
+    )
+    items.push(
+      ...(section.footnotes ?? []).map((footnote, index) => ({
+        ...footnote,
+        id: `synth:fn:${tree}:${index}`,
+      })),
+    )
+  }
+
+  return {
+    id,
+    sourceId,
+    tree,
+    raw: section,
+    entity: 'section',
+    kind: section.kind,
+    parentId,
+    siblingIndex,
+    pathParts: nextPath,
+    logicalChildren: items.map((item, index) =>
+      isSection(item)
+        ? buildIndexedSection(item, tree, id, index, nextPath)
+        : buildIndexedBlock(item, tree, id, index, nextPath),
+    ),
+  }
+}
+
+function buildIndexedBlock(
+  block: Block,
+  tree: 'old' | 'new',
+  parentId: string | undefined,
+  siblingIndex: number,
+  pathParts: string[],
+): IndexedRawNode {
+  return {
+    id: block.id,
+    sourceId: block.id,
+    tree,
+    raw: block,
+    entity: 'block',
+    blockType: block.type,
+    parentId,
+    siblingIndex,
+    pathParts,
+    logicalChildren: [],
+  }
+}
+
+async function createDiffNode(
+  current: IndexedRawNode,
+  childNodes: DiffNode[],
+  parentId: string | undefined,
+  preorder: number,
+  headingPath: string[],
+): Promise<DiffNode> {
+  if (current.entity === 'block') {
+    const block = current.raw as Block
+    const selfHash = await computeBlockSelfHash(block)
     const text = extractNodeText(block)
     const textTokens = tokenizeText(text)
-    const node: DiffNode = {
-      id: block.id,
-      tree,
+    const structuredTokens = structuredTextTokens(block)
+    return {
+      id: current.id,
+      sourceId: current.sourceId,
+      tree: current.tree,
       entity: 'block',
       raw: block,
       block,
       blockType: block.type,
       parentId,
+      logicalChildren: [],
       preorder,
       subtreeSize: 1,
-      siblingIndex,
+      siblingIndex: current.siblingIndex,
+      depth: headingPath.length,
+      sourceRange: sourceRangeFromPosition((block as any).position),
       selfHash,
       directHash: selfHash,
       subtreeHash: selfHash,
-      identityHash: computeBlockIdentityHash(block),
-      contentOnlyHash: stableHash128(text),
-      textSimHash: charikarSimHash(textTokens),
+      identityHash: await computeBlockIdentityHash(block),
+      contentOnlyHash: await hashText(text),
+      textSimHash: await charikarSimHash([...textTokens, ...structuredTokens]),
       titleTokens: [],
       textTokens,
+      structuredTokens,
+      pathParts: headingPath,
+      pathHash: headingPath.length > 0 ? await hashText(pathHashInput(headingPath)) : undefined,
     }
-
-    byId.set(node.id, node)
-    nodesInPreorder.push(node)
-    childrenById.set(node.id, [])
-    addToMap(byBlockType, block.type, node.id)
-    addToMap(bySelfHash, selfHash, node.id)
-    addToMap(byDirectHash, selfHash, node.id)
-    addToMap(bySubtreeHash, selfHash, node.id)
-    addToMap(byIdentityHash, node.identityHash, node.id)
-    registerBacklinks(block, node.id)
-
-    return node
   }
 
-  function registerBacklinks(block: Block, blockId: string): void {
-    if (block.type === 'footnoteReference') {
-      addToMap(backlinks.footnotes, normalizeIdentifier((block as any).identifier), blockId)
-    }
-    if (block.type === 'linkReference' || block.type === 'imageReference' || block.type === 'definition') {
-      addToMap(backlinks.definitions, normalizeIdentifier((block as any).identifier), blockId)
-    }
-    if (Array.isArray(block.children)) {
-      for (const child of block.children) {
-        registerBacklinks(child, blockId)
-      }
-    }
+  const section = current.raw as Section
+  const normalizedTitle = normalizeHeadingTitle(section.title)
+  const titleTokens = tokenizeText(normalizedTitle)
+  const structuredTokens = structuredTextTokens(section)
+  const selfHash = await computeSectionSelfHash(section, normalizedTitle)
+  const directHash = await hashCanonical({
+    selfHash,
+    children: childNodes.map((child) => child.selfHash),
+  })
+  const subtreeHash = await hashCanonical({
+    selfHash,
+    children: childNodes.map((child) => child.subtreeHash),
+  })
+  const headingBodyHash = await computeHeadingBodyHash(section, childNodes)
+  const text = extractNodeText(section)
+  const textTokens = tokenizeText(text)
+  const sourceRange = mergeSourceRanges([
+    sourceRangeFromPosition((section.heading as any)?.position),
+    ...childNodes.map((child) => child.sourceRange),
+  ])
+
+  return {
+    id: current.id,
+    sourceId: current.sourceId,
+    tree: current.tree,
+    entity: 'section',
+    raw: section,
+    section,
+    kind: section.kind,
+    parentId,
+    logicalChildren: childNodes.map((child) => child.id),
+    preorder,
+    subtreeSize: 1 + childNodes.reduce((sum, child) => sum + child.subtreeSize, 0),
+    siblingIndex: current.siblingIndex,
+    depth: headingPath.length,
+    sourceRange,
+    selfHash,
+    directHash,
+    subtreeHash,
+    identityHash: await computeSectionIdentityHash(section, childNodes),
+    contentOnlyHash: await hashText(text),
+    headingBodyHash,
+    pathHash: headingPath.length > 0 ? await hashText(pathHashInput(headingPath)) : undefined,
+    textSimHash: await charikarSimHash([...textTokens, ...structuredTokens]),
+    normalizedTitle,
+    titleSlug: slugifyHeading(section.title),
+    titleTokens,
+    textTokens,
+    structuredTokens,
+    pathParts: headingPath,
   }
 }
 
-function getLogicalChildren(section: Section): Array<Section | Block> {
-  const items = [...section.items]
-  if (section.kind === 'root') {
-    if (section.definitions) {
-      for (const definition of section.definitions) {
-        if (!items.some((item) => item.id === definition.id)) items.push(definition)
-      }
-    }
-    if (section.footnotes) {
-      for (const footnote of section.footnotes) {
-        if (!items.some((item) => item.id === footnote.id)) items.push(footnote)
-      }
-    }
-  }
-  return items
-}
-
-function computeSectionSelfHash(section: Section, normalizedTitle: string): string {
-  return stableHash128({
+async function computeSectionSelfHash(section: Section, normalizedTitle: string): Promise<string> {
+  return hashCanonical({
     kind: section.kind,
     title: normalizedTitle,
     headingDepth: section.headingDepth,
@@ -198,16 +300,17 @@ function computeSectionSelfHash(section: Section, normalizedTitle: string): stri
     quoteDepth: section.quoteDepth,
     checked: section.checked,
     ordered: section.ordered,
+    spread: section.spread,
     identifier: extractSectionIdentifier(section),
     frontmatterType: section.frontmatterType,
     frontmatterValue: section.frontmatterValue,
-    heading: section.heading ? computeBlockSelfHash(section.heading) : undefined,
+    heading: section.heading ? await computeBlockSelfHash(section.heading) : undefined,
   })
 }
 
-function computeSectionIdentityHash(section: Section, childNodes: DiffNode[]): string {
+async function computeSectionIdentityHash(section: Section, childNodes: DiffNode[]): Promise<string> {
   if (section.kind === 'footnote') {
-    return stableHash128({
+    return hashCanonical({
       kind: section.kind,
       children: childNodes.map((child) => child.subtreeHash),
     })
@@ -215,9 +318,9 @@ function computeSectionIdentityHash(section: Section, childNodes: DiffNode[]): s
   return computeSectionSelfHash(section, normalizeHeadingTitle(section.title))
 }
 
-function computeHeadingBodyHash(section: Section, childNodes: DiffNode[]): string | undefined {
+async function computeHeadingBodyHash(section: Section, childNodes: DiffNode[]): Promise<string | undefined> {
   if (section.kind !== 'heading') return undefined
-  return stableHash128({
+  return hashCanonical({
     headingDepth: section.headingDepth,
     listDepth: section.listDepth,
     quoteDepth: section.quoteDepth,
@@ -225,9 +328,17 @@ function computeHeadingBodyHash(section: Section, childNodes: DiffNode[]): strin
   })
 }
 
-function computeBlockSelfHash(block: Block): string {
-  const inlineChildren = Array.isArray(block.children) ? block.children.map((child) => serializeInline(child)) : undefined
-  return stableHash128({
+async function computeBlockSelfHash(block: Block): Promise<string> {
+  const children = Array.isArray(block.children)
+    ? await Promise.all(
+        block.children.map(async (child) => ({
+          type: child.type,
+          hash: await computeBlockSelfHash(child),
+        })),
+      )
+    : undefined
+
+  return hashCanonical({
     type: block.type,
     value: block.value,
     lang: (block as any).lang,
@@ -236,19 +347,20 @@ function computeBlockSelfHash(block: Block): string {
     identifier: (block as any).identifier,
     title: (block as any).title,
     url: (block as any).url,
+    alt: (block as any).alt,
     align: (block as any).align,
     depth: (block as any).depth,
     ordered: (block as any).ordered,
     start: (block as any).start,
     spread: (block as any).spread,
-    children: inlineChildren,
+    children,
     structure: extractInlineStructure(block),
   })
 }
 
-function computeBlockIdentityHash(block: Block): string {
+async function computeBlockIdentityHash(block: Block): Promise<string> {
   if (block.type === 'definition') {
-    return stableHash128({
+    return hashCanonical({
       type: block.type,
       url: (block as any).url,
       title: (block as any).title,
@@ -270,8 +382,4 @@ function addToMap<K>(map: Map<K, string[]>, key: K, value: string): void {
     return
   }
   map.set(key, [value])
-}
-
-function isSection(value: Section | Block): value is Section {
-  return 'kind' in value
 }

@@ -17,6 +17,8 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "hash-wasm": "^4.12.0",
+    "js-toml": "^1.1.0",
     "pinia": "^3.0.4",
     "remark-directive": "^4.0.0",
     "remark-frontmatter": "^5.0.0",
@@ -26,7 +28,8 @@
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",
     "vue": "^3.5.32",
-    "vue-router": "^5.0.4"
+    "vue-router": "^5.0.4",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

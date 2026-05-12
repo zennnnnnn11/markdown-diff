@@ -15,7 +15,7 @@ Paragraph with [ref][docs] and footnote[^1].
 [^1]: Footnote body`
 
     const tree = transformMarkdown(await parseMarkdown(markdown))
-    const index = buildSemanticIndex(tree, 'old')
+    const index = await buildSemanticIndex(tree, 'old')
 
     expect(index.byId.has('root')).toBe(true)
     expect(index.byKind.get('heading')?.length).toBe(1)
@@ -27,7 +27,7 @@ Paragraph with [ref][docs] and footnote[^1].
 
   it('derives stable heading normalization metadata', async () => {
     const tree = transformMarkdown(await parseMarkdown('# 1. Intro Title'))
-    const index = buildSemanticIndex(tree, 'old')
+    const index = await buildSemanticIndex(tree, 'old')
     const headingId = index.byKind.get('heading')?.[0]
     const heading = headingId ? index.byId.get(headingId) : undefined
 
@@ -39,8 +39,8 @@ Paragraph with [ref][docs] and footnote[^1].
   it('computes headingBodyHash without title text', async () => {
     const oldTree = transformMarkdown(await parseMarkdown('# Alpha\n\nBody text'))
     const newTree = transformMarkdown(await parseMarkdown('# Beta\n\nBody text'))
-    const oldIndex = buildSemanticIndex(oldTree, 'old')
-    const newIndex = buildSemanticIndex(newTree, 'new')
+    const oldIndex = await buildSemanticIndex(oldTree, 'old')
+    const newIndex = await buildSemanticIndex(newTree, 'new')
     const oldHeading = oldIndex.byId.get(oldIndex.byKind.get('heading')![0]!)
     const newHeading = newIndex.byId.get(newIndex.byKind.get('heading')![0]!)
 
@@ -52,7 +52,7 @@ Paragraph with [ref][docs] and footnote[^1].
   it('creates a root skeleton diff result', async () => {
     const oldTree = transformMarkdown(await parseMarkdown('# Old'))
     const newTree = transformMarkdown(await parseMarkdown('# New'))
-    const result = diffMarkdownTrees(oldTree, newTree)
+    const result = await diffMarkdownTrees(oldTree, newTree)
 
     expect(result.root.matchKind).toBe('forced-root')
     expect(result.matches).toHaveLength(1)
