@@ -76,19 +76,15 @@ describe('node similarity', () => {
 
   it('uses the generic content-only score for same-shape non-special nodes', () => {
     const left = makeNode({
-      entity: 'section',
-      kind: 'listItem',
-      section: { kind: 'listItem', title: '', items: [], children: [] } as any,
-      raw: { kind: 'listItem' } as any,
+      blockType: 'html',
+      block: { type: 'html', value: '<div>left</div>' } as any,
       selfHash: 'left',
       contentOnlyHash: 'shared',
       textTokens: ['alpha'],
     })
     const right = makeNode({
-      entity: 'section',
-      kind: 'listItem',
-      section: { kind: 'listItem', title: '', items: [], children: [] } as any,
-      raw: { kind: 'listItem' } as any,
+      blockType: 'html',
+      block: { type: 'html', value: '<div>right</div>' } as any,
       selfHash: 'right',
       contentOnlyHash: 'shared',
       textTokens: ['beta'],
@@ -135,6 +131,21 @@ describe('node similarity', () => {
     const distantScore = computeNodeSimilarity(oldParagraph, distantParagraph, OPTIONS)
 
     expect(similarScore).toBeGreaterThan(distantScore)
+  })
+
+  it('adds a structure fallback floor for paragraph replacements with stable inline shape', () => {
+    const oldParagraph = makeNode({
+      selfHash: 'old',
+      textTokens: ['hello'],
+      block: { type: 'paragraph', children: [{ type: 'text', value: 'hello' }] } as any,
+    })
+    const newParagraph = makeNode({
+      selfHash: 'new',
+      textTokens: ['world'],
+      block: { type: 'paragraph', children: [{ type: 'text', value: 'world' }] } as any,
+    })
+
+    expect(computeNodeSimilarity(oldParagraph, newParagraph, OPTIONS, 1)).toBeGreaterThanOrEqual(0.75)
   })
 
   it('scores headings with matching body hashes and stronger context higher than weaker alternatives', () => {
@@ -193,6 +204,64 @@ describe('node similarity', () => {
       computeNodeSimilarity(oldHeading, weakerHeading, OPTIONS, 0.7),
     )
     expect(computeNodeSimilarity(leafHeading, leafVariant, OPTIONS, 1)).toBeGreaterThan(0)
+  })
+
+  it('keeps blockquote and listItem edits pairable when their local structure stays aligned', () => {
+    const oldBlockquote = makeNode({
+      entity: 'section',
+      kind: 'blockquote',
+      section: {
+        kind: 'blockquote',
+        title: 'old',
+        items: [{ type: 'paragraph', children: [{ type: 'text', value: 'old' }] }],
+        children: [],
+      } as any,
+      raw: { kind: 'blockquote' } as any,
+      selfHash: 'bq-old',
+      textTokens: ['old'],
+    })
+    const newBlockquote = makeNode({
+      entity: 'section',
+      kind: 'blockquote',
+      section: {
+        kind: 'blockquote',
+        title: 'new',
+        items: [{ type: 'paragraph', children: [{ type: 'text', value: 'new' }] }],
+        children: [],
+      } as any,
+      raw: { kind: 'blockquote' } as any,
+      selfHash: 'bq-new',
+      textTokens: ['new'],
+    })
+    const oldListItem = makeNode({
+      entity: 'section',
+      kind: 'listItem',
+      section: {
+        kind: 'listItem',
+        title: 'old',
+        items: [{ type: 'paragraph', children: [{ type: 'text', value: 'old' }] }],
+        children: [],
+      } as any,
+      raw: { kind: 'listItem' } as any,
+      selfHash: 'li-old',
+      textTokens: ['old'],
+    })
+    const newListItem = makeNode({
+      entity: 'section',
+      kind: 'listItem',
+      section: {
+        kind: 'listItem',
+        title: 'new',
+        items: [{ type: 'paragraph', children: [{ type: 'text', value: 'new' }] }],
+        children: [],
+      } as any,
+      raw: { kind: 'listItem' } as any,
+      selfHash: 'li-new',
+      textTokens: ['new'],
+    })
+
+    expect(computeNodeSimilarity(oldBlockquote, newBlockquote, OPTIONS, 1)).toBeGreaterThanOrEqual(0.75)
+    expect(computeNodeSimilarity(oldListItem, newListItem, OPTIONS, 1)).toBeGreaterThanOrEqual(0.75)
   })
 
   it('adds a language bonus for similar code blocks with the same language', () => {

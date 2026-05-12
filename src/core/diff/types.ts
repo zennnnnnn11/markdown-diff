@@ -11,6 +11,7 @@ export type MatchKind =
   | 'exact-direct'
   | 'frontmatter-anchor'
   | 'footnote-identity'
+  | 'footnote-identifier'
   | 'definition-identity'
   | 'definition-identifier'
   | 'local-heading-slug'

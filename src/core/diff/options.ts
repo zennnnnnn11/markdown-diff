@@ -2,7 +2,7 @@ import type { DiffOptions } from './types'
 
 export const DEFAULT_DIFF_OPTIONS: DiffOptions = {
   // 形成 AlignedPair / move-heading 等候选时要求的最低相似度。
-  minSimilarity: 0.75,
+  minSimilarity: 0.55,
   // 局部候选第一名必须领先第二名的最小分差，防止模糊误配。
   minUniquenessMargin: 0.12,
   // 面向调用方的“局部恢复窗口”尺寸；未显式传 cost 时会平方映射到 maxLocalAlignmentCost。

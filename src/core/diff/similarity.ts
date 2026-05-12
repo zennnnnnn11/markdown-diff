@@ -15,8 +15,14 @@ export function computeNodeSimilarity(
   if (oldNode.entity === 'section' && oldNode.kind === 'heading') {
     return headingSimilarity(oldNode, newNode, options, structuralContext)
   }
+  if (oldNode.entity === 'section' && oldNode.kind === 'blockquote') {
+    return blockquoteSimilarity(oldNode, newNode, options, structuralContext)
+  }
+  if (oldNode.entity === 'section' && oldNode.kind === 'listItem') {
+    return listItemSimilarity(oldNode, newNode, options, structuralContext)
+  }
   if (oldNode.entity === 'block' && oldNode.blockType === 'paragraph') {
-    return paragraphSimilarity(oldNode, newNode, options)
+    return paragraphSimilarity(oldNode, newNode, options, structuralContext)
   }
   if (oldNode.entity === 'block' && oldNode.blockType === 'code') {
     return codeSimilarity(oldNode, newNode, options)
@@ -52,6 +58,7 @@ function paragraphSimilarity(
   oldNode: DiffNode,
   newNode: DiffNode,
   options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
+  structuralContext: number,
 ): number {
   const textSimilarity = Math.max(
     tokenSimilarity(oldNode.textTokens, newNode.textTokens, options),
@@ -61,9 +68,73 @@ function paragraphSimilarity(
     oldNode.block?.children?.map((child) => child.type) ?? [],
     newNode.block?.children?.map((child) => child.type) ?? [],
   )
-  return clamp01(
+  const baseScore = clamp01(
     DIFF_HEURISTICS.similarity.paragraph.textWeight * textSimilarity +
       DIFF_HEURISTICS.similarity.paragraph.structureWeight * structureSimilarity,
+  )
+  return Math.max(
+    baseScore,
+    structureFallbackScore(
+      structureSimilarity,
+      oldNode.textTokens.length,
+      newNode.textTokens.length,
+      structuralContext,
+      DIFF_HEURISTICS.similarity.paragraph,
+    ),
+  )
+}
+
+function blockquoteSimilarity(
+  oldNode: DiffNode,
+  newNode: DiffNode,
+  options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
+  structuralContext: number,
+): number {
+  const textSimilarity = Math.max(
+    tokenSimilarity(oldNode.textTokens, newNode.textTokens, options),
+    sequenceSimilarity(oldNode.textTokens, newNode.textTokens),
+  )
+  const structureSimilarity = sectionItemStructureSimilarity(oldNode, newNode)
+  const baseScore = clamp01(
+    DIFF_HEURISTICS.similarity.blockquote.textWeight * textSimilarity +
+      DIFF_HEURISTICS.similarity.blockquote.structureWeight * structureSimilarity,
+  )
+  return Math.max(
+    baseScore,
+    structureFallbackScore(
+      structureSimilarity,
+      oldNode.textTokens.length,
+      newNode.textTokens.length,
+      structuralContext,
+      DIFF_HEURISTICS.similarity.blockquote,
+    ),
+  )
+}
+
+function listItemSimilarity(
+  oldNode: DiffNode,
+  newNode: DiffNode,
+  options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
+  structuralContext: number,
+): number {
+  const textSimilarity = Math.max(
+    tokenSimilarity(oldNode.textTokens, newNode.textTokens, options),
+    sequenceSimilarity(oldNode.textTokens, newNode.textTokens),
+  )
+  const structureSimilarity = sectionItemStructureSimilarity(oldNode, newNode)
+  const baseScore = clamp01(
+    DIFF_HEURISTICS.similarity.listItem.textWeight * textSimilarity +
+      DIFF_HEURISTICS.similarity.listItem.structureWeight * structureSimilarity,
+  )
+  return Math.max(
+    baseScore,
+    structureFallbackScore(
+      structureSimilarity,
+      oldNode.textTokens.length,
+      newNode.textTokens.length,
+      structuralContext,
+      DIFF_HEURISTICS.similarity.listItem,
+    ),
   )
 }
 
@@ -265,6 +336,42 @@ function exactAlignmentRatio(oldAlign: string[], newAlign: string[]): number {
     if (oldAlign[index] === newAlign[index]) matches++
   }
   return matches / total
+}
+
+function sectionItemStructureSimilarity(oldNode: DiffNode, newNode: DiffNode): number {
+  const oldStructure = sectionItemKinds(oldNode)
+  const newStructure = sectionItemKinds(newNode)
+  return sequenceSimilarity(oldStructure, newStructure)
+}
+
+function sectionItemKinds(node: DiffNode): string[] {
+  const items = node.section?.items ?? []
+  return items.map((item: any) =>
+    typeof item?.kind === 'string' ? `section:${item.kind}` : `block:${String(item?.type ?? 'unknown')}`,
+  )
+}
+
+function structureFallbackScore(
+  structureSimilarity: number,
+  oldTextTokenCount: number,
+  newTextTokenCount: number,
+  structuralContext: number,
+  config: {
+    structureFallbackBase: number
+    structureFallbackStructureWeight: number
+    structureFallbackLengthWeight: number
+    structureFallbackContextWeight: number
+  },
+): number {
+  if (structureSimilarity < 0.5) return 0
+  if (oldTextTokenCount === 0 && newTextTokenCount === 0) return 0
+
+  return clamp01(
+    config.structureFallbackBase +
+      config.structureFallbackStructureWeight * structureSimilarity +
+      config.structureFallbackLengthWeight * ratio(oldTextTokenCount, newTextTokenCount) +
+      config.structureFallbackContextWeight * structuralContext,
+  )
 }
 
 function maxColumns(rows: string[][]): number {

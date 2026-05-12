@@ -27,6 +27,42 @@ export const DIFF_HEURISTICS = {
       textWeight: 0.7,
       // paragraph 相似度里，inline 结构部分的权重。
       structureWeight: 0.3,
+      // inline 结构完全一致时，给予的保底基线，避免小文本改动直接跌成 delete+insert。
+      structureFallbackBase: 0.5,
+      // inline 结构越接近，保底分里附加的结构权重。
+      structureFallbackStructureWeight: 0.15,
+      // inline 结构完全一致时，按文本长度接近度额外补的分。
+      structureFallbackLengthWeight: 0.1,
+      // inline 结构完全一致时，按父级上下文额外补的分。
+      structureFallbackContextWeight: 0.05,
+    },
+    blockquote: {
+      // blockquote 相似度里，正文文本部分的权重。
+      textWeight: 0.55,
+      // blockquote 相似度里，内部 items 结构部分的权重。
+      structureWeight: 0.45,
+      // blockquote 结构完全一致时的保底基线。
+      structureFallbackBase: 0.48,
+      // blockquote 结构越接近，保底分里附加的结构权重。
+      structureFallbackStructureWeight: 0.15,
+      // blockquote 结构完全一致时，按文本长度接近度额外补的分。
+      structureFallbackLengthWeight: 0.05,
+      // blockquote 结构完全一致时，按父级上下文额外补的分。
+      structureFallbackContextWeight: 0.1,
+    },
+    listItem: {
+      // listItem 相似度里，正文文本部分的权重。
+      textWeight: 0.55,
+      // listItem 相似度里，内部 items 结构部分的权重。
+      structureWeight: 0.45,
+      // listItem 结构完全一致时的保底基线。
+      structureFallbackBase: 0.48,
+      // listItem 结构越接近，保底分里附加的结构权重。
+      structureFallbackStructureWeight: 0.15,
+      // listItem 结构完全一致时，按文本长度接近度额外补的分。
+      structureFallbackLengthWeight: 0.05,
+      // listItem 结构完全一致时，按父级上下文额外补的分。
+      structureFallbackContextWeight: 0.1,
     },
     heading: {
       // heading bodyHash 不一致时给的保底正文相似度。

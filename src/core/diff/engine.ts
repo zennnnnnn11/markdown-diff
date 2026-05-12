@@ -71,7 +71,10 @@ class AnchorRegistry {
     this.globalAnchors.sort((left, right) => left.oldPreorder - right.oldPreorder)
   }
 
-  getGlobalInterval(oldPreorder: number, newTreeSize: number): { min: number; max: number } | undefined {
+  getGlobalInterval(
+    oldPreorder: number,
+    newTreeSize: number,
+  ): { min: number; max: number } | undefined {
     if (this.globalAnchors.length === 0) {
       return {
         min: 0,
@@ -171,8 +174,20 @@ async function runDeterministicMatching(context: DiffContext): Promise<void> {
   const highestPriorityByOld = new Map<string, number>()
   const highestPriorityByNew = new Map<string, number>()
   for (const candidate of candidates) {
-    highestPriorityByOld.set(candidate.oldId, Math.max(highestPriorityByOld.get(candidate.oldId) ?? Number.NEGATIVE_INFINITY, candidate.priority))
-    highestPriorityByNew.set(candidate.newId, Math.max(highestPriorityByNew.get(candidate.newId) ?? Number.NEGATIVE_INFINITY, candidate.priority))
+    highestPriorityByOld.set(
+      candidate.oldId,
+      Math.max(
+        highestPriorityByOld.get(candidate.oldId) ?? Number.NEGATIVE_INFINITY,
+        candidate.priority,
+      ),
+    )
+    highestPriorityByNew.set(
+      candidate.newId,
+      Math.max(
+        highestPriorityByNew.get(candidate.newId) ?? Number.NEGATIVE_INFINITY,
+        candidate.priority,
+      ),
+    )
   }
 
   const eligibleCandidates = candidates.filter(
@@ -194,8 +209,16 @@ async function runDeterministicMatching(context: DiffContext): Promise<void> {
     for (const candidate of bucket) {
       if (discardedOld.has(candidate.oldId) || discardedNew.has(candidate.newId)) continue
       if (conflictingOld.has(candidate.oldId) || conflictingNew.has(candidate.newId)) continue
-      if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId)) continue
-      const pair = addMatch(context, candidate.oldId, candidate.newId, candidate.matchKind, undefined, candidate.score)
+      if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId))
+        continue
+      const pair = addMatch(
+        context,
+        candidate.oldId,
+        candidate.newId,
+        candidate.matchKind,
+        undefined,
+        candidate.score,
+      )
       registerDeterministicAnchor(context, anchors, pair)
     }
   }
@@ -207,7 +230,10 @@ async function applyExactSubtreeMatches(
   blockedOld: Set<string>,
   blockedNew: Set<string>,
 ): Promise<void> {
-  const exactSubtrees = uniqueSharedHashes(context.oldIndex.bySubtreeHash, context.newIndex.bySubtreeHash)
+  const exactSubtrees = uniqueSharedHashes(
+    context.oldIndex.bySubtreeHash,
+    context.newIndex.bySubtreeHash,
+  )
     .map(([oldId, newId]) => ({
       oldId,
       newId,
@@ -222,13 +248,17 @@ async function applyExactSubtreeMatches(
         newId: string
         oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>
         newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>
-      } => !!candidate.oldNode && !!candidate.newNode && isSameShape(candidate.oldNode, candidate.newNode),
+      } =>
+        !!candidate.oldNode &&
+        !!candidate.newNode &&
+        isSameShape(candidate.oldNode, candidate.newNode),
     )
     .sort((left, right) => right.oldNode.subtreeSize - left.oldNode.subtreeSize)
 
   for (const candidate of exactSubtrees) {
     if (blockedOld.has(candidate.oldId) || blockedNew.has(candidate.newId)) continue
-    if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId)) continue
+    if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId))
+      continue
     const pair = addMatch(context, candidate.oldId, candidate.newId, 'exact-subtree', undefined, 1)
     registerDeterministicAnchor(context, anchors, pair)
     coverDescendants(context.oldIndex, candidate.oldId, blockedOld)
@@ -246,8 +276,16 @@ async function collectDeterministicCandidates(
   const exactSelf = uniqueSharedHashes(context.oldIndex.bySelfHash, context.newIndex.bySelfHash)
     .map(([oldId, newId]) => classifyExactSelfCandidate(context, anchors, oldId, newId))
     .filter((candidate): candidate is MatchCandidate => !!candidate)
-  const exactDirect = uniqueSharedHashes(context.oldIndex.byDirectHash, context.newIndex.byDirectHash)
-    .map(([oldId, newId]) => ({ oldId, newId, matchKind: 'exact-direct' as const, priority: 4, score: 1 }))
+  const exactDirect = uniqueSharedHashes(
+    context.oldIndex.byDirectHash,
+    context.newIndex.byDirectHash,
+  ).map(([oldId, newId]) => ({
+    oldId,
+    newId,
+    matchKind: 'exact-direct' as const,
+    priority: 4,
+    score: 1,
+  }))
 
   candidates.push(
     ...exactSelf.filter(
@@ -283,15 +321,26 @@ async function collectDeterministicCandidates(
   }
 
   candidates.push(
-    ...uniqueSharedHashes(filterIdentityHashes(context.oldIndex, 'footnote'), filterIdentityHashes(context.newIndex, 'footnote')).map(
-      ([oldId, newId]) => ({
-        oldId,
-        newId,
-        matchKind: 'footnote-identity' as const,
-        priority: 3,
-        score: 1,
-      }),
-    ),
+    ...uniqueSharedHashes(
+      filterIdentityHashes(context.oldIndex, 'footnote'),
+      filterIdentityHashes(context.newIndex, 'footnote'),
+    ).map(([oldId, newId]) => ({
+      oldId,
+      newId,
+      matchKind: 'footnote-identity' as const,
+      priority: 3,
+      score: 1,
+    })),
+    ...uniqueSharedHashes(
+      filterFootnoteIdentifiers(context.oldIndex),
+      filterFootnoteIdentifiers(context.newIndex),
+    ).map(([oldId, newId]) => ({
+      oldId,
+      newId,
+      matchKind: 'footnote-identifier' as const,
+      priority: 2,
+      score: 1,
+    })),
     ...uniqueSharedHashes(
       filterIdentityHashes(context.oldIndex, 'definition'),
       filterIdentityHashes(context.newIndex, 'definition'),
@@ -351,9 +400,17 @@ async function buildMatchedChange(
   }
 
   if (oldNode.entity === 'section' && newNode.entity === 'section') {
-    if (pair.matchKind !== 'exact-subtree' && estimateSectionAlignmentCost(context, oldNode, newNode) <= context.options.maxRecursiveAlignmentCost) {
+    if (
+      pair.matchKind !== 'exact-subtree' &&
+      estimateSectionAlignmentCost(context, oldNode, newNode) <=
+        context.options.maxRecursiveAlignmentCost
+    ) {
       change.children = await alignChildren(context, oldNode.id, newNode.id, mode)
-      if (change.children.some((child) => child.primaryOp !== 'equal' || child.status.descendantChanged)) {
+      if (
+        change.children.some(
+          (child) => child.primaryOp !== 'equal' || child.status.descendantChanged,
+        )
+      ) {
         change.status.descendantChanged = true
       }
     } else if (pair.matchKind !== 'exact-subtree') {
@@ -400,12 +457,18 @@ async function alignChildren(
       continue
     }
 
-    if (edit.op === 'delete' && edit.oldIndex !== undefined) oldGap.push(oldChildren[edit.oldIndex]!)
-    if (edit.op === 'insert' && edit.newIndex !== undefined) newGap.push(newChildren[edit.newIndex]!)
+    if (edit.op === 'delete' && edit.oldIndex !== undefined)
+      oldGap.push(oldChildren[edit.oldIndex]!)
+    if (edit.op === 'insert' && edit.newIndex !== undefined)
+      newGap.push(newChildren[edit.newIndex]!)
   }
 
   await flushGap(context, oldParentId, newParentId, oldGap, newGap, changes, mode)
-  changes.splice(0, changes.length, ...(await rewriteChildrenWithExistingMatches(context, changes, mode)))
+  changes.splice(
+    0,
+    changes.length,
+    ...(await rewriteChildrenWithExistingMatches(context, changes, mode)),
+  )
   markReorderedChildren(context, changes)
   return changes
 }
@@ -431,7 +494,13 @@ async function flushGap(
     changes.push(await buildMatchedChange(context, pair, mode))
   }
 
-  const pairs = await pairGapNodes(context, residualOldGap, residualNewGap, oldParentId, newParentId)
+  const pairs = await pairGapNodes(
+    context,
+    residualOldGap,
+    residualNewGap,
+    oldParentId,
+    newParentId,
+  )
   const pairedOld = new Set(pairs.map((pair) => pair.oldId))
   const pairedNew = new Set(pairs.map((pair) => pair.newId))
 
@@ -500,15 +569,29 @@ async function pairGapNodes(
         if (!newNode || !isSameShape(oldNode, newNode)) return undefined
         return { newId, newNode }
       })
-      .filter((entry): entry is { newId: string; newNode: NonNullable<typeof entry>['newNode'] } => !!entry)
+      .filter(
+        (entry): entry is { newId: string; newNode: NonNullable<typeof entry>['newNode'] } =>
+          !!entry,
+      )
 
     const scores = comparable.map(({ newNode }) =>
-      computeNodeSimilarity(oldNode, newNode, context.options, parentContextScore(context, oldParentId, newParentId)),
+      computeNodeSimilarity(
+        oldNode,
+        newNode,
+        context.options,
+        parentContextScore(context, oldParentId, newParentId),
+      ),
     )
 
     comparable.forEach(({ newId, newNode }, index) => {
       const score = scores[index] ?? 0
-      const shortHeadingFallback = shouldUseShortHeadingFallback(context, oldNode, newNode, oldParentId, newParentId)
+      const shortHeadingFallback = shouldUseShortHeadingFallback(
+        context,
+        oldNode,
+        newNode,
+        oldParentId,
+        newParentId,
+      )
       if (!shortHeadingFallback && score < context.options.minSimilarity) return
 
       candidates.push({
@@ -558,7 +641,13 @@ async function createAlignedPair(
     context.options,
     parentContextScore(context, oldParentId, newParentId),
   )
-  const shortHeadingFallback = shouldUseShortHeadingFallback(context, oldNode, newNode, oldParentId, newParentId)
+  const shortHeadingFallback = shouldUseShortHeadingFallback(
+    context,
+    oldNode,
+    newNode,
+    oldParentId,
+    newParentId,
+  )
   if (!shortHeadingFallback && score < context.options.minSimilarity) return undefined
 
   return {
@@ -604,10 +693,17 @@ async function buildAlignedChange(
   }
 
   if (oldNode.entity === 'section' && newNode.entity === 'section') {
-    if (estimateSectionAlignmentCost(context, oldNode, newNode) <= context.options.maxLocalAlignmentCost) {
+    if (
+      estimateSectionAlignmentCost(context, oldNode, newNode) <=
+      context.options.maxLocalAlignmentCost
+    ) {
       await seedLocalMatches(context, oldNode.id, newNode.id)
       change.children = await alignChildren(context, oldNode.id, newNode.id, 'local')
-      if (change.children.some((child) => child.primaryOp !== 'equal' || child.status.descendantChanged)) {
+      if (
+        change.children.some(
+          (child) => child.primaryOp !== 'equal' || child.status.descendantChanged,
+        )
+      ) {
         change.status.descendantChanged = true
       }
       if (oldNode.selfHash === newNode.selfHash && change.status.descendantChanged) {
@@ -624,7 +720,11 @@ async function buildAlignedChange(
     }
   }
 
-  if (mode === 'local' && oldNode.selfHash === newNode.selfHash && change.status.descendantChanged) {
+  if (
+    mode === 'local' &&
+    oldNode.selfHash === newNode.selfHash &&
+    change.status.descendantChanged
+  ) {
     change.primaryOp = 'equal'
     change.status.selfChanged = false
   }
@@ -632,32 +732,62 @@ async function buildAlignedChange(
   return change
 }
 
-async function seedLocalMatches(context: DiffContext, oldParentId: string, newParentId: string): Promise<void> {
+async function seedLocalMatches(
+  context: DiffContext,
+  oldParentId: string,
+  newParentId: string,
+): Promise<void> {
   const oldChildren = context.oldIndex.childrenById.get(oldParentId) ?? []
   const newChildren = context.newIndex.childrenById.get(newParentId) ?? []
 
-  matchLocalBy(context, oldChildren, newChildren, (node) => node?.selfHash, 'exact-self-with-context')
-  matchLocalBy(context, oldChildren, newChildren, (node) => (node?.kind === 'heading' ? node.titleSlug : undefined), 'local-heading-slug')
+  matchLocalBy(
+    context,
+    oldChildren,
+    newChildren,
+    (node) => node?.selfHash,
+    'exact-self-with-context',
+  )
+  matchLocalBy(
+    context,
+    oldChildren,
+    newChildren,
+    (node) => (node?.kind === 'heading' ? node.titleSlug : undefined),
+    'local-heading-slug',
+  )
   matchLocalBy(context, oldChildren, newChildren, headingBodyLocalKey, 'local-heading-body')
   matchLocalBy(
     context,
     oldChildren,
     newChildren,
-    (node) => (node && (node.kind === 'footnote' || node.blockType === 'definition') ? node.identityHash : undefined),
+    (node) =>
+      node && (node.kind === 'footnote' || node.blockType === 'definition')
+        ? node.identityHash
+        : undefined,
     'local-identity',
   )
 
   const similarityCandidates: MatchCandidate[] = []
   const unmatchedOldNodes = oldChildren
     .map((candidateId) => context.oldIndex.byId.get(candidateId))
-    .filter((candidate): candidate is NonNullable<typeof candidate> => !!candidate && !context.matchesByOld.has(candidate.id))
+    .filter(
+      (candidate): candidate is NonNullable<typeof candidate> =>
+        !!candidate && !context.matchesByOld.has(candidate.id),
+    )
   for (const oldId of oldChildren) {
     const oldNode = context.oldIndex.byId.get(oldId)
     if (!oldNode || context.matchesByOld.has(oldId)) continue
-    const comparables = recallComparableNodes(context, oldNode, newChildren, oldParentId, newParentId)
+    const comparables = recallComparableNodes(
+      context,
+      oldNode,
+      newChildren,
+      oldParentId,
+      newParentId,
+    )
     if (comparables.length === 0) continue
 
-    const scores = comparables.map((newNode) => computeNodeSimilarity(oldNode, newNode, context.options, 1))
+    const scores = comparables.map((newNode) =>
+      computeNodeSimilarity(oldNode, newNode, context.options, 1),
+    )
     const bestIndex = indexOfMaxScore(scores)
     const bestScore = scores[bestIndex] ?? 0
     if (bestScore < context.options.minSimilarity) continue
@@ -666,8 +796,12 @@ async function seedLocalMatches(context: DiffContext, oldParentId: string, newPa
     const bestNew = comparables[bestIndex]
     if (!bestNew) continue
 
-    const reverseCandidates = unmatchedOldNodes.filter((candidate) => isSameShape(candidate, bestNew))
-    const reverseScores = reverseCandidates.map((candidate) => computeNodeSimilarity(candidate, bestNew, context.options, 1))
+    const reverseCandidates = unmatchedOldNodes.filter((candidate) =>
+      isSameShape(candidate, bestNew),
+    )
+    const reverseScores = reverseCandidates.map((candidate) =>
+      computeNodeSimilarity(candidate, bestNew, context.options, 1),
+    )
     if (uniquenessMargin(reverseScores) < context.options.minUniquenessMargin) continue
 
     similarityCandidates.push({
@@ -680,8 +814,16 @@ async function seedLocalMatches(context: DiffContext, oldParentId: string, newPa
   }
 
   for (const candidate of similarityCandidates.sort((left, right) => right.score - left.score)) {
-    if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId)) continue
-    addMatch(context, candidate.oldId, candidate.newId, candidate.matchKind, undefined, candidate.score)
+    if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId))
+      continue
+    addMatch(
+      context,
+      candidate.oldId,
+      candidate.newId,
+      candidate.matchKind,
+      undefined,
+      candidate.score,
+    )
   }
 }
 
@@ -689,7 +831,9 @@ function matchLocalBy(
   context: DiffContext,
   oldIds: string[],
   newIds: string[],
-  getKey: (node: SemanticIndex['byId'] extends Map<string, infer T> ? T | undefined : never) => string | undefined,
+  getKey: (
+    node: SemanticIndex['byId'] extends Map<string, infer T> ? T | undefined : never,
+  ) => string | undefined,
   matchKind: MatchKind,
 ): void {
   const oldBuckets = new Map<string, string[]>()
@@ -722,7 +866,13 @@ function recallComparableNodes(
   oldParentId: string,
   newParentId: string,
 ): Array<NonNullable<ReturnType<SemanticIndex['byId']['get']>>> {
-  const boundedIds = boundCandidateIdsBySiblingAnchors(context, oldNode, newIds, oldParentId, newParentId)
+  const boundedIds = boundCandidateIdsBySiblingAnchors(
+    context,
+    oldNode,
+    newIds,
+    oldParentId,
+    newParentId,
+  )
   const sameShape = boundedIds
     .map((newId) => context.newIndex.byId.get(newId))
     .filter(
@@ -736,17 +886,21 @@ function recallComparableNodes(
       node: newNode,
       distance: simHashDistanceForRecall(oldNode, newNode),
       structuralBias:
-        (oldNode.pathHash &&
-        newNode.pathHash &&
-        oldNode.pathHash === newNode.pathHash
+        (oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash
           ? 0
           : DIFF_HEURISTICS.recall.pathMismatchPenalty) +
         Math.abs((oldNode.siblingIndex ?? 0) - (newNode.siblingIndex ?? 0)),
     }))
     .filter(
-      (entry) => entry.distance === undefined || entry.distance <= DIFF_HEURISTICS.recall.textSimThreshold,
+      (entry) =>
+        entry.distance === undefined || entry.distance <= DIFF_HEURISTICS.recall.textSimThreshold,
     )
-    .sort((left, right) => (left.distance ?? Number.POSITIVE_INFINITY) - (right.distance ?? Number.POSITIVE_INFINITY) || left.structuralBias - right.structuralBias)
+    .sort(
+      (left, right) =>
+        (left.distance ?? Number.POSITIVE_INFINITY) -
+          (right.distance ?? Number.POSITIVE_INFINITY) ||
+        left.structuralBias - right.structuralBias,
+    )
 
   if (ranked.length === 0) return sameShape
   return ranked.slice(0, DIFF_HEURISTICS.recall.maxComparableNodes).map((entry) => entry.node)
@@ -769,14 +923,22 @@ async function maybeApplyStructuralFallback(
   }
 
   const aptedMatches = computeStructuralAptedMatches(context, change)
-  const fallbackPairs = collectStructuralFallbackPairs(context, change, oldNode.id, newNode.id, aptedMatches)
+  const fallbackPairs = collectStructuralFallbackPairs(
+    context,
+    change,
+    oldNode.id,
+    newNode.id,
+    aptedMatches,
+  )
   if (fallbackPairs.length === 0) {
     change.warnings.push('enhanced-local-recovery-no-candidates')
     return
   }
 
   change.children = await rewriteChildrenWithFallbackPairs(context, change.children, fallbackPairs)
-  if (change.children.some((child) => child.primaryOp !== 'equal' || child.status.descendantChanged)) {
+  if (
+    change.children.some((child) => child.primaryOp !== 'equal' || child.status.descendantChanged)
+  ) {
     change.status.descendantChanged = true
   }
   if (oldNode.selfHash === newNode.selfHash && change.status.descendantChanged) {
@@ -819,7 +981,11 @@ function buildInsertChange(context: DiffContext, newId: string): DiffChange {
   }
 }
 
-function expandChildren(context: DiffContext, parentId: string, op: 'delete' | 'insert'): DiffChange[] {
+function expandChildren(
+  context: DiffContext,
+  parentId: string,
+  op: 'delete' | 'insert',
+): DiffChange[] {
   const index = op === 'delete' ? context.oldIndex : context.newIndex
   return (index.childrenById.get(parentId) ?? []).map((childId) =>
     op === 'delete' ? buildDeleteChange(context, childId) : buildInsertChange(context, childId),
@@ -835,10 +1001,16 @@ async function recoverMoves(context: DiffContext, root: DiffChange): Promise<voi
   const candidates = deletes.flatMap((deleted) =>
     inserts
       .map((inserted) => ({ deleted, inserted }))
-      .filter(({ deleted: oldChange, inserted: newChange }) => moveCandidateAllowed(context, oldChange, newChange)),
+      .filter(({ deleted: oldChange, inserted: newChange }) =>
+        moveCandidateAllowed(context, oldChange, newChange),
+      ),
   )
 
-  candidates.sort((left, right) => subtreeSizeOfChange(context, right.deleted, right.inserted) - subtreeSizeOfChange(context, left.deleted, left.inserted))
+  candidates.sort(
+    (left, right) =>
+      subtreeSizeOfChange(context, right.deleted, right.inserted) -
+      subtreeSizeOfChange(context, left.deleted, left.inserted),
+  )
 
   for (const candidate of candidates) {
     const oldId = candidate.deleted.oldId!
@@ -861,14 +1033,19 @@ async function recoverMoves(context: DiffContext, root: DiffChange): Promise<voi
   }
 }
 
-async function recoverDefinitionIdentifierPairs(context: DiffContext, root: DiffChange): Promise<void> {
+async function recoverDefinitionIdentifierPairs(
+  context: DiffContext,
+  root: DiffChange,
+): Promise<void> {
   const deletes = collectChanges(
     root,
-    (change) => change.primaryOp === 'delete' && change.blockType === 'definition' && !!change.oldId,
+    (change) =>
+      change.primaryOp === 'delete' && change.blockType === 'definition' && !!change.oldId,
   )
   const inserts = collectChanges(
     root,
-    (change) => change.primaryOp === 'insert' && change.blockType === 'definition' && !!change.newId,
+    (change) =>
+      change.primaryOp === 'insert' && change.blockType === 'definition' && !!change.newId,
   )
   if (deletes.length === 0 || inserts.length === 0) return
 
@@ -912,7 +1089,8 @@ async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Pr
       if (titlesDiffer && uniqueHeadingSiblingNames(context, oldNode, newNode)) {
         if (
           sameHeadingStructure(oldNode, newNode) &&
-          (oldNode.headingBodyHash === newNode.headingBodyHash || hasStrongHeadingDirectMatchEvidence(context, oldNode, newNode))
+          (oldNode.headingBodyHash === newNode.headingBodyHash ||
+            hasStrongHeadingDirectMatchEvidence(context, oldNode, newNode))
         ) {
           upgradeToMatch(change)
           change.primaryOp = 'equal'
@@ -963,7 +1141,10 @@ async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Pr
     }
 
     if (oldNode.blockType === 'code' && newNode.blockType === 'code') {
-      if (oldNode.contentOnlyHash === newNode.contentOnlyHash && oldNode.selfHash !== newNode.selfHash) {
+      if (
+        oldNode.contentOnlyHash === newNode.contentOnlyHash &&
+        oldNode.selfHash !== newNode.selfHash
+      ) {
         upgradeToMatch(change)
         change.primaryOp = 'meta-update'
         change.status.metaChanged = true
@@ -985,7 +1166,10 @@ async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Pr
     }
 
     if (oldNode.kind === 'listItem' && newNode.kind === 'listItem') {
-      if (oldNode.section?.checked !== newNode.section?.checked && oldNode.contentOnlyHash === newNode.contentOnlyHash) {
+      if (
+        oldNode.section?.checked !== newNode.section?.checked &&
+        oldNode.contentOnlyHash === newNode.contentOnlyHash
+      ) {
         upgradeToMatch(change)
         change.primaryOp = 'meta-update'
         change.status.metaChanged = true
@@ -1036,7 +1220,11 @@ async function computePresentationDiffs(context: DiffContext, root: DiffChange):
 
       if (oldNode.blockType === 'code' && newNode.blockType === 'code') {
         if (oldNode.contentOnlyHash !== newNode.contentOnlyHash) {
-          change.codeSpans = diffCodeLines(String(oldNode.block?.value ?? ''), String(newNode.block?.value ?? ''), context.options)
+          change.codeSpans = diffCodeLines(
+            String(oldNode.block?.value ?? ''),
+            String(newNode.block?.value ?? ''),
+            context.options,
+          )
         }
       }
 
@@ -1057,14 +1245,22 @@ async function computePresentationDiffs(context: DiffContext, root: DiffChange):
 
 function validateTree(root: DiffChange, warnings: string[]): void {
   forEachChange(root, (change) => {
-    if ((change.primaryOp === 'insert' || change.primaryOp === 'delete') && (change.status.isMatchPair || change.status.isAlignedPair)) {
+    if (
+      (change.primaryOp === 'insert' || change.primaryOp === 'delete') &&
+      (change.status.isMatchPair || change.status.isAlignedPair)
+    ) {
       warnings.push(`invalid-pair-state:${change.summary}`)
     }
-    if (change.primaryOp === 'move' && !change.status.moved) warnings.push(`invalid-move-state:${change.summary}`)
-    if (change.primaryOp === 'meta-update' && !change.status.metaChanged) warnings.push(`invalid-meta-state:${change.summary}`)
-    if (change.primaryOp === 'equal' && change.status.selfChanged && !change.status.renamed) warnings.push(`invalid-equal-state:${change.summary}`)
-    if (change.status.isMatchPair && change.pairKind !== 'match') warnings.push(`invalid-match-kind:${change.summary}`)
-    if (change.status.isAlignedPair && change.pairKind !== 'align') warnings.push(`invalid-align-kind:${change.summary}`)
+    if (change.primaryOp === 'move' && !change.status.moved)
+      warnings.push(`invalid-move-state:${change.summary}`)
+    if (change.primaryOp === 'meta-update' && !change.status.metaChanged)
+      warnings.push(`invalid-meta-state:${change.summary}`)
+    if (change.primaryOp === 'equal' && change.status.selfChanged && !change.status.renamed)
+      warnings.push(`invalid-equal-state:${change.summary}`)
+    if (change.status.isMatchPair && change.pairKind !== 'match')
+      warnings.push(`invalid-match-kind:${change.summary}`)
+    if (change.status.isAlignedPair && change.pairKind !== 'align')
+      warnings.push(`invalid-align-kind:${change.summary}`)
     if (
       change.entity !== 'metadata' &&
       change.primaryOp === 'meta-update' &&
@@ -1072,7 +1268,8 @@ function validateTree(root: DiffChange, warnings: string[]): void {
     ) {
       warnings.push(`invalid-meta-pair:${change.summary}`)
     }
-    if (change.primaryOp === 'move' && (!change.logicalMoveId || !change.moveRole)) warnings.push(`invalid-move-link:${change.summary}`)
+    if (change.primaryOp === 'move' && (!change.logicalMoveId || !change.moveRole))
+      warnings.push(`invalid-move-link:${change.summary}`)
   })
 }
 
@@ -1080,17 +1277,29 @@ async function diffInlineNodes(
   oldChildren: InlineContent[],
   newChildren: InlineContent[],
   maxInlineDiffMatrixCost: number,
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<
+    DiffOptions,
+    'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'
+  >,
 ): Promise<{ spans: InlineSpan[]; inlineStructureChanged: boolean; deferred: boolean }> {
   if (estimateInlineDiffCost(oldChildren, newChildren) > maxInlineDiffMatrixCost) {
     return {
-      spans: [{ op: 'replace', oldText: extractInlineText(oldChildren), newText: extractInlineText(newChildren) }],
+      spans: [
+        {
+          op: 'replace',
+          oldText: extractInlineText(oldChildren),
+          newText: extractInlineText(newChildren),
+        },
+      ],
       inlineStructureChanged: false,
       deferred: true,
     }
   }
 
-  const [oldTokens, newTokens] = await Promise.all([buildInlineTokens(oldChildren), buildInlineTokens(newChildren)])
+  const [oldTokens, newTokens] = await Promise.all([
+    buildInlineTokens(oldChildren),
+    buildInlineTokens(newChildren),
+  ])
   const edits = alignSequence(
     oldTokens.map((token) => token.hash),
     newTokens.map((token) => token.hash),
@@ -1108,7 +1317,10 @@ async function diffInlineNodes(
       if (oldGap.length > 0 || newGap.length > 0) {
         const span = await buildInlineReplaceSpan(oldGap, newGap, sequenceOptions)
         spans.push(span)
-        if (span.oldTokens?.some((token) => token.type !== 'text') || span.newTokens?.some((token) => token.type !== 'text')) {
+        if (
+          span.oldTokens?.some((token) => token.type !== 'text') ||
+          span.newTokens?.some((token) => token.type !== 'text')
+        ) {
           inlineStructureChanged = true
         }
         oldGap = []
@@ -1132,7 +1344,10 @@ async function diffInlineNodes(
   if (oldGap.length > 0 || newGap.length > 0) {
     const span = await buildInlineReplaceSpan(oldGap, newGap, sequenceOptions)
     spans.push(span)
-    if (span.oldTokens?.some((token) => token.type !== 'text') || span.newTokens?.some((token) => token.type !== 'text')) {
+    if (
+      span.oldTokens?.some((token) => token.type !== 'text') ||
+      span.newTokens?.some((token) => token.type !== 'text')
+    ) {
       inlineStructureChanged = true
     }
   }
@@ -1146,7 +1361,10 @@ function diffCodeLines(oldValue: string, newValue: string, options: DiffOptions)
   const edits = alignSequence(oldLines, newLines, options, 'heckel')
   const spans = coalesceLineDiffSpans(edits, oldLines, newLines, sequenceTuning(options))
 
-  if (oldLines.length > options.longCodeLineThreshold || newLines.length > options.longCodeLineThreshold) {
+  if (
+    oldLines.length > options.longCodeLineThreshold ||
+    newLines.length > options.longCodeLineThreshold
+  ) {
     return foldLongCodeSpans(spans, options.codeFoldContextLines)
   }
   return spans
@@ -1163,7 +1381,8 @@ async function computeTableMetadataChange(
   const newStructuredRows = readStructuredTableCells(newNode.block)
   const oldAlign = Array.isArray(oldNode.block?.align) ? (oldNode.block.align as string[]) : []
   const newAlign = Array.isArray(newNode.block?.align) ? (newNode.block.align as string[]) : []
-  const shapeChanged = oldRows.length !== newRows.length || maxColumns(oldRows) !== maxColumns(newRows)
+  const shapeChanged =
+    oldRows.length !== newRows.length || maxColumns(oldRows) !== maxColumns(newRows)
   const alignmentChanged = JSON.stringify(oldAlign) !== JSON.stringify(newAlign)
   const cellDiffs: TableCellDiff[] = []
 
@@ -1182,12 +1401,17 @@ async function computeTableMetadataChange(
           options.maxInlineDiffMatrixCost,
           sequenceTuning(options),
         )
-        const spans = result.spans.length > 0 ? result.spans : [{
-          op: 'replace' as const,
-          oldText,
-          newText,
-          wordSpans: diffWordTextSync(oldText, newText, sequenceTuning(options)),
-        }]
+        const spans =
+          result.spans.length > 0
+            ? result.spans
+            : [
+                {
+                  op: 'replace' as const,
+                  oldText,
+                  newText,
+                  wordSpans: diffWordTextSync(oldText, newText, sequenceTuning(options)),
+                },
+              ]
         if (!hasMeaningfulInlineDiff(spans, oldText, newText)) continue
         cellDiffs.push({
           row,
@@ -1209,7 +1433,10 @@ async function computeTableMetadataChange(
 async function diffWordText(
   oldText: string,
   newText: string,
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<
+    DiffOptions,
+    'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'
+  >,
 ): Promise<InlineSpan[]> {
   return [
     {
@@ -1224,7 +1451,10 @@ async function diffWordText(
 function diffWordTextSync(
   oldText: string,
   newText: string,
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<
+    DiffOptions,
+    'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'
+  >,
 ): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
   const oldWords = tokenizeText(oldText)
   const newWords = tokenizeText(newText)
@@ -1235,11 +1465,16 @@ function diffWordTextSync(
 async function buildInlineReplaceSpan(
   oldTokens: InlineToken[],
   newTokens: InlineToken[],
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<
+    DiffOptions,
+    'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'
+  >,
 ): Promise<InlineSpan> {
   const oldText = oldTokens.map((token) => token.rawText).join('')
   const newText = newTokens.map((token) => token.rawText).join('')
-  const textOnly = oldTokens.every((token) => token.type === 'text') && newTokens.every((token) => token.type === 'text')
+  const textOnly =
+    oldTokens.every((token) => token.type === 'text') &&
+    newTokens.every((token) => token.type === 'text')
   return {
     op: 'replace',
     oldText,
@@ -1253,7 +1488,10 @@ async function buildInlineReplaceSpan(
 function diffCharacters(
   oldText: string,
   newText: string,
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<
+    DiffOptions,
+    'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'
+  >,
 ): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
   const oldChars = [...oldText]
   const newChars = [...newText]
@@ -1267,7 +1505,11 @@ function coalesceTextSpans(
   newUnits: string[],
   separator: string,
 ): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
-  const spans: Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> = []
+  const spans: Array<{
+    op: 'equal' | 'insert' | 'delete' | 'replace'
+    oldText?: string
+    newText?: string
+  }> = []
   let pendingDeletes: string[] = []
   let pendingInserts: string[] = []
 
@@ -1299,8 +1541,10 @@ function coalesceTextSpans(
       continue
     }
 
-    if (edit.op === 'delete' && edit.oldIndex !== undefined) pendingDeletes.push(oldUnits[edit.oldIndex] ?? '')
-    if (edit.op === 'insert' && edit.newIndex !== undefined) pendingInserts.push(newUnits[edit.newIndex] ?? '')
+    if (edit.op === 'delete' && edit.oldIndex !== undefined)
+      pendingDeletes.push(oldUnits[edit.oldIndex] ?? '')
+    if (edit.op === 'insert' && edit.newIndex !== undefined)
+      pendingInserts.push(newUnits[edit.newIndex] ?? '')
   }
 
   flushPending()
@@ -1311,7 +1555,10 @@ function coalesceLineDiffSpans(
   edits: Array<{ op: 'equal' | 'insert' | 'delete'; oldIndex?: number; newIndex?: number }>,
   oldLines: string[],
   newLines: string[],
-  sequenceOptions: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
+  sequenceOptions: Pick<
+    DiffOptions,
+    'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'
+  >,
 ): LineDiffSpan[] {
   const spans: LineDiffSpan[] = []
   let deleteIndexes: number[] = []
@@ -1380,7 +1627,9 @@ function isStructuralOnlyTableChange(
   tableDiff: TableDiff,
 ): boolean {
   if (!tableDiff.structureChanged || tableDiff.cellDiffs.length > 0) return false
-  return JSON.stringify(readTableCells(oldNode.block)) === JSON.stringify(readTableCells(newNode.block))
+  return (
+    JSON.stringify(readTableCells(oldNode.block)) === JSON.stringify(readTableCells(newNode.block))
+  )
 }
 
 function foldLongCodeSpans(spans: LineDiffSpan[], contextLines: number): LineDiffSpan[] {
@@ -1392,12 +1641,17 @@ function foldLongCodeSpans(spans: LineDiffSpan[], contextLines: number): LineDif
 
   const keep = new Set<number>()
   for (const index of changed) {
-    for (let cursor = Math.max(0, index - contextLines); cursor <= Math.min(spans.length - 1, index + contextLines); cursor++) {
+    for (
+      let cursor = Math.max(0, index - contextLines);
+      cursor <= Math.min(spans.length - 1, index + contextLines);
+      cursor++
+    ) {
       keep.add(cursor)
     }
   }
   for (let index = 0; index < Math.min(contextLines, spans.length); index++) keep.add(index)
-  for (let index = Math.max(0, spans.length - contextLines); index < spans.length; index++) keep.add(index)
+  for (let index = Math.max(0, spans.length - contextLines); index < spans.length; index++)
+    keep.add(index)
 
   return spans.filter((_, index) => keep.has(index))
 }
@@ -1429,7 +1683,12 @@ async function ensureMatchedToken(
   if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return undefined
 
   if (!withinSiblingOffsetThreshold(context, oldNode, newNode)) return undefined
-  const score = computeNodeSimilarity(oldNode, newNode, context.options, parentContextScore(context, oldParentId, newParentId))
+  const score = computeNodeSimilarity(
+    oldNode,
+    newNode,
+    context.options,
+    parentContextScore(context, oldParentId, newParentId),
+  )
   if (oldNode.selfHash === newNode.selfHash && score >= context.options.minSimilarity) {
     return addMatch(context, oldId, newId, 'exact-self-with-context', undefined, score)
   }
@@ -1519,12 +1778,21 @@ function hasLocalHashContext(
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
 ): boolean {
-  const oldSiblings = oldNode.parentId ? context.oldIndex.childrenById.get(oldNode.parentId) ?? [] : []
-  const newSiblings = newNode.parentId ? context.newIndex.childrenById.get(newNode.parentId) ?? [] : []
+  const oldSiblings = oldNode.parentId
+    ? (context.oldIndex.childrenById.get(oldNode.parentId) ?? [])
+    : []
+  const newSiblings = newNode.parentId
+    ? (context.newIndex.childrenById.get(newNode.parentId) ?? [])
+    : []
 
   const siblingBounds =
     oldNode.parentId && newNode.parentId
-      ? resolveSiblingAnchorBounds(context, oldNode.parentId, newNode.parentId, oldNode.siblingIndex)
+      ? resolveSiblingAnchorBounds(
+          context,
+          oldNode.parentId,
+          newNode.parentId,
+          oldNode.siblingIndex,
+        )
       : undefined
 
   const oldWindow = sliceSiblingWitnessWindow(
@@ -1546,7 +1814,10 @@ function hasLocalHashContext(
     if (siblingBounds) return true
     const candidateNew = context.newIndex.byId.get(candidateNewId)
     if (!candidateNew) return false
-    const interval = anchors.getGlobalInterval(oldNode.preorder, context.newIndex.nodesInPreorder.length)
+    const interval = anchors.getGlobalInterval(
+      oldNode.preorder,
+      context.newIndex.nodesInPreorder.length,
+    )
     if (!interval) return true
     return candidateNew.preorder >= interval.min && candidateNew.preorder <= interval.max
   })
@@ -1572,19 +1843,31 @@ function sameHeadingStructure(
   )
 }
 
-function projectToken(context: DiffContext, childId: string, oppositeParentId: string, tree: 'old' | 'new'): string {
-  const match = tree === 'old' ? context.matchesByOld.get(childId) : context.matchesByNew.get(childId)
+function projectToken(
+  context: DiffContext,
+  childId: string,
+  oppositeParentId: string,
+  tree: 'old' | 'new',
+): string {
+  const match =
+    tree === 'old' ? context.matchesByOld.get(childId) : context.matchesByNew.get(childId)
   if (match) {
     const oppositeId = tree === 'old' ? match.newId : match.oldId
-    const oppositeNode = context.newIndex.byId.get(oppositeId) ?? context.oldIndex.byId.get(oppositeId)
+    const oppositeNode =
+      context.newIndex.byId.get(oppositeId) ?? context.oldIndex.byId.get(oppositeId)
     if (oppositeNode?.parentId === oppositeParentId) return `MATCHED:${match.pairKey}`
   }
 
-  const node = tree === 'old' ? context.oldIndex.byId.get(childId) : context.newIndex.byId.get(childId)
+  const node =
+    tree === 'old' ? context.oldIndex.byId.get(childId) : context.newIndex.byId.get(childId)
   return `SELF:${node?.selfHash ?? childId}`
 }
 
-function parentContextScore(context: DiffContext, oldParentId: string, newParentId: string): number {
+function parentContextScore(
+  context: DiffContext,
+  oldParentId: string,
+  newParentId: string,
+): number {
   const pair = context.matchesByOld.get(oldParentId)
   return pair?.newId === newParentId
     ? DIFF_HEURISTICS.context.matchedParentScore
@@ -1618,13 +1901,23 @@ function isCandidateWithinAnchoredBounds(
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
 ): boolean {
   if (oldNode.parentId && newNode.parentId) {
-    const siblingBounds = resolveSiblingAnchorBounds(context, oldNode.parentId, newNode.parentId, oldNode.siblingIndex)
+    const siblingBounds = resolveSiblingAnchorBounds(
+      context,
+      oldNode.parentId,
+      newNode.parentId,
+      oldNode.siblingIndex,
+    )
     if (siblingBounds) {
-      return newNode.siblingIndex >= siblingBounds.newMin && newNode.siblingIndex <= siblingBounds.newMax
+      return (
+        newNode.siblingIndex >= siblingBounds.newMin && newNode.siblingIndex <= siblingBounds.newMax
+      )
     }
   }
 
-  const interval = anchors.getGlobalInterval(oldNode.preorder, context.newIndex.nodesInPreorder.length)
+  const interval = anchors.getGlobalInterval(
+    oldNode.preorder,
+    context.newIndex.nodesInPreorder.length,
+  )
   if (!interval) return true
   return newNode.preorder >= interval.min && newNode.preorder <= interval.max
 }
@@ -1720,7 +2013,10 @@ function estimateAptedRecoveryCost(change: DiffChange): number {
   return deletes * inserts
 }
 
-function estimateInlineDiffCost(oldChildren: InlineContent[], newChildren: InlineContent[]): number {
+function estimateInlineDiffCost(
+  oldChildren: InlineContent[],
+  newChildren: InlineContent[],
+): number {
   return oldChildren.length * newChildren.length
 }
 
@@ -1741,7 +2037,10 @@ function shouldUseShortHeadingFallback(
   }
   if (context.matchesByOld.get(oldParentId)?.newId !== newParentId) return false
   if (!uniqueHeadingSiblingNames(context, oldNode, newNode)) return false
-  return oldNode.headingBodyHash === newNode.headingBodyHash || (oldNode.logicalChildren.length === 0 && newNode.logicalChildren.length === 0)
+  return (
+    oldNode.headingBodyHash === newNode.headingBodyHash ||
+    (oldNode.logicalChildren.length === 0 && newNode.logicalChildren.length === 0)
+  )
 }
 
 function headingBodyLocalKey(
@@ -1761,14 +2060,30 @@ function uniqueHeadingSiblingNames(
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
 ): boolean {
-  const oldSiblings = oldNode.parentId ? context.oldIndex.childrenById.get(oldNode.parentId) ?? [] : []
-  const newSiblings = newNode.parentId ? context.newIndex.childrenById.get(newNode.parentId) ?? [] : []
+  const oldSiblings = oldNode.parentId
+    ? (context.oldIndex.childrenById.get(oldNode.parentId) ?? [])
+    : []
+  const newSiblings = newNode.parentId
+    ? (context.newIndex.childrenById.get(newNode.parentId) ?? [])
+    : []
   const duplicateOld = oldSiblings
     .map((id) => context.oldIndex.byId.get(id))
-    .some((candidate) => candidate && candidate.id !== oldNode.id && candidate.kind === 'heading' && candidate.normalizedTitle === newNode.normalizedTitle)
+    .some(
+      (candidate) =>
+        candidate &&
+        candidate.id !== oldNode.id &&
+        candidate.kind === 'heading' &&
+        candidate.normalizedTitle === newNode.normalizedTitle,
+    )
   const duplicateNew = newSiblings
     .map((id) => context.newIndex.byId.get(id))
-    .some((candidate) => candidate && candidate.id !== newNode.id && candidate.kind === 'heading' && candidate.normalizedTitle === oldNode.normalizedTitle)
+    .some(
+      (candidate) =>
+        candidate &&
+        candidate.id !== newNode.id &&
+        candidate.kind === 'heading' &&
+        candidate.normalizedTitle === oldNode.normalizedTitle,
+    )
   return !duplicateOld && !duplicateNew
 }
 
@@ -1785,20 +2100,34 @@ function hasStrongHeadingDirectMatchEvidence(
     const pair = context.matchesByOld.get(childId)
     return !!pair && newChildren.has(pair.newId)
   }).length
-  const minimumMatchedChildren = Math.max(2, Math.ceil(Math.min(oldChildren.length, newChildren.size) / 2))
+  const minimumMatchedChildren = Math.max(
+    2,
+    Math.ceil(Math.min(oldChildren.length, newChildren.size) / 2),
+  )
   return matchedDirectChildren >= minimumMatchedChildren
 }
 
-function moveCandidateAllowed(context: DiffContext, deleted: DiffChange, inserted: DiffChange): boolean {
+function moveCandidateAllowed(
+  context: DiffContext,
+  deleted: DiffChange,
+  inserted: DiffChange,
+): boolean {
   const oldNode = deleted.oldId ? context.oldIndex.byId.get(deleted.oldId) : undefined
   const newNode = inserted.newId ? context.newIndex.byId.get(inserted.newId) : undefined
   if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return false
-  if (Math.abs(oldNode.depth - newNode.depth) > context.options.moveDepthDiffMax && !hasCompatibleMovePath(oldNode, newNode)) {
+  if (
+    Math.abs(oldNode.depth - newNode.depth) > context.options.moveDepthDiffMax &&
+    !hasCompatibleMovePath(oldNode, newNode)
+  ) {
     return false
   }
   if (oldNode.entity === 'section') {
     const ratio = oldNode.subtreeSize / Math.max(newNode.subtreeSize, 1)
-    if (ratio < context.options.moveSubtreeSizeRatioMin || ratio > context.options.moveSubtreeSizeRatioMax) return false
+    if (
+      ratio < context.options.moveSubtreeSizeRatioMin ||
+      ratio > context.options.moveSubtreeSizeRatioMax
+    )
+      return false
   }
   return true
 }
@@ -1814,24 +2143,41 @@ function classifyMove(
   const newNode = context.newIndex.byId.get(newId)
   if (!oldNode || !newNode) return undefined
 
-  if (oldNode.subtreeHash === newNode.subtreeHash && uniqueMoveHash(deletes, inserts, context, 'subtreeHash', oldNode.subtreeHash)) {
+  if (
+    oldNode.subtreeHash === newNode.subtreeHash &&
+    uniqueMoveHash(deletes, inserts, context, 'subtreeHash', oldNode.subtreeHash)
+  ) {
     return 'move-exact'
   }
   if (
     oldNode.entity === 'section' &&
     oldNode.directHash === newNode.directHash &&
-    (shareMatchedNeighborContext(context, oldNode, newNode) || hasCompatibleMovePath(oldNode, newNode))
+    (shareMatchedNeighborContext(context, oldNode, newNode) ||
+      hasCompatibleMovePath(oldNode, newNode))
   ) {
     return 'move-direct'
   }
-  if (oldNode.kind === 'heading' && newNode.kind === 'heading' && oldNode.titleSlug === newNode.titleSlug) {
+  if (
+    oldNode.kind === 'heading' &&
+    newNode.kind === 'heading' &&
+    oldNode.titleSlug === newNode.titleSlug
+  ) {
     const score = computeHeadingMoveScore(oldNode, newNode)
-    const strongSimilarity = oldNode.headingBodyHash === newNode.headingBodyHash || score >= context.options.minSimilarity
-    if (strongSimilarity && isUniqueHeadingMoveCandidate(context, oldId, newId, deletes, inserts, score)) {
+    const strongSimilarity =
+      oldNode.headingBodyHash === newNode.headingBodyHash || score >= context.options.minSimilarity
+    if (
+      strongSimilarity &&
+      isUniqueHeadingMoveCandidate(context, oldId, newId, deletes, inserts, score)
+    ) {
       return 'move-heading'
     }
   }
-  if (oldNode.blockType === 'code' && newNode.blockType === 'code' && oldNode.contentOnlyHash === newNode.contentOnlyHash && uniqueMoveHash(deletes, inserts, context, 'contentOnlyHash', oldNode.contentOnlyHash)) {
+  if (
+    oldNode.blockType === 'code' &&
+    newNode.blockType === 'code' &&
+    oldNode.contentOnlyHash === newNode.contentOnlyHash &&
+    uniqueMoveHash(deletes, inserts, context, 'contentOnlyHash', oldNode.contentOnlyHash)
+  ) {
     return 'move-code'
   }
   return undefined
@@ -1841,7 +2187,12 @@ function computeHeadingMoveScore(
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
 ): number {
-  if (oldNode.headingBodyHash && newNode.headingBodyHash && oldNode.headingBodyHash === newNode.headingBodyHash) return 1
+  if (
+    oldNode.headingBodyHash &&
+    newNode.headingBodyHash &&
+    oldNode.headingBodyHash === newNode.headingBodyHash
+  )
+    return 1
   if (oldNode.contentOnlyHash === newNode.contentOnlyHash) return 1
   return jaccardSimilarity(oldNode.textTokens, newNode.textTokens)
 }
@@ -1851,12 +2202,19 @@ function hasCompatibleMovePath(
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
 ): boolean {
   if (oldNode.pathParts.length === 0 || newNode.pathParts.length === 0) return false
-  return longestCommonPathSuffix(oldNode.pathParts, newNode.pathParts) === Math.min(oldNode.pathParts.length, newNode.pathParts.length)
+  return (
+    longestCommonPathSuffix(oldNode.pathParts, newNode.pathParts) ===
+    Math.min(oldNode.pathParts.length, newNode.pathParts.length)
+  )
 }
 
 function longestCommonPathSuffix(left: readonly string[], right: readonly string[]): number {
   let matches = 0
-  for (let leftIndex = left.length - 1, rightIndex = right.length - 1; leftIndex >= 0 && rightIndex >= 0; leftIndex--, rightIndex--) {
+  for (
+    let leftIndex = left.length - 1, rightIndex = right.length - 1;
+    leftIndex >= 0 && rightIndex >= 0;
+    leftIndex--, rightIndex--
+  ) {
     if (left[leftIndex] !== right[rightIndex]) break
     matches++
   }
@@ -1886,12 +2244,18 @@ function isUniqueHeadingMoveCandidate(
           newId: newHeading.id,
           score: computeHeadingMoveScore(oldHeading, newHeading),
         })),
+    )
+  const target = candidates.find(
+    (candidate) => candidate.oldId === oldId && candidate.newId === newId,
   )
-  const target = candidates.find((candidate) => candidate.oldId === oldId && candidate.newId === newId)
   if (!target || target.score !== score) return false
 
-  const oldScores = candidates.filter((candidate) => candidate.oldId === oldId).map((candidate) => candidate.score)
-  const newScores = candidates.filter((candidate) => candidate.newId === newId).map((candidate) => candidate.score)
+  const oldScores = candidates
+    .filter((candidate) => candidate.oldId === oldId)
+    .map((candidate) => candidate.score)
+  const newScores = candidates
+    .filter((candidate) => candidate.newId === newId)
+    .map((candidate) => candidate.score)
   return (
     uniquenessMargin(oldScores) >= context.options.minUniquenessMargin &&
     uniquenessMargin(newScores) >= context.options.minUniquenessMargin
@@ -1923,10 +2287,16 @@ function hasUniqueIdentityRenameCandidate(
 ): boolean {
   const oldCandidates = (context.oldIndex.byIdentityHash.get(oldNode.identityHash) ?? [])
     .map((id) => context.oldIndex.byId.get(id))
-    .filter((candidate): candidate is NonNullable<typeof candidate> => !!candidate && isSameShape(candidate, oldNode))
+    .filter(
+      (candidate): candidate is NonNullable<typeof candidate> =>
+        !!candidate && isSameShape(candidate, oldNode),
+    )
   const newCandidates = (context.newIndex.byIdentityHash.get(newNode.identityHash) ?? [])
     .map((id) => context.newIndex.byId.get(id))
-    .filter((candidate): candidate is NonNullable<typeof candidate> => !!candidate && isSameShape(candidate, newNode))
+    .filter(
+      (candidate): candidate is NonNullable<typeof candidate> =>
+        !!candidate && isSameShape(candidate, newNode),
+    )
 
   return oldCandidates.length === 1 && newCandidates.length === 1
 }
@@ -1965,7 +2335,13 @@ function collectStructuralFallbackPairs(
     const oldChild = context.oldIndex.byId.get(oldId)
     const newChild = context.newIndex.byId.get(newId)
     if (!oldChild || !newChild || !isSameShape(oldChild, newChild)) continue
-    const score = computeStructuralFallbackScore(context, oldChild, newChild, oldParentId, newParentId)
+    const score = computeStructuralFallbackScore(
+      context,
+      oldChild,
+      newChild,
+      oldParentId,
+      newParentId,
+    )
     push(scoresByOld, oldId, score)
     push(scoresByNew, newId, score)
     candidates.push({
@@ -2047,10 +2423,7 @@ function computeStructuralAptedMatches(
     }))
 }
 
-function buildAptedTree(
-  index: SemanticIndex,
-  id: string,
-): AptedNode<AptedDiffMeta> | undefined {
+function buildAptedTree(index: SemanticIndex, id: string): AptedNode<AptedDiffMeta> | undefined {
   const node = index.byId.get(id)
   if (!node) return undefined
   return {
@@ -2079,7 +2452,13 @@ function computeAptedRelabelScore(
   const simHashBonus = simHashBonusForRecall(oldNode, newNode)
   return Math.max(
     0,
-    Math.min(1, computeNodeSimilarity(oldNode, newNode, context.options, 1) + pathBonus + rangeBonus + simHashBonus),
+    Math.min(
+      1,
+      computeNodeSimilarity(oldNode, newNode, context.options, 1) +
+        pathBonus +
+        rangeBonus +
+        simHashBonus,
+    ),
   )
 }
 
@@ -2090,7 +2469,12 @@ function withinTextRecallWindow(
   if (oldNode.selfHash === newNode.selfHash) return true
   if (oldNode.identityHash === newNode.identityHash) return true
   if (oldNode.contentOnlyHash === newNode.contentOnlyHash) return true
-  if (oldNode.headingBodyHash && newNode.headingBodyHash && oldNode.headingBodyHash === newNode.headingBodyHash) return true
+  if (
+    oldNode.headingBodyHash &&
+    newNode.headingBodyHash &&
+    oldNode.headingBodyHash === newNode.headingBodyHash
+  )
+    return true
   const distance = simHashDistanceForRecall(oldNode, newNode)
   return distance === undefined || distance <= DIFF_HEURISTICS.recall.textSimThreshold
 }
@@ -2109,8 +2493,11 @@ function simHashBonusForRecall(
   const distance = simHashDistanceForRecall(oldNode, newNode)
   if (distance === undefined) return 0
   return (
-    Math.max(0, (DIFF_HEURISTICS.recall.textSimThreshold - distance) / DIFF_HEURISTICS.recall.textSimThreshold) *
-    DIFF_HEURISTICS.recall.simHashBonusWeight
+    Math.max(
+      0,
+      (DIFF_HEURISTICS.recall.textSimThreshold - distance) /
+        DIFF_HEURISTICS.recall.textSimThreshold,
+    ) * DIFF_HEURISTICS.recall.simHashBonusWeight
   )
 }
 
@@ -2121,7 +2508,12 @@ function computeStructuralFallbackScore(
   oldParentId: string,
   newParentId: string,
 ): number {
-  const base = computeNodeSimilarity(oldNode, newNode, context.options, parentContextScore(context, oldParentId, newParentId))
+  const base = computeNodeSimilarity(
+    oldNode,
+    newNode,
+    context.options,
+    parentContextScore(context, oldParentId, newParentId),
+  )
   const oldChildren = context.oldIndex.childrenById.get(oldNode.id) ?? []
   const newChildren = context.newIndex.childrenById.get(newNode.id) ?? []
   const childShapeScore = childShapeSimilarity(context, oldChildren, newChildren)
@@ -2147,7 +2539,11 @@ function computeStructuralFallbackScore(
   )
 }
 
-function childShapeSimilarity(context: DiffContext, oldChildren: string[], newChildren: string[]): number {
+function childShapeSimilarity(
+  context: DiffContext,
+  oldChildren: string[],
+  newChildren: string[],
+): number {
   const oldSignature = oldChildren
     .map((childId) => context.oldIndex.byId.get(childId))
     .filter((node): node is NonNullable<typeof node> => !!node)
@@ -2170,7 +2566,8 @@ function sourceRangeCloseness(
   if (oldStart.line !== undefined && newStart.line !== undefined) {
     return Math.max(
       0,
-      1 - Math.abs(oldStart.line - newStart.line) / DIFF_HEURISTICS.fallback.sourceRange.lineDivisor,
+      1 -
+        Math.abs(oldStart.line - newStart.line) / DIFF_HEURISTICS.fallback.sourceRange.lineDivisor,
     )
   }
   if (oldStart.offset !== undefined && newStart.offset !== undefined) {
@@ -2272,7 +2669,12 @@ function upgradeToMatch(change: DiffChange): void {
 function markReorderedChildren(context: DiffContext, changes: DiffChange[]): void {
   const paired = changes
     .map((change, index) => ({ change, index }))
-    .filter(({ change }) => !!change.oldId && !!change.newId && (change.status.isMatchPair || change.status.isAlignedPair))
+    .filter(
+      ({ change }) =>
+        !!change.oldId &&
+        !!change.newId &&
+        (change.status.isMatchPair || change.status.isAlignedPair),
+    )
     .map(({ change, index }) => ({
       change,
       index,
@@ -2288,7 +2690,10 @@ function markReorderedChildren(context: DiffContext, changes: DiffChange[]): voi
   })
 }
 
-function collectChanges(root: DiffChange, predicate: (change: DiffChange) => boolean): DiffChange[] {
+function collectChanges(
+  root: DiffChange,
+  predicate: (change: DiffChange) => boolean,
+): DiffChange[] {
   const result: DiffChange[] = []
   visit(root)
   return result
@@ -2342,10 +2747,15 @@ function createStatus(overrides?: Partial<DiffStatus>): DiffStatus {
 }
 
 function labelForNode(node: NonNullable<ReturnType<SemanticIndex['byId']['get']>>): string {
-  return node.entity === 'section' ? `${node.kind ?? 'section'} section` : `${node.blockType ?? 'block'} block`
+  return node.entity === 'section'
+    ? `${node.kind ?? 'section'} section`
+    : `${node.blockType ?? 'block'} block`
 }
 
-function uniqueSharedHashes(oldMap: Map<string, string[]>, newMap: Map<string, string[]>): Array<[string, string]> {
+function uniqueSharedHashes(
+  oldMap: Map<string, string[]>,
+  newMap: Map<string, string[]>,
+): Array<[string, string]> {
   const pairs: Array<[string, string]> = []
   for (const [hash, oldIds] of oldMap) {
     const newIds = newMap.get(hash)
@@ -2355,9 +2765,15 @@ function uniqueSharedHashes(oldMap: Map<string, string[]>, newMap: Map<string, s
   return pairs
 }
 
-function filterIdentityHashes(index: SemanticIndex, target: 'footnote' | 'definition'): Map<string, string[]> {
+function filterIdentityHashes(
+  index: SemanticIndex,
+  target: 'footnote' | 'definition',
+): Map<string, string[]> {
   const result = new Map<string, string[]>()
-  const ids = target === 'footnote' ? index.byKind.get('footnote') ?? [] : index.byBlockType.get('definition') ?? []
+  const ids =
+    target === 'footnote'
+      ? (index.byKind.get('footnote') ?? [])
+      : (index.byBlockType.get('definition') ?? [])
   for (const id of ids) {
     const node = index.byId.get(id)
     if (!node) continue
@@ -2378,13 +2794,29 @@ function filterDefinitionIdentifiers(index: SemanticIndex): Map<string, string[]
   return result
 }
 
+function filterFootnoteIdentifiers(index: SemanticIndex): Map<string, string[]> {
+  const result = new Map<string, string[]>()
+  const ids = index.byKind.get('footnote') ?? []
+  for (const id of ids) {
+    const node = index.byId.get(id)
+    const identifier = normalizeIdentifier((node?.section?.heading as any)?.identifier)
+    if (!node || !identifier) continue
+    push(result, identifier, id)
+  }
+  return result
+}
+
 function collectConflicts(ids: string[]): Set<string> {
   const counts = new Map<string, number>()
   ids.forEach((id) => counts.set(id, (counts.get(id) ?? 0) + 1))
   return new Set([...counts.entries()].filter(([, count]) => count > 1).map(([id]) => id))
 }
 
-function subtreeSizeOfChange(context: DiffContext, deleted: DiffChange, inserted: DiffChange): number {
+function subtreeSizeOfChange(
+  context: DiffContext,
+  deleted: DiffChange,
+  inserted: DiffChange,
+): number {
   const oldNode = deleted.oldId ? context.oldIndex.byId.get(deleted.oldId) : undefined
   const newNode = inserted.newId ? context.newIndex.byId.get(inserted.newId) : undefined
   return Math.max(oldNode?.subtreeSize ?? 0, newNode?.subtreeSize ?? 0)
@@ -2402,9 +2834,7 @@ function extractInlineText(nodes: InlineContent[]): string {
 function readTableCells(block: any): string[][] {
   if (!block || !Array.isArray(block.children)) return []
   return block.children.map((row: any) =>
-    Array.isArray(row.children)
-      ? row.children.map((cell: any) => extractNodeText(cell))
-      : [],
+    Array.isArray(row.children) ? row.children.map((cell: any) => extractNodeText(cell)) : [],
   )
 }
 
@@ -2412,7 +2842,9 @@ function readStructuredTableCells(block: any): InlineContent[][][] {
   if (!block || !Array.isArray(block.children)) return []
   return block.children.map((row: any) =>
     Array.isArray(row.children)
-      ? row.children.map((cell: any) => (Array.isArray(cell.children) ? (cell.children as InlineContent[]) : []))
+      ? row.children.map((cell: any) =>
+          Array.isArray(cell.children) ? (cell.children as InlineContent[]) : [],
+        )
       : [],
   )
 }
@@ -2430,7 +2862,10 @@ function withinSiblingOffsetThreshold(
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
 ): boolean {
-  return Math.abs((oldNode.siblingIndex ?? 0) - (newNode.siblingIndex ?? 0)) <= context.options.preorderOffsetThreshold
+  return (
+    Math.abs((oldNode.siblingIndex ?? 0) - (newNode.siblingIndex ?? 0)) <=
+    context.options.preorderOffsetThreshold
+  )
 }
 
 function sliceSiblingWitnessWindow(

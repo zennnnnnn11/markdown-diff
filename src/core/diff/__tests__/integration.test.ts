@@ -68,6 +68,14 @@ describe('diff integration', () => {
     expect(result.stats.replaces).toBeGreaterThanOrEqual(1)
   })
 
+  it('keeps same-shape paragraph edits paired even when the text changes completely', async () => {
+    const result = await diffMarkdown('# Intro\n\nhello', '# Intro\n\nworld')
+    const paragraph = flatten(result.root).find((change) => change.blockType === 'paragraph')
+
+    expect(paragraph?.primaryOp).toBe('replace')
+    expect(paragraph?.oldId && paragraph?.newId).toBeTruthy()
+  })
+
   it('keeps exact-subtree matches at the maximal covered level only', async () => {
     const result = await diffMarkdown('# Stable\n\nBody')
     const exactSubtrees = result.matches.filter((pair) => pair.matchKind === 'exact-subtree')
@@ -231,7 +239,7 @@ describe('diff integration', () => {
     expect(headings.some((change) => change.primaryOp === 'insert' || change.primaryOp === 'delete')).toBe(false)
   })
 
-  it('keeps a top-level heading rename conservative when descendant evidence is too weak', async () => {
+  it('keeps a top-level heading rename while still leaving weak descendants unmatched', async () => {
     const result = await diffMarkdown(
       [
         '# Alpha Manual',
@@ -263,16 +271,14 @@ describe('diff integration', () => {
     const topHeading = flatten(result.root).find(
       (change) => change.kind === 'heading' && sectionTitle(change.oldNode) === 'Alpha Manual',
     )
-    const insertedHeading = flatten(result.root).find(
-      (change) => change.kind === 'heading' && sectionTitle(change.newNode) === 'Beta Manual',
+    const newOnlyHeading = flatten(result.root).find(
+      (change) => change.kind === 'heading' && sectionTitle(change.newNode) === 'New Only',
     )
 
-    expect(topHeading?.pairKind).toBeUndefined()
-    expect(topHeading?.primaryOp).toBe('delete')
-    expect(topHeading?.status.renamed).not.toBe(true)
-    expect(insertedHeading?.pairKind).toBeUndefined()
-    expect(insertedHeading?.primaryOp).toBe('insert')
-    expect(insertedHeading?.status.renamed).not.toBe(true)
+    expect(topHeading?.pairKind).toBe('match')
+    expect(topHeading?.status.renamed).toBe(true)
+    expect(flatten(result.root).some((change) => change.kind === 'heading' && sectionTitle(change.oldNode) === 'Shared Two' && change.primaryOp === 'delete')).toBe(true)
+    expect(newOnlyHeading?.primaryOp).toBe('replace')
   })
 
   it('keeps exact-self heading matches alive when crossed anchors collapse the global preorder interval', async () => {
@@ -437,6 +443,22 @@ content`
     expect(footnote?.pairKind).toBe('match')
   })
 
+  it('keeps same-identifier footnotes paired when the footnote body changes', async () => {
+    const result = await diffMarkdown('Text[^1]\n\n[^1]: old body', 'Text[^1]\n\n[^1]: new body')
+    const footnote = flatten(result.root).find((change) => change.kind === 'footnote')
+    const paragraph = flatten(result.root).find(
+      (change) =>
+        change.blockType === 'paragraph' &&
+        nodeText(change.oldNode).includes('old body') &&
+        nodeText(change.newNode).includes('new body'),
+    )
+
+    expect(footnote?.oldId && footnote?.newId).toBeTruthy()
+    expect(footnote?.primaryOp).not.toBe('insert')
+    expect(footnote?.primaryOp).not.toBe('delete')
+    expect(paragraph?.primaryOp).toBe('replace')
+  })
+
   it('does not upgrade definition rename with changed identity into a match pair', async () => {
     const result = await diffMarkdown(
       '[docs]: https://example.com/guide "Docs"',
@@ -588,6 +610,26 @@ limits:
     expect(paragraphReplace).toBeUndefined()
   })
 
+  it('keeps list item text edits paired when the item structure stays the same', async () => {
+    const result = await diffMarkdown('- old', '- new')
+    const listItem = flatten(result.root).find((change) => change.kind === 'listItem')
+    const paragraph = flatten(result.root).find((change) => change.blockType === 'paragraph')
+
+    expect(listItem?.oldId && listItem?.newId).toBeTruthy()
+    expect(listItem?.primaryOp).toBe('replace')
+    expect(paragraph?.primaryOp).toBe('replace')
+  })
+
+  it('keeps blockquote content edits paired inside the quote subtree', async () => {
+    const result = await diffMarkdown('> old', '> new')
+    const blockquote = flatten(result.root).find((change) => change.kind === 'blockquote')
+    const paragraph = flatten(result.root).find((change) => change.blockType === 'paragraph')
+
+    expect(blockquote?.oldId && blockquote?.newId).toBeTruthy()
+    expect(blockquote?.primaryOp).toBe('replace')
+    expect(paragraph?.primaryOp).toBe('replace')
+  })
+
   it('computes table diff for cell edits', async () => {
     const oldMarkdown = `| a | b |
 | - | - |
@@ -653,7 +695,7 @@ limits:
     expect(result.quality.warningCount).toBeGreaterThanOrEqual(1)
   })
 
-  it('uses enhanced local recovery to align unresolved structural children', async () => {
+  it('keeps blockquote children aligned even before enhanced local recovery and stays warning-free with fallback enabled', async () => {
     const oldMarkdown = `# Alpha Project Notes
 
 > old quote
@@ -672,7 +714,7 @@ limits:
     const oldHeading = flatten(withoutFallback.root).find((change) => change.kind === 'heading' && change.oldId && change.newId)
     const newHeading = flatten(withFallback.root).find((change) => change.kind === 'heading' && change.oldId && change.newId)
 
-    expect(oldHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(false)
+    expect(oldHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(true)
     expect(newHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(true)
     expect(newHeading?.warnings).not.toContain('enhanced-local-recovery-no-candidates')
   })
