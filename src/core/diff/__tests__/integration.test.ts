@@ -171,6 +171,7 @@ meta:
     expect(frontmatter?.metadataChanges?.map((entry) => entry.path)).toEqual(['$.meta.b', '$.title'])
     expect(metadataChildren.map((change) => change.metadataChanges?.[0]?.path)).toEqual(['$.meta.b', '$.title'])
     expect(metadataChildren.every((change) => change.status.metaChanged)).toBe(true)
+    expect(result.stats.metaUpdates).toBe(1)
     expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual([])
   })
 
@@ -230,6 +231,15 @@ meta:
     ])
   })
 
+  it('counts change-level deferred warnings in the quality summary', async () => {
+    const result = await diffMarkdown('# Intro\n\nplain old text', '# Intro\n\nplain new text', {
+      maxInlineDiffMatrixCost: 0,
+    })
+
+    expect(result.quality.inlineDeferredCount).toBe(1)
+    expect(result.quality.warningCount).toBeGreaterThanOrEqual(1)
+  })
+
   it('uses enhanced local recovery to align unresolved structural children', async () => {
     const oldMarkdown = `# Alpha Project Notes
 
@@ -263,6 +273,7 @@ meta:
 
     expect(degradedChange?.warnings).toContain('local-window-exceeded')
     expect(result.quality.degradedCount).toBeGreaterThanOrEqual(1)
+    expect(result.quality.warningCount).toBeGreaterThanOrEqual(1)
   })
 
   it('uses cost budgets instead of raw subtree size for deep low-fanout list hierarchies', async () => {

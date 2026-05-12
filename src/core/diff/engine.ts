@@ -5,6 +5,7 @@ import { diffFrontmatter } from './frontmatter'
 import { DIFF_HEURISTICS, sequenceTuning } from './heuristics'
 import { buildSemanticIndex } from './indexer'
 import { resolveDiffOptions } from './options'
+import { collectQuality, collectStats } from './summary'
 import { alignSequence, longestIncreasingSubsequence } from './sequence'
 import { computeNodeSimilarity, isSameShape, uniquenessMargin } from './similarity'
 import type {
@@ -12,7 +13,6 @@ import type {
   DiffChange,
   DiffChangeIndex,
   DiffOptions,
-  DiffQualitySummary,
   DiffResult,
   DiffStatus,
   InlineSpan,
@@ -928,6 +928,7 @@ async function computePresentationDiffs(context: DiffContext, root: DiffChange):
 
     if (oldNode.entity === 'block' && newNode.entity === 'block') {
       if (oldNode.blockType === 'paragraph' && newNode.blockType === 'paragraph') {
+        if (change.primaryOp === 'equal' && oldNode.selfHash === newNode.selfHash) continue
         const result = await diffInlineNodes(
           oldNode.block?.children ?? [],
           newNode.block?.children ?? [],
@@ -978,45 +979,6 @@ function validateTree(root: DiffChange, warnings: string[]): void {
       warnings.push(`invalid-meta-pair:${change.summary}`)
     }
     if (change.primaryOp === 'move' && (!change.logicalMoveId || !change.moveRole)) warnings.push(`invalid-move-link:${change.summary}`)
-  }
-}
-
-function collectStats(root: DiffChange) {
-  const logicalMoves = new Set<string>()
-  const stats = {
-    inserts: 0,
-    deletes: 0,
-    replaces: 0,
-    moves: 0,
-    metaUpdates: 0,
-    renames: 0,
-  }
-
-  for (const change of collectChanges(root, () => true)) {
-    if (change.primaryOp === 'insert') stats.inserts++
-    if (change.primaryOp === 'delete') stats.deletes++
-    if (change.primaryOp === 'replace') stats.replaces++
-    if (change.primaryOp === 'meta-update') stats.metaUpdates++
-    if (change.status.renamed) stats.renames++
-    if (change.logicalMoveId) logicalMoves.add(change.logicalMoveId)
-  }
-  stats.moves = logicalMoves.size
-  return stats
-}
-
-function collectQuality(root: DiffChange, warnings: string[]): DiffQualitySummary {
-  let degradedCount = 0
-  let inlineDeferredCount = 0
-
-  for (const change of collectChanges(root, () => true)) {
-    if (change.degraded) degradedCount++
-    if (change.warnings.includes('inline-deferred')) inlineDeferredCount++
-  }
-
-  return {
-    degradedCount,
-    inlineDeferredCount,
-    warningCount: warnings.length,
   }
 }
 

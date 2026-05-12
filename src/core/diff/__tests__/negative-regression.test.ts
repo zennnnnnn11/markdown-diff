@@ -138,4 +138,44 @@ owner: bob
 
     expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual([])
   })
+
+  it('does not double-count frontmatter metadata detail rows in meta-update stats', async () => {
+    const result = await diffMarkdown(
+      `---
+title: Old
+owner: alice
+---`,
+      `---
+title: New
+owner: bob
+---`,
+    )
+
+    expect(result.stats.metaUpdates).toBe(1)
+  })
+
+  it('does not emit fake deferred inline replace spans for unchanged equal paragraphs', async () => {
+    const stableParagraph = 'stable '.repeat(64).trim()
+    const result = await diffMarkdown(
+      `# Intro
+
+${stableParagraph}
+
+old sibling text`,
+      `# Intro
+
+${stableParagraph}
+
+new sibling text`,
+      { maxInlineDiffMatrixCost: 0 },
+    )
+    const paragraphs = flatten(result.root).filter((change) => change.blockType === 'paragraph')
+    const unchangedParagraph = paragraphs.find((change) => change.primaryOp === 'equal')
+    const changedParagraph = paragraphs.find((change) => change.primaryOp === 'replace')
+
+    expect(unchangedParagraph?.warnings).not.toContain('inline-deferred')
+    expect(unchangedParagraph?.inlineSpans).toBeUndefined()
+    expect(changedParagraph?.warnings).toContain('inline-deferred')
+    expect(result.quality.inlineDeferredCount).toBe(1)
+  })
 })
