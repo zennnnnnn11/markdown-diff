@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { DiffNode, DiffOptions } from './types'
-import { jaccardSimilarity, sequenceSimilarity } from './utils'
+import { extractNodeText, jaccardSimilarity, sequenceSimilarity, tokenizeText } from './utils'
 
 export function computeNodeSimilarity(
   oldNode: DiffNode,
@@ -98,7 +99,6 @@ function codeSimilarity(
   const lineSimilarity = Math.max(
     tokenSimilarity(oldLines, newLines, options),
     sequenceSimilarity(oldLines, newLines),
-    tokenSimilarity(oldNode.textTokens, newNode.textTokens, options),
     charSimilarity,
   )
   const langBonus = oldNode.block?.lang === newNode.block?.lang ? 0.1 : 0
@@ -110,13 +110,13 @@ function tableSimilarity(
   newNode: DiffNode,
   options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
 ): number {
-  const oldRows = Array.isArray(oldNode.block?.children) ? oldNode.block.children.length : 0
-  const newRows = Array.isArray(newNode.block?.children) ? newNode.block.children.length : 0
+  const oldRows = readTableCellTexts(oldNode.block)
+  const newRows = readTableCellTexts(newNode.block)
   const oldAlign = Array.isArray(oldNode.block?.align) ? (oldNode.block.align as string[]) : []
   const newAlign = Array.isArray(newNode.block?.align) ? (newNode.block.align as string[]) : []
-  const shapeSimilarity = Math.min(ratio(oldRows, newRows), ratio(oldAlign.length, newAlign.length))
-  const cellContentSimilarity = tokenSimilarity(oldNode.textTokens, newNode.textTokens, options)
-  const alignmentMatch = jaccardSimilarity(oldAlign, newAlign)
+  const shapeSimilarity = Math.min(ratio(oldRows.length, newRows.length), ratio(maxColumns(oldRows), maxColumns(newRows)))
+  const cellContentSimilarity = averageTableCellSimilarity(oldRows, newRows, options)
+  const alignmentMatch = exactAlignmentRatio(oldAlign, newAlign)
   return clamp01(0.3 * shapeSimilarity + 0.5 * cellContentSimilarity + 0.2 * alignmentMatch)
 }
 
@@ -126,7 +126,27 @@ function footnoteOrDefinitionSimilarity(
   options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
 ): number {
   if (oldNode.identityHash === newNode.identityHash) return 1
+  if (oldNode.blockType === 'definition' && newNode.blockType === 'definition') {
+    return definitionFieldSimilarity(oldNode, newNode, options)
+  }
   return tokenSimilarity(oldNode.textTokens, newNode.textTokens, options)
+}
+
+function definitionFieldSimilarity(
+  oldNode: DiffNode,
+  newNode: DiffNode,
+  options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
+): number {
+  const oldUrl = String((oldNode.block as any)?.url ?? '')
+  const newUrl = String((newNode.block as any)?.url ?? '')
+  const oldTitle = String((oldNode.block as any)?.title ?? '')
+  const newTitle = String((newNode.block as any)?.title ?? '')
+  const oldLabel = String((oldNode.block as any)?.label ?? extractNodeText(oldNode.block))
+  const newLabel = String((newNode.block as any)?.label ?? extractNodeText(newNode.block))
+  const urlSimilarity = tokenSimilarity(tokenizeText(oldUrl), tokenizeText(newUrl), options)
+  const titleSimilarity = tokenSimilarity(tokenizeText(oldTitle), tokenizeText(newTitle), options)
+  const labelSimilarity = tokenSimilarity(tokenizeText(oldLabel), tokenizeText(newLabel), options)
+  return clamp01(0.5 * urlSimilarity + 0.25 * titleSimilarity + 0.25 * labelSimilarity)
 }
 
 function tokenSimilarity(
@@ -173,6 +193,55 @@ function splitLines(value: unknown): string[] {
     .split(/\r?\n/u)
     .map((line) => line.trim())
     .filter(Boolean)
+}
+
+function readTableCellTexts(block: any): string[][] {
+  if (!block || !Array.isArray(block.children)) return []
+  return block.children.map((row: any) =>
+    Array.isArray(row.children)
+      ? row.children.map((cell: any) => extractNodeText(cell))
+      : [],
+  )
+}
+
+function averageTableCellSimilarity(
+  oldRows: string[][],
+  newRows: string[][],
+  options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
+): number {
+  const rowCount = Math.max(oldRows.length, newRows.length, 1)
+  const columnCount = Math.max(maxColumns(oldRows), maxColumns(newRows), 1)
+  let total = 0
+  let compared = 0
+
+  for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
+    for (let columnIndex = 0; columnIndex < columnCount; columnIndex++) {
+      const oldCell = oldRows[rowIndex]?.[columnIndex]
+      const newCell = newRows[rowIndex]?.[columnIndex]
+      if (oldCell === undefined || newCell === undefined) {
+        compared++
+        continue
+      }
+      total += tokenSimilarity(tokenizeText(oldCell), tokenizeText(newCell), options)
+      compared++
+    }
+  }
+
+  return compared === 0 ? 1 : total / compared
+}
+
+function exactAlignmentRatio(oldAlign: string[], newAlign: string[]): number {
+  const total = Math.min(oldAlign.length, newAlign.length)
+  if (total === 0) return oldAlign.length === 0 && newAlign.length === 0 ? 1 : 0
+  let matches = 0
+  for (let index = 0; index < total; index++) {
+    if (oldAlign[index] === newAlign[index]) matches++
+  }
+  return matches / total
+}
+
+function maxColumns(rows: string[][]): number {
+  return rows.reduce((max, row) => Math.max(max, row.length), 0)
 }
 
 function ratio(left: number, right: number): number {

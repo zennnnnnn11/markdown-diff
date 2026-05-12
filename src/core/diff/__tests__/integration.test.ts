@@ -54,6 +54,16 @@ describe('diff integration', () => {
     expect(exactParagraph).toBeUndefined()
   })
 
+  it('records exact-self-with-context for deterministic local-context matches', async () => {
+    const result = await diffMarkdown(
+      '# Old Parent\n\n## Child A\n\nold text\n\n## Child B\n\nsame text',
+      '# New Parent\n\n## Child A\n\nnew text\n\n## Child B\n\nsame text',
+    )
+    const contextualMatches = result.matches.filter((pair) => pair.matchKind === 'exact-self-with-context')
+
+    expect(contextualMatches.length).toBeGreaterThan(0)
+  })
+
   it('recovers heading rename when body is unchanged', async () => {
     const result = await diffMarkdown('# Old Name\n\nBody text', '# New Name\n\nBody text')
     const heading = flatten(result.root).find((change) => change.kind === 'heading')
@@ -93,6 +103,19 @@ content`
 
     expect(footnote?.status.renamed).toBe(true)
     expect(footnote?.pairKind).toBe('match')
+  })
+
+  it('does not upgrade definition rename with changed identity into a match pair', async () => {
+    const result = await diffMarkdown(
+      '[docs]: https://example.com/guide "Docs"',
+      '[guide]: https://example.com/guide "Doc Guide"',
+      { minSimilarity: 0.5 },
+    )
+    const definition = flatten(result.root).find((change) => change.blockType === 'definition')
+
+    expect(definition?.pairKind).toBe('align')
+    expect(definition?.status.renamed).toBe(true)
+    expect(definition?.status.metaChanged).toBe(true)
   })
 
   it('detects code metadata update when content stays equal', async () => {

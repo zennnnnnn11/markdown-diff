@@ -91,19 +91,36 @@ export async function diffMarkdownTrees(
 }
 
 async function runDeterministicMatching(context: DiffContext): Promise<void> {
-  const blockedOld = new Set<string>()
-  const blockedNew = new Set<string>()
+  const coveredOld = new Set<string>()
+  const coveredNew = new Set<string>()
 
-  await applyExactSubtreeMatches(context, blockedOld, blockedNew)
-  const candidates = await collectDeterministicCandidates(context, blockedOld, blockedNew)
+  await applyExactSubtreeMatches(context, coveredOld, coveredNew)
+  const candidates = await collectDeterministicCandidates(context, coveredOld, coveredNew)
+  const highestPriorityByOld = new Map<string, number>()
+  const highestPriorityByNew = new Map<string, number>()
+  for (const candidate of candidates) {
+    highestPriorityByOld.set(candidate.oldId, Math.max(highestPriorityByOld.get(candidate.oldId) ?? Number.NEGATIVE_INFINITY, candidate.priority))
+    highestPriorityByNew.set(candidate.newId, Math.max(highestPriorityByNew.get(candidate.newId) ?? Number.NEGATIVE_INFINITY, candidate.priority))
+  }
+
+  const eligibleCandidates = candidates.filter(
+    (candidate) =>
+      highestPriorityByOld.get(candidate.oldId) === candidate.priority &&
+      highestPriorityByNew.get(candidate.newId) === candidate.priority,
+  )
   const groupedByPriority = new Map<number, MatchCandidate[]>()
-  for (const candidate of candidates) push(groupedByPriority, candidate.priority, candidate)
+  for (const candidate of eligibleCandidates) push(groupedByPriority, candidate.priority, candidate)
+  const discardedOld = new Set<string>()
+  const discardedNew = new Set<string>()
 
   for (const priority of [...groupedByPriority.keys()].sort((left, right) => right - left)) {
     const bucket = groupedByPriority.get(priority) ?? []
     const conflictingOld = collectConflicts(bucket.map((candidate) => candidate.oldId))
     const conflictingNew = collectConflicts(bucket.map((candidate) => candidate.newId))
+    conflictingOld.forEach((id) => discardedOld.add(id))
+    conflictingNew.forEach((id) => discardedNew.add(id))
     for (const candidate of bucket) {
+      if (discardedOld.has(candidate.oldId) || discardedNew.has(candidate.newId)) continue
       if (conflictingOld.has(candidate.oldId) || conflictingNew.has(candidate.newId)) continue
       if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId)) continue
       addMatch(context, candidate.oldId, candidate.newId, candidate.matchKind, undefined, candidate.score)
@@ -151,7 +168,8 @@ async function collectDeterministicCandidates(
 ): Promise<MatchCandidate[]> {
   const candidates: MatchCandidate[] = []
   const exactSelf = uniqueSharedHashes(context.oldIndex.bySelfHash, context.newIndex.bySelfHash)
-    .map(([oldId, newId]) => ({ oldId, newId, matchKind: 'exact-self' as const, priority: 5, score: 1 }))
+    .map(([oldId, newId]) => classifyExactSelfCandidate(context, oldId, newId))
+    .filter((candidate): candidate is MatchCandidate => !!candidate)
   const exactDirect = uniqueSharedHashes(context.oldIndex.byDirectHash, context.newIndex.byDirectHash)
     .map(([oldId, newId]) => ({ oldId, newId, matchKind: 'exact-direct' as const, priority: 4, score: 1 }))
 
@@ -160,7 +178,8 @@ async function collectDeterministicCandidates(
       (candidate) =>
         !blockedOld.has(candidate.oldId) &&
         !blockedNew.has(candidate.newId) &&
-        canDeterministicallyMatch(context, candidate.oldId, candidate.newId),
+        !context.matchesByOld.has(candidate.oldId) &&
+        !context.matchesByNew.has(candidate.newId),
     ),
     ...exactDirect.filter((candidate) => {
       const oldNode = context.oldIndex.byId.get(candidate.oldId)
@@ -696,7 +715,7 @@ async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Pr
     if (oldNode.kind === 'heading' && newNode.kind === 'heading') {
       const titlesDiffer = oldNode.normalizedTitle !== newNode.normalizedTitle
       if (titlesDiffer && uniqueHeadingSiblingNames(context, oldNode, newNode)) {
-        if (oldNode.headingBodyHash === newNode.headingBodyHash) {
+        if (oldNode.headingBodyHash === newNode.headingBodyHash && sameHeadingStructure(oldNode, newNode)) {
           upgradeToMatch(change)
           change.primaryOp = 'equal'
           change.status.renamed = true
@@ -1248,7 +1267,24 @@ function canDeterministicallyMatch(context: DiffContext, oldId: string, newId: s
   }
 
   if (Math.abs(oldNode.siblingIndex - newNode.siblingIndex) > context.options.preorderOffsetThreshold) return false
-  return hasLocalHashContext(context, oldNode, newNode) || hasPathOrRangeContext(oldNode, newNode)
+  return hasLocalHashContext(context, oldNode, newNode)
+}
+
+function classifyExactSelfCandidate(context: DiffContext, oldId: string, newId: string): MatchCandidate | undefined {
+  const oldNode = context.oldIndex.byId.get(oldId)
+  const newNode = context.newIndex.byId.get(newId)
+  if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return undefined
+
+  if (oldNode.parentId && newNode.parentId) {
+    const parentPair = context.matchesByOld.get(oldNode.parentId)
+    if (parentPair?.newId === newNode.parentId) {
+      return { oldId, newId, matchKind: 'exact-self', priority: 5, score: 1 }
+    }
+  }
+
+  if (Math.abs(oldNode.siblingIndex - newNode.siblingIndex) > context.options.preorderOffsetThreshold) return undefined
+  if (!hasLocalHashContext(context, oldNode, newNode)) return undefined
+  return { oldId, newId, matchKind: 'exact-self-with-context', priority: 5, score: 1 }
 }
 
 function hasLocalHashContext(
@@ -1262,10 +1298,12 @@ function hasLocalHashContext(
     Math.max(0, oldNode.siblingIndex - context.options.contextSiblingWindow),
     oldNode.siblingIndex + context.options.contextSiblingWindow + 1,
   )
+    .filter((candidateOldId) => candidateOldId !== oldNode.id)
   const newWindow = newSiblings.slice(
     Math.max(0, newNode.siblingIndex - context.options.contextSiblingWindow),
     newNode.siblingIndex + context.options.contextSiblingWindow + 1,
   )
+    .filter((candidateNewId) => candidateNewId !== newNode.id)
 
   return oldWindow.some((candidateOldId) => {
     const candidateOld = context.oldIndex.byId.get(candidateOldId)
@@ -1277,33 +1315,15 @@ function hasLocalHashContext(
   })
 }
 
-function hasPathOrRangeContext(
+function sameHeadingStructure(
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
 ): boolean {
-  if (oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash) return true
-
-  const oldStart = oldNode.sourceRange?.start
-  const newStart = newNode.sourceRange?.start
-  if (!oldStart || !newStart) return false
-
-  if (
-    oldStart.line !== undefined &&
-    newStart.line !== undefined &&
-    Math.abs(oldStart.line - newStart.line) <= 3
-  ) {
-    return true
-  }
-
-  if (
-    oldStart.offset !== undefined &&
-    newStart.offset !== undefined &&
-    Math.abs(oldStart.offset - newStart.offset) <= 200
-  ) {
-    return true
-  }
-
-  return false
+  return (
+    oldNode.section?.headingDepth === newNode.section?.headingDepth &&
+    oldNode.section?.listDepth === newNode.section?.listDepth &&
+    oldNode.section?.quoteDepth === newNode.section?.quoteDepth
+  )
 }
 
 function projectToken(context: DiffContext, childId: string, oppositeParentId: string, tree: 'old' | 'new'): string {
