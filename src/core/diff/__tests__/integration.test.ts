@@ -491,6 +491,18 @@ content`
     expect(code?.status.selfChanged).toBe(false)
   })
 
+  it('treats fenced code language changes with stable title and content as a code metadata update', async () => {
+    const result = await diffMarkdown(
+      '```js title=\"diff.config\"\nexport default {}\n```',
+      '```ts title=\"diff.config\"\nexport default {}\n```',
+    )
+    const code = flatten(result.root).find((change) => change.blockType === 'code')
+
+    expect(code?.primaryOp).toBe('meta-update')
+    expect(code?.status.metaChanged).toBe(true)
+    expect(code?.primaryOp).not.toBe('replace')
+  })
+
   it('builds path-level frontmatter metadata changes', async () => {
     const oldMarkdown = `---
 title: Old
@@ -513,6 +525,67 @@ meta:
     expect(metadataChildren.every((change) => change.status.metaChanged)).toBe(true)
     expect(result.stats.metaUpdates).toBe(1)
     expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual([])
+  })
+
+  it('captures nested frontmatter meta-updates without flagging unchanged nested fields', async () => {
+    const result = await diffMarkdown(
+      `---
+version: 1.0.0
+status: draft
+owner: alice
+review:
+  required: true
+  reviewer: bob
+features:
+  - parser
+  - transformer
+  - diff
+limits:
+  maxNodes: 12000
+  timeoutMs: 3000
+---`,
+      `---
+version: 1.1.0
+status: reviewed
+owner: chen
+review:
+  required: true
+  reviewer: dana
+features:
+  - parser
+  - transformer
+  - diff
+  - renderer
+limits:
+  maxNodes: 16000
+  timeoutMs: 3000
+---`,
+    )
+    const frontmatter = flatten(result.root).find((change) => change.kind === 'frontmatter')
+
+    expect(frontmatter?.primaryOp).toBe('meta-update')
+    expect(frontmatter?.metadataChanges?.map((entry) => entry.path)).toEqual([
+      '$.features',
+      '$.limits.maxNodes',
+      '$.owner',
+      '$.review.reviewer',
+      '$.status',
+      '$.version',
+    ])
+    expect(frontmatter?.metadataChanges?.some((entry) => entry.path === '$.limits.timeoutMs')).toBe(false)
+    expect(result.quality.warningCount).toBe(0)
+  })
+
+  it('treats checkbox toggles as list-item metadata updates rather than text replaces', async () => {
+    const result = await diffMarkdown('- [ ] Render visual diff', '- [x] Render visual diff')
+    const listItem = flatten(result.root).find((change) => change.kind === 'listItem')
+    const paragraphReplace = flatten(result.root).find(
+      (change) => change.blockType === 'paragraph' && change.primaryOp === 'replace',
+    )
+
+    expect(listItem?.primaryOp).toBe('meta-update')
+    expect(listItem?.status.metaChanged).toBe(true)
+    expect(paragraphReplace).toBeUndefined()
   })
 
   it('computes table diff for cell edits', async () => {

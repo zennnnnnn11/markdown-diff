@@ -223,6 +223,25 @@ describe('node similarity', () => {
     )
   })
 
+  it('caps same-language code similarity at 1 even when line similarity and language bonus both max out', () => {
+    const oldCode = makeNode({
+      blockType: 'code',
+      block: { type: 'code', value: 'const answer = 1', lang: 'ts' } as any,
+      textTokens: ['const', 'answer', '1'],
+      contentOnlyHash: 'old-content',
+      selfHash: 'old',
+    })
+    const sameCode = makeNode({
+      blockType: 'code',
+      block: { type: 'code', value: 'const answer = 1', lang: 'ts' } as any,
+      textTokens: ['const', 'answer', '1'],
+      contentOnlyHash: 'new-content',
+      selfHash: 'new',
+    })
+
+    expect(computeNodeSimilarity(oldCode, sameCode, OPTIONS)).toBe(1)
+  })
+
   it('considers table shape, cell text, and alignment together', () => {
     const oldTable = makeNode({
       blockType: 'table',
@@ -265,6 +284,21 @@ describe('node similarity', () => {
     )
   })
 
+  it('keeps empty tables moderately similar even without any comparable cell text', () => {
+    const oldTable = makeNode({
+      blockType: 'table',
+      block: { type: 'table', align: [], children: [] } as any,
+      selfHash: 'old',
+    })
+    const newTable = makeNode({
+      blockType: 'table',
+      block: { type: 'table', align: [], children: [] } as any,
+      selfHash: 'new',
+    })
+
+    expect(computeNodeSimilarity(oldTable, newTable, OPTIONS)).toBe(0.5)
+  })
+
   it('compares definition fields when identity hashes differ', () => {
     const oldDefinition = makeNode({
       blockType: 'definition',
@@ -295,6 +329,83 @@ describe('node similarity', () => {
 
     expect(score).toBeGreaterThan(0)
     expect(score).toBeLessThan(1)
+  })
+
+  it('weights matching url and title above matching label text for definitions', () => {
+    const oldDefinition = makeNode({
+      blockType: 'definition',
+      block: {
+        type: 'definition',
+        identifier: 'docs',
+        url: 'https://example.com/docs',
+        title: 'Documentation',
+        label: 'Docs Label',
+      } as any,
+      selfHash: 'old',
+      identityHash: 'left',
+    })
+    const matchingUrlTitle = makeNode({
+      blockType: 'definition',
+      block: {
+        type: 'definition',
+        identifier: 'source',
+        url: 'https://example.com/docs',
+        title: 'Documentation',
+        label: 'Different Label',
+      } as any,
+      selfHash: 'url-title',
+      identityHash: 'right',
+    })
+    const matchingLabelOnly = makeNode({
+      blockType: 'definition',
+      block: {
+        type: 'definition',
+        identifier: 'source',
+        url: 'https://vendor.example.net/spec',
+        title: 'Specification',
+        label: 'Docs Label',
+      } as any,
+      selfHash: 'label-only',
+      identityHash: 'other',
+    })
+
+    expect(computeNodeSimilarity(oldDefinition, matchingUrlTitle, OPTIONS)).toBeGreaterThan(
+      computeNodeSimilarity(oldDefinition, matchingLabelOnly, OPTIONS),
+    )
+  })
+
+  it('prefers matching heading depth for leaf headings when title tokens are otherwise identical', () => {
+    const oldHeading = makeNode({
+      entity: 'section',
+      kind: 'heading',
+      section: { kind: 'heading', title: 'Leaf', headingDepth: 2, items: [], children: [] } as any,
+      raw: { kind: 'heading' } as any,
+      selfHash: 'old',
+      titleTokens: ['leaf'],
+      logicalChildren: [],
+    })
+    const sameDepth = makeNode({
+      entity: 'section',
+      kind: 'heading',
+      section: { kind: 'heading', title: 'Leaf', headingDepth: 2, items: [], children: [] } as any,
+      raw: { kind: 'heading' } as any,
+      selfHash: 'same-depth',
+      titleTokens: ['leaf'],
+      logicalChildren: [],
+    })
+    const differentDepth = makeNode({
+      entity: 'section',
+      kind: 'heading',
+      section: { kind: 'heading', title: 'Leaf', headingDepth: 4, items: [], children: [] } as any,
+      raw: { kind: 'heading' } as any,
+      selfHash: 'different-depth',
+      titleTokens: ['leaf'],
+      logicalChildren: [],
+    })
+
+    expect(computeNodeSimilarity(oldHeading, sameDepth, OPTIONS, 1)).toBeGreaterThan(
+      computeNodeSimilarity(oldHeading, differentDepth, OPTIONS, 1),
+    )
   })
 
   it('uses the minhash approximation path for very large token sets', () => {

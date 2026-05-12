@@ -128,6 +128,25 @@ After note[^1].
     expect(oldDefinition?.identityHash).toBe(newDefinition?.identityHash)
     expect(oldDefinition?.selfHash).not.toBe(newDefinition?.selfHash)
   })
+
+  it('reuses selfHash as the identity hash for ordinary blocks and sections', async () => {
+    const tree = transformMarkdown(
+      await parseMarkdown(`# Heading
+
+Paragraph body.
+
+- item one
+- item two`),
+    )
+    const index = await buildSemanticIndex(tree, 'old')
+    const heading = index.byId.get(index.byKind.get('heading')![0]!)
+    const paragraph = index.byId.get(index.byBlockType.get('paragraph')![0]!)
+    const listItem = index.byId.get(index.byKind.get('listItem')![0]!)
+
+    expect(heading?.identityHash).toBe(heading?.selfHash)
+    expect(paragraph?.identityHash).toBe(paragraph?.selfHash)
+    expect(listItem?.identityHash).toBe(listItem?.selfHash)
+  })
 })
 
 describe('diff utils', () => {

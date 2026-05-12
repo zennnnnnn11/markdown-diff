@@ -5,7 +5,7 @@ import { diffFrontmatter } from './frontmatter'
 import { DIFF_HEURISTICS, sequenceTuning } from './heuristics'
 import { buildSemanticIndex } from './indexer'
 import { resolveDiffOptions } from './options'
-import { collectQuality, collectStats } from './summary'
+import { forEachChange, forEachChangeAsync, summarizeChanges } from './summary'
 import { alignSequence, longestIncreasingSubsequence } from './sequence'
 import { computeNodeSimilarity, isSameShape, uniquenessMargin } from './similarity'
 import type {
@@ -146,7 +146,7 @@ export async function diffMarkdownTrees(
   await computePresentationDiffs(context, root)
   validateTree(root, context.warnings)
   const changeIndex = buildChangeIndex(root)
-  const quality = collectQuality(root, context.warnings)
+  const { stats, quality } = summarizeChanges(root, context.warnings)
 
   return {
     root,
@@ -154,7 +154,7 @@ export async function diffMarkdownTrees(
     newIndex,
     matches: [...context.matchesByOld.values()],
     changeIndex,
-    stats: collectStats(root),
+    stats,
     quality,
     warnings: context.warnings,
   }
@@ -648,6 +648,9 @@ async function seedLocalMatches(context: DiffContext, oldParentId: string, newPa
   )
 
   const similarityCandidates: MatchCandidate[] = []
+  const unmatchedOldNodes = oldChildren
+    .map((candidateId) => context.oldIndex.byId.get(candidateId))
+    .filter((candidate): candidate is NonNullable<typeof candidate> => !!candidate && !context.matchesByOld.has(candidate.id))
   for (const oldId of oldChildren) {
     const oldNode = context.oldIndex.byId.get(oldId)
     if (!oldNode || context.matchesByOld.has(oldId)) continue
@@ -655,7 +658,7 @@ async function seedLocalMatches(context: DiffContext, oldParentId: string, newPa
     if (comparables.length === 0) continue
 
     const scores = comparables.map((newNode) => computeNodeSimilarity(oldNode, newNode, context.options, 1))
-    const bestIndex = scores.findIndex((score) => score === Math.max(...scores))
+    const bestIndex = indexOfMaxScore(scores)
     const bestScore = scores[bestIndex] ?? 0
     if (bestScore < context.options.minSimilarity) continue
     if (uniquenessMargin(scores) < context.options.minUniquenessMargin) continue
@@ -663,9 +666,7 @@ async function seedLocalMatches(context: DiffContext, oldParentId: string, newPa
     const bestNew = comparables[bestIndex]
     if (!bestNew) continue
 
-    const reverseCandidates = oldChildren
-      .map((candidateId) => context.oldIndex.byId.get(candidateId))
-      .filter((candidate): candidate is NonNullable<typeof candidate> => !!candidate && !context.matchesByOld.has(candidate.id) && isSameShape(candidate, bestNew))
+    const reverseCandidates = unmatchedOldNodes.filter((candidate) => isSameShape(candidate, bestNew))
     const reverseScores = reverseCandidates.map((candidate) => computeNodeSimilarity(candidate, bestNew, context.options, 1))
     if (uniquenessMargin(reverseScores) < context.options.minUniquenessMargin) continue
 
@@ -900,11 +901,11 @@ async function recoverDefinitionIdentifierPairs(context: DiffContext, root: Diff
 }
 
 async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Promise<void> {
-  for (const change of collectChanges(root, () => true)) {
-    if (!change.oldId || !change.newId) continue
+  await forEachChangeAsync(root, async (change) => {
+    if (!change.oldId || !change.newId) return
     const oldNode = context.oldIndex.byId.get(change.oldId)
     const newNode = context.newIndex.byId.get(change.newId)
-    if (!oldNode || !newNode) continue
+    if (!oldNode || !newNode) return
 
     if (oldNode.kind === 'heading' && newNode.kind === 'heading') {
       const titlesDiffer = oldNode.normalizedTitle !== newNode.normalizedTitle
@@ -1008,28 +1009,29 @@ async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Pr
         change.children = metadataChanges.map((entry) => metadataChangeToDiff(entry))
       }
     }
-  }
+  })
 }
 
 async function computePresentationDiffs(context: DiffContext, root: DiffChange): Promise<void> {
-  for (const change of collectChanges(root, () => true)) {
-    if (!change.oldId || !change.newId) continue
+  await forEachChangeAsync(root, async (change) => {
+    if (!change.oldId || !change.newId) return
     const oldNode = context.oldIndex.byId.get(change.oldId)
     const newNode = context.newIndex.byId.get(change.newId)
-    if (!oldNode || !newNode) continue
+    if (!oldNode || !newNode) return
 
     if (oldNode.entity === 'block' && newNode.entity === 'block') {
       if (oldNode.blockType === 'paragraph' && newNode.blockType === 'paragraph') {
-        if (change.primaryOp === 'equal' && oldNode.selfHash === newNode.selfHash) continue
-        const result = await diffInlineNodes(
-          oldNode.block?.children ?? [],
-          newNode.block?.children ?? [],
-          context.options.maxInlineDiffMatrixCost,
-          sequenceTuning(context.options),
-        )
-        change.inlineSpans = result.spans
-        if (result.inlineStructureChanged) change.status.inlineStructureChanged = true
-        if (result.deferred) change.warnings.push('inline-deferred')
+        if (!(change.primaryOp === 'equal' && oldNode.selfHash === newNode.selfHash)) {
+          const result = await diffInlineNodes(
+            oldNode.block?.children ?? [],
+            newNode.block?.children ?? [],
+            context.options.maxInlineDiffMatrixCost,
+            sequenceTuning(context.options),
+          )
+          change.inlineSpans = result.spans
+          if (result.inlineStructureChanged) change.status.inlineStructureChanged = true
+          if (result.deferred) change.warnings.push('inline-deferred')
+        }
       }
 
       if (oldNode.blockType === 'code' && newNode.blockType === 'code') {
@@ -1050,11 +1052,11 @@ async function computePresentationDiffs(context: DiffContext, root: DiffChange):
         sequenceTuning(context.options),
       )
     }
-  }
+  })
 }
 
 function validateTree(root: DiffChange, warnings: string[]): void {
-  for (const change of collectChanges(root, () => true)) {
+  forEachChange(root, (change) => {
     if ((change.primaryOp === 'insert' || change.primaryOp === 'delete') && (change.status.isMatchPair || change.status.isAlignedPair)) {
       warnings.push(`invalid-pair-state:${change.summary}`)
     }
@@ -1071,7 +1073,7 @@ function validateTree(root: DiffChange, warnings: string[]): void {
       warnings.push(`invalid-meta-pair:${change.summary}`)
     }
     if (change.primaryOp === 'move' && (!change.logicalMoveId || !change.moveRole)) warnings.push(`invalid-move-link:${change.summary}`)
-  }
+  })
 }
 
 async function diffInlineNodes(
@@ -2302,13 +2304,26 @@ function buildChangeIndex(root: DiffChange): DiffChangeIndex {
   const byNewId = new Map<string, DiffChange>()
   const byPairKey = new Map<string, DiffChange>()
 
-  for (const change of collectChanges(root, () => true)) {
+  forEachChange(root, (change) => {
     if (change.oldId && !byOldId.has(change.oldId)) byOldId.set(change.oldId, change)
     if (change.newId && !byNewId.has(change.newId)) byNewId.set(change.newId, change)
     if (change.pairKey && !byPairKey.has(change.pairKey)) byPairKey.set(change.pairKey, change)
-  }
+  })
 
   return { byOldId, byNewId, byPairKey }
+}
+
+function indexOfMaxScore(scores: readonly number[]): number {
+  let bestIndex = -1
+  let bestScore = Number.NEGATIVE_INFINITY
+  for (let index = 0; index < scores.length; index++) {
+    const score = scores[index] ?? Number.NEGATIVE_INFINITY
+    if (score > bestScore) {
+      bestScore = score
+      bestIndex = index
+    }
+  }
+  return bestIndex
 }
 
 function createStatus(overrides?: Partial<DiffStatus>): DiffStatus {

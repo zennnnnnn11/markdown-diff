@@ -236,6 +236,7 @@ async function createDiffNode(
   preorder: number,
   headingPath: string[],
 ): Promise<DiffNode> {
+  const pathHash = headingPath.length > 0 ? await hashText(pathHashInput(headingPath)) : undefined
   if (current.entity === 'block') {
     const block = current.raw as Block
     const selfHash = await computeBlockSelfHash(block)
@@ -260,14 +261,14 @@ async function createDiffNode(
       selfHash,
       directHash: selfHash,
       subtreeHash: selfHash,
-      identityHash: await computeBlockIdentityHash(block),
+      identityHash: await computeBlockIdentityHash(block, selfHash),
       contentOnlyHash: await hashText(text),
       textSimHash: await charikarSimHash([...textTokens, ...structuredTokens]),
       titleTokens: [],
       textTokens,
       structuredTokens,
       pathParts: headingPath,
-      pathHash: headingPath.length > 0 ? await hashText(pathHashInput(headingPath)) : undefined,
+      pathHash,
     }
   }
 
@@ -310,10 +311,10 @@ async function createDiffNode(
     selfHash,
     directHash,
     subtreeHash,
-    identityHash: await computeSectionIdentityHash(section, childNodes),
+    identityHash: await computeSectionIdentityHash(section, childNodes, selfHash),
     contentOnlyHash: await hashText(text),
     headingBodyHash,
-    pathHash: headingPath.length > 0 ? await hashText(pathHashInput(headingPath)) : undefined,
+    pathHash,
     textSimHash: await charikarSimHash([...textTokens, ...structuredTokens]),
     normalizedTitle,
     titleSlug: slugifyHeading(section.title),
@@ -341,14 +342,14 @@ async function computeSectionSelfHash(section: Section, normalizedTitle: string)
   })
 }
 
-async function computeSectionIdentityHash(section: Section, childNodes: DiffNode[]): Promise<string> {
+async function computeSectionIdentityHash(section: Section, childNodes: DiffNode[], selfHash: string): Promise<string> {
   if (section.kind === 'footnote') {
     return hashCanonical({
       kind: section.kind,
       children: childNodes.map((child) => child.subtreeHash),
     })
   }
-  return computeSectionSelfHash(section, normalizeHeadingTitle(section.title))
+  return selfHash
 }
 
 async function computeHeadingBodyHash(section: Section, childNodes: DiffNode[]): Promise<string | undefined> {
@@ -391,7 +392,7 @@ async function computeBlockSelfHash(block: Block): Promise<string> {
   })
 }
 
-async function computeBlockIdentityHash(block: Block): Promise<string> {
+async function computeBlockIdentityHash(block: Block, selfHash: string): Promise<string> {
   if (block.type === 'definition') {
     return hashCanonical({
       type: block.type,
@@ -399,7 +400,7 @@ async function computeBlockIdentityHash(block: Block): Promise<string> {
       title: (block as any).title,
     })
   }
-  return computeBlockSelfHash(block)
+  return selfHash
 }
 
 function extractSectionIdentifier(section: Section): string | undefined {

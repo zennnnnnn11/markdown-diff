@@ -40,6 +40,10 @@ describe('text extraction', () => {
       })
       expect(extractHeadingText(h)).toBe('see docs')
     })
+    it('T03b: returns an empty string for an empty heading node', () => {
+      const h = node('heading', { depth: 2, children: [] })
+      expect(extractHeadingText(h)).toBe('')
+    })
   })
 
   describe('extractText', () => {
@@ -50,6 +54,20 @@ describe('text extraction', () => {
     it('T04b: extracts inline code and raw value nodes', () => {
       expect(extractText(node('inlineCode', { value: 'const x = 1' }))).toBe('const x = 1')
       expect(extractText(node('html', { value: '<br />' }))).toBe('<br />')
+    })
+    it('T04c: recursively extracts nested emphasis and link-reference text', () => {
+      const p = node('paragraph', {
+        children: [
+          node('emphasis', {
+            children: [
+              text('nested '),
+              node('linkReference', { identifier: 'docs', children: [text('docs')] }),
+            ],
+          }),
+        ],
+      })
+
+      expect(extractText(p)).toBe('nested docs')
     })
   })
 
@@ -117,6 +135,17 @@ describe('text extraction', () => {
       })
       expect(extractBlockquoteExcerpt(bq)).toContain('quoted item')
     })
+    it('T10c: prefers the first paragraph even when headings appear before it', () => {
+      const bq = node('blockquote', {
+        children: [
+          node('heading', { depth: 3, children: [text('Ignored heading')] }),
+          node('paragraph', { children: [text('Chosen paragraph')] }),
+          node('paragraph', { children: [text('Later paragraph')] }),
+        ],
+      })
+
+      expect(extractBlockquoteExcerpt(bq)).toBe('Chosen paragraph')
+    })
   })
 
   describe('extractAttribution', () => {
@@ -136,6 +165,13 @@ describe('text extraction', () => {
 
       expect(extractAttribution(english)).toBe('Ada Lovelace')
       expect(extractAttribution(plain)).toBe('')
+    })
+    it('T12b: supports full-width colons with surrounding spaces', () => {
+      const quote = node('blockquote', {
+        children: [node('paragraph', { children: [text('设计者 ： 保持语义稳定')] })],
+      })
+
+      expect(extractAttribution(quote)).toBe('设计者 ')
     })
   })
 })

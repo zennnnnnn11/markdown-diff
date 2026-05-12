@@ -118,6 +118,19 @@ describe('definition edge cases', () => {
     })
   })
 
+  it('falls back to delete plus insert when a definition changes identifier and destination together', async () => {
+    const result = await diffMarkdown(
+      '[spec]: https://example.com/spec "Spec"',
+      '[guide]: https://example.com/guide "Guide"',
+      { minSimilarity: 0.5 },
+    )
+    const definitions = definitionChanges(result)
+
+    expect(definitions.some((change) => change.oldId && change.newId)).toBe(false)
+    expect(definitions.filter((change) => change.primaryOp === 'delete')).toHaveLength(1)
+    expect(definitions.filter((change) => change.primaryOp === 'insert')).toHaveLength(1)
+  })
+
   it('does not create identifier-based matches when only one side has duplicate identifiers', async () => {
     const result = await diffMarkdown(
       '[docs]: https://example.com/one "One"',

@@ -112,6 +112,19 @@ describe('listItemToSection', () => {
     expect(tree.definitions!.length).toBeGreaterThanOrEqual(1)
   })
 
+  it('R11b: listItem preserves later paragraphs after nested blockquotes and collected definitions', async () => {
+    const md = '- intro\n  > quote\n\n  [foo]: /url\n\n  outro'
+    const tree = transformMarkdown(await parseMarkdown(md))
+    const li = sectionByKind(tree, 'listItem')[0]!
+    const paragraphTexts = li.items
+      .filter((item: any) => item.type === 'paragraph')
+      .map((item: any) => item.children?.map((child: any) => child.value ?? '').join(''))
+
+    expect(li.children.some((child) => child.kind === 'blockquote')).toBe(true)
+    expect(paragraphTexts).toEqual(['intro', 'outro'])
+    expect(tree.definitions!.length).toBeGreaterThanOrEqual(1)
+  })
+
   it('R12: empty listItem → items=[], title=""', async () => {
     const md = '- '
     const tree = transformMarkdown(await parseMarkdown(md))
@@ -221,6 +234,16 @@ describe('blockquoteToSection', () => {
     expect(tree.definitions!.length).toBeGreaterThanOrEqual(1)
   })
 
+  it('R25b: blockquote containing only a definition stays structurally empty while still collecting the definition', async () => {
+    const md = '> [ref]: /url'
+    const tree = transformMarkdown(await parseMarkdown(md))
+    const bq = sectionByKind(tree, 'blockquote')[0]!
+
+    expect(tree.definitions!.length).toBe(1)
+    expect(bq.items).toHaveLength(0)
+    expect(bq.children).toHaveLength(0)
+  })
+
   it('R26: empty blockquote → items=[], title=""', async () => {
     const md = '>'
     const tree = transformMarkdown(await parseMarkdown(md))
@@ -264,5 +287,15 @@ describe('mutual recursion', () => {
     const md = '- a\n  > - b\n  >   > - c\n  >   >   > - d\n  >   >   >   > - e'
     const tree = transformMarkdown(await parseMarkdown(md))
     expect(tree).toBeDefined()
+  })
+
+  it('R32: mixed nested containers preserve sibling order between blocks and child sections', async () => {
+    const md = '> before\n>\n> - nested\n>\n> after'
+    const tree = transformMarkdown(await parseMarkdown(md))
+    const bq = sectionByKind(tree, 'blockquote')[0]!
+    const itemKinds = bq.items.map((item: any) => ('kind' in item ? item.kind : item.type))
+
+    expect(itemKinds).toEqual(['paragraph', 'listItem', 'paragraph'])
+    expect(bq.children.some((child) => child.kind === 'listItem')).toBe(true)
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { collectQuality, collectStats } from '../summary'
+import { collectQuality, collectStats, forEachChange, summarizeChanges } from '../summary'
 import type { DiffChange, DiffStatus } from '../types'
 
 function makeStatus(overrides: Partial<DiffStatus> = {}): DiffStatus {
@@ -89,5 +89,50 @@ describe('diff summary', () => {
       inlineDeferredCount: 1,
       warningCount: 4,
     })
+  })
+
+  it('summarizes stats and quality in one pass without changing public results', () => {
+    const root = makeChange({
+      warnings: ['root-warning'],
+      children: [
+        makeChange({
+          primaryOp: 'insert',
+          summary: 'inserted',
+        }),
+        makeChange({
+          primaryOp: 'meta-update',
+          summary: 'renamed metadata section',
+          status: makeStatus({ isMatchPair: true, metaChanged: true, renamed: true }),
+          logicalMoveId: 'move:a:b',
+          degraded: true,
+          warnings: ['inline-deferred'],
+        }),
+      ],
+    })
+
+    const summary = summarizeChanges(root, ['global-warning'])
+
+    expect(summary.stats).toEqual(collectStats(root))
+    expect(summary.quality).toEqual(collectQuality(root, ['global-warning']))
+  })
+
+  it('traverses changes in pre-order for streaming consumers', () => {
+    const order: string[] = []
+    const root = makeChange({
+      summary: 'root',
+      children: [
+        makeChange({
+          summary: 'left',
+          children: [makeChange({ summary: 'left-child' })],
+        }),
+        makeChange({ summary: 'right' }),
+      ],
+    })
+
+    forEachChange(root, (change) => {
+      order.push(change.summary)
+    })
+
+    expect(order).toEqual(['root', 'left', 'left-child', 'right'])
   })
 })

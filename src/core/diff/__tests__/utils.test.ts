@@ -65,6 +65,16 @@ describe('diff utilities', () => {
     expect(tokenizeText('Alpha-beta 2024')).toEqual(['alpha', 'beta', '2024'])
   })
 
+  it('returns no tokens for punctuation-only text when both segmenters and regex fallback find nothing', () => {
+    Object.defineProperty(Intl, 'Segmenter', {
+      configurable: true,
+      writable: true,
+      value: undefined,
+    })
+
+    expect(tokenizeText('... --- !!!')).toEqual([])
+  })
+
   it('preserves contiguous CJK runs as a fallback token when Segmenter is unavailable', () => {
     Object.defineProperty(Intl, 'Segmenter', {
       configurable: true,
@@ -112,6 +122,28 @@ describe('diff utilities', () => {
     )
     expect(extractNodeText(section)).toContain('Docs Overview')
     expect(extractNodeText(definition)).toBe('Repo https://example.com/repo Repository')
+  })
+
+  it('extracts frontmatter, image, math, and non-heading section text consistently', () => {
+    const frontmatter = {
+      kind: 'frontmatter',
+      frontmatterValue: 'title: Test',
+      items: [],
+      children: [],
+    } as any
+    const blockquote = {
+      kind: 'blockquote',
+      items: [
+        { type: 'paragraph', children: [{ type: 'text', value: 'Quoted' }] },
+        { type: 'math', value: 'x^2' },
+      ],
+      children: [],
+    } as any
+    const image = { type: 'image', alt: 'Diagram', url: 'https://example.com/diagram.png' } as any
+
+    expect(extractNodeText(frontmatter)).toBe('title: Test')
+    expect(extractNodeText(blockquote)).toBe('Quoted x^2')
+    expect(extractNodeText(image)).toBe('Diagram https://example.com/diagram.png')
   })
 
   it('builds normalized inline token hashes and nested inline structures', async () => {
@@ -179,6 +211,18 @@ describe('diff utilities', () => {
     })
   })
 
+  it('merges source ranges even when some ranges are missing start or end points', () => {
+    expect(
+      mergeSourceRanges([
+        { start: { line: 3, column: 2 }, end: undefined },
+        { start: undefined, end: { line: 9, column: 4 } },
+      ]),
+    ).toEqual({
+      start: { line: 3, column: 2 },
+      end: { line: 9, column: 4 },
+    })
+  })
+
   it('computes nested metadata diffs and root scalar replacements', () => {
     expect(
       metadataDiff(
@@ -194,6 +238,15 @@ describe('diff utilities', () => {
     ])
     expect(metadataDiff('old raw', 'new raw', '$')).toEqual([
       { path: '$', oldValue: 'old raw', newValue: 'new raw', op: 'replace' },
+    ])
+  })
+
+  it('treats array and object shape changes as stable metadata replacements', () => {
+    expect(metadataDiff({ tags: ['a', 'b'] }, { tags: ['a', 'c'] }, '$')).toEqual([
+      { path: '$.tags', oldValue: ['a', 'b'], newValue: ['a', 'c'], op: 'replace' },
+    ])
+    expect(metadataDiff({ tags: ['a'] }, 'disabled', '$')).toEqual([
+      { path: '$', oldValue: { tags: ['a'] }, newValue: 'disabled', op: 'replace' },
     ])
   })
 })

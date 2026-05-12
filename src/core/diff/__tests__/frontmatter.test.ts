@@ -31,6 +31,21 @@ describe('frontmatter diff', () => {
     })
   })
 
+  it('parses nested tables and arrays from toml frontmatter payloads', () => {
+    expect(
+      parseFrontmatter(
+        'toml',
+        ['title = "Test"', 'features = ["diff", "render"]', '[limits]', 'max_nodes = 16000'].join('\n'),
+      ),
+    ).toEqual({
+      title: 'Test',
+      features: ['diff', 'render'],
+      limits: {
+        max_nodes: 16000,
+      },
+    })
+  })
+
   it('builds stable path-level metadata changes for parsed frontmatter', () => {
     const changes = diffFrontmatter(
       'yaml',
@@ -105,6 +120,21 @@ describe('frontmatter diff', () => {
 
     expect(diffFrontmatter('yaml', '42', 'yaml', '43')).toEqual([
       { path: '$', oldValue: 42, newValue: 43, op: 'replace' },
+    ])
+  })
+
+  it('returns no changes when both frontmatter payloads are missing and treats array edits as path-level replacements', () => {
+    expect(diffFrontmatter(undefined, undefined, undefined, undefined)).toEqual([])
+
+    expect(
+      diffFrontmatter(
+        'yaml',
+        ['features:', '  - parser', '  - diff'].join('\n'),
+        'yaml',
+        ['features:', '  - parser', '  - renderer'].join('\n'),
+      ),
+    ).toEqual([
+      { path: '$.features', oldValue: ['parser', 'diff'], newValue: ['parser', 'renderer'], op: 'replace' },
     ])
   })
 })
