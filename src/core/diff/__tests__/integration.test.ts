@@ -275,6 +275,130 @@ describe('diff integration', () => {
     expect(insertedHeading?.status.renamed).not.toBe(true)
   })
 
+  it('keeps exact-self heading matches alive when crossed anchors collapse the global preorder interval', async () => {
+    const result = await diffMarkdown(
+      [
+        '# Semantic Markdown Diff Handbook',
+        '',
+        'Intro paragraph.',
+        '',
+        '## Overview',
+        '',
+        'Overview body.',
+        '',
+        '## Quick Start',
+        '',
+        'Install the package.',
+        '',
+        '## Architecture',
+        '',
+        'The pipeline has four stages.',
+        '',
+        '## Configuration',
+        '',
+        'The default configuration is designed for conservative matching.',
+        '',
+        '## Matching Rules',
+        '',
+        'The matcher first searches for deterministic anchors.',
+        '',
+        'Then it aligns child nodes inside matched parents.',
+        '',
+        'Finally it recovers moves, renames, and metadata updates.',
+        '',
+        '## Rendering',
+        '',
+        'The renderer consumes a diff tree and produces visual spans.',
+        '',
+        'Inline changes are shown inside paragraphs.',
+        '',
+        '> Rendering should not decide whether two nodes are the same entity.',
+        '',
+        '## CLI Usage',
+        '',
+        'The CLI accepts two Markdown files and writes a structured report.',
+        '',
+        '## API Reference',
+        '',
+        'The public API exposes a single high-level function.',
+      ].join('\n'),
+      [
+        '# Semantic Markdown Diff Handbook',
+        '',
+        'Intro paragraph.',
+        '',
+        '## Summary',
+        '',
+        'Overview body.',
+        '',
+        '## Quick Start',
+        '',
+        'Install the package.',
+        '',
+        '## Configuration',
+        '',
+        'The default configuration is designed for balanced matching.',
+        '',
+        '## CLI Usage',
+        '',
+        'The CLI accepts two Markdown files and writes a structured report.',
+        '',
+        '## Architecture',
+        '',
+        'The pipeline has four stages.',
+        '',
+        '## Rendering',
+        '',
+        'The renderer consumes a diff tree and produces visual spans.',
+        '',
+        'Inline changes are highlighted inside paragraphs.',
+        '',
+        '> Rendering should not decide whether two nodes are the same entity.',
+        '> It should only present decisions made by the diff engine.',
+        '',
+        '## API Reference',
+        '',
+        'The public API exposes a single high-level function.',
+        '',
+        '## Matching Rules',
+        '',
+        'The matcher first searches for deterministic anchors.',
+        '',
+        'Then it aligns child nodes inside matched parents.',
+        '',
+        'Finally it recovers moves, renames, and metadata updates.',
+      ].join('\n'),
+    )
+    const headings = flatten(result.root).filter((change) => change.kind === 'heading')
+    const rendering = headings.find(
+      (change) => sectionTitle(change.oldNode) === 'Rendering' || sectionTitle(change.newNode) === 'Rendering',
+    )
+    const matchingRules = headings.find(
+      (change) => sectionTitle(change.oldNode) === 'Matching Rules' || sectionTitle(change.newNode) === 'Matching Rules',
+    )
+
+    expect(rendering?.pairKind).toBe('match')
+    expect(rendering?.primaryOp).toBe('equal')
+    expect(rendering?.status.selfChanged).toBe(false)
+    expect(rendering?.status.descendantChanged).toBe(true)
+    expect(matchingRules?.pairKind).toBe('match')
+    expect(matchingRules?.primaryOp).toBe('equal')
+    expect(
+      headings.some(
+        (change) =>
+          (sectionTitle(change.oldNode) === 'Rendering' || sectionTitle(change.newNode) === 'Rendering') &&
+          (change.primaryOp === 'delete' || change.primaryOp === 'insert'),
+      ),
+    ).toBe(false)
+    expect(
+      headings.some(
+        (change) =>
+          (sectionTitle(change.oldNode) === 'Matching Rules' || sectionTitle(change.newNode) === 'Matching Rules') &&
+          (change.primaryOp === 'delete' || change.primaryOp === 'insert'),
+      ),
+    ).toBe(false)
+  })
+
   it('recovers exact section move as move source and target', async () => {
     const oldMarkdown = `# A
 

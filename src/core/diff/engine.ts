@@ -71,7 +71,7 @@ class AnchorRegistry {
     this.globalAnchors.sort((left, right) => left.oldPreorder - right.oldPreorder)
   }
 
-  getGlobalInterval(oldPreorder: number, newTreeSize: number): { min: number; max: number } {
+  getGlobalInterval(oldPreorder: number, newTreeSize: number): { min: number; max: number } | undefined {
     if (this.globalAnchors.length === 0) {
       return {
         min: 0,
@@ -95,7 +95,9 @@ class AnchorRegistry {
 
     const min = Math.max(0, leftNewPreorder + 1)
     const max = Math.min(newTreeSize - 1, rightNewPreorder - 1)
-    if (min > max) return { min, max }
+    // Crossing anchors indicate that nearby deterministic matches were reordered.
+    // Treat the global interval as unavailable instead of hard-rejecting legal candidates.
+    if (min > max) return undefined
     return { min, max }
   }
 }
@@ -1543,6 +1545,7 @@ function hasLocalHashContext(
     const candidateNew = context.newIndex.byId.get(candidateNewId)
     if (!candidateNew) return false
     const interval = anchors.getGlobalInterval(oldNode.preorder, context.newIndex.nodesInPreorder.length)
+    if (!interval) return true
     return candidateNew.preorder >= interval.min && candidateNew.preorder <= interval.max
   })
 
@@ -1620,6 +1623,7 @@ function isCandidateWithinAnchoredBounds(
   }
 
   const interval = anchors.getGlobalInterval(oldNode.preorder, context.newIndex.nodesInPreorder.length)
+  if (!interval) return true
   return newNode.preorder >= interval.min && newNode.preorder <= interval.max
 }
 
