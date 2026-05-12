@@ -2,16 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { parseMarkdown } from '../../parser'
 import { transformMarkdown } from '../../transformer'
 import { diffMarkdownTrees } from '../index'
-import type { DiffChange } from '../types'
+import type { DiffChange, DiffOptions } from '../types'
 
 function flatten(change: DiffChange): DiffChange[] {
   return [change, ...change.children.flatMap(flatten)]
 }
 
-async function diffMarkdown(oldMarkdown: string, newMarkdown = oldMarkdown) {
+async function diffMarkdown(
+  oldMarkdown: string,
+  newMarkdown = oldMarkdown,
+  options?: Partial<DiffOptions>,
+) {
   const oldTree = transformMarkdown(await parseMarkdown(oldMarkdown))
   const newTree = transformMarkdown(await parseMarkdown(newMarkdown))
-  return diffMarkdownTrees(oldTree, newTree)
+  return diffMarkdownTrees(oldTree, newTree, options)
 }
 
 describe('diff integration', () => {
@@ -37,6 +41,17 @@ describe('diff integration', () => {
     expect(paragraph?.primaryOp).toBe('replace')
     expect(paragraph?.inlineSpans?.some((span) => span.op === 'replace')).toBe(true)
     expect(result.stats.replaces).toBeGreaterThanOrEqual(1)
+  })
+
+  it('keeps exact-subtree matches at the maximal covered level only', async () => {
+    const result = await diffMarkdown('# Stable\n\nBody')
+    const exactSubtrees = result.matches.filter((pair) => pair.matchKind === 'exact-subtree')
+    const exactParagraph = flatten(result.root).find(
+      (change) => change.blockType === 'paragraph' && change.matchKind === 'exact-subtree',
+    )
+
+    expect(exactSubtrees).toHaveLength(1)
+    expect(exactParagraph).toBeUndefined()
   })
 
   it('recovers heading rename when body is unchanged', async () => {
@@ -124,6 +139,21 @@ meta:
     expect(table?.tableDiff?.cellDiffs[0]).toMatchObject({ row: 1, column: 1 })
   })
 
+  it('computes table cell inline structure diffs', async () => {
+    const oldMarkdown = `| **bold** |
+| - |
+| body |`
+    const newMarkdown = `| *bold* |
+| - |
+| body |`
+    const result = await diffMarkdown(oldMarkdown, newMarkdown)
+    const table = flatten(result.root).find((change) => change.blockType === 'table')
+    const headerCell = table?.tableDiff?.cellDiffs.find((cell) => cell.row === 0 && cell.column === 0)
+
+    expect(headerCell?.spans.some((span) => span.oldTokens?.[0]?.type === 'strong')).toBe(true)
+    expect(headerCell?.spans.some((span) => span.newTokens?.[0]?.type === 'emphasis')).toBe(true)
+  })
+
   it('computes code replace spans with char-level detail', async () => {
     const oldMarkdown = '```ts\nconst x = 1\n```'
     const newMarkdown = '```ts\nconst x = 2\n```'
@@ -132,5 +162,29 @@ meta:
 
     expect(code?.primaryOp).toBe('replace')
     expect(code?.codeSpans?.some((span) => span.op === 'replace' && span.charSpans?.length)).toBe(true)
+  })
+
+  it('uses enhanced local recovery to align unresolved structural children', async () => {
+    const oldMarkdown = `# Alpha Project Notes
+
+> old quote
+
+- first`
+    const newMarkdown = `# Beta Project Notes
+
+> new quote
+
+- second`
+    const withoutFallback = await diffMarkdown(oldMarkdown, newMarkdown, { minSimilarity: 0.55 })
+    const withFallback = await diffMarkdown(oldMarkdown, newMarkdown, {
+      enhancedLocalRecovery: true,
+      minSimilarity: 0.55,
+    })
+    const oldHeading = flatten(withoutFallback.root).find((change) => change.kind === 'heading' && change.oldId && change.newId)
+    const newHeading = flatten(withFallback.root).find((change) => change.kind === 'heading' && change.oldId && change.newId)
+
+    expect(oldHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(false)
+    expect(newHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(true)
+    expect(newHeading?.warnings).not.toContain('enhanced-local-recovery-no-candidates')
   })
 })

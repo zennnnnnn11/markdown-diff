@@ -143,18 +143,22 @@ function buildIndexedSection(
   const items = [...section.items]
 
   if (section.kind === 'root') {
-    items.push(
-      ...(section.definitions ?? []).map((definition, index) => ({
-        ...definition,
-        id: `synth:def:${tree}:${index}`,
-      })),
-    )
-    items.push(
-      ...(section.footnotes ?? []).map((footnote, index) => ({
-        ...footnote,
-        id: `synth:fn:${tree}:${index}`,
-      })),
-    )
+    for (const [index, definition] of (section.definitions ?? []).entries()) {
+      if (!items.some((item) => item.id === definition.id)) {
+        items.push({
+          ...definition,
+          id: `synth:def:${tree}:${index}`,
+        })
+      }
+    }
+    for (const [index, footnote] of (section.footnotes ?? []).entries()) {
+      if (!items.some((item) => item.id === footnote.id)) {
+        items.push({
+          ...footnote,
+          id: `synth:fn:${tree}:${index}`,
+        })
+      }
+    }
   }
 
   return {

@@ -91,7 +91,11 @@ export async function diffMarkdownTrees(
 }
 
 async function runDeterministicMatching(context: DiffContext): Promise<void> {
-  const candidates = await collectDeterministicCandidates(context)
+  const blockedOld = new Set<string>()
+  const blockedNew = new Set<string>()
+
+  await applyExactSubtreeMatches(context, blockedOld, blockedNew)
+  const candidates = await collectDeterministicCandidates(context, blockedOld, blockedNew)
   const groupedByPriority = new Map<number, MatchCandidate[]>()
   for (const candidate of candidates) push(groupedByPriority, candidate.priority, candidate)
 
@@ -107,25 +111,66 @@ async function runDeterministicMatching(context: DiffContext): Promise<void> {
   }
 }
 
-async function collectDeterministicCandidates(context: DiffContext): Promise<MatchCandidate[]> {
-  const candidates: MatchCandidate[] = []
+async function applyExactSubtreeMatches(
+  context: DiffContext,
+  blockedOld: Set<string>,
+  blockedNew: Set<string>,
+): Promise<void> {
   const exactSubtrees = uniqueSharedHashes(context.oldIndex.bySubtreeHash, context.newIndex.bySubtreeHash)
-    .map(([oldId, newId]) => ({ oldId, newId, matchKind: 'exact-subtree' as const, priority: 6, score: 1 }))
+    .map(([oldId, newId]) => ({
+      oldId,
+      newId,
+      oldNode: context.oldIndex.byId.get(oldId),
+      newNode: context.newIndex.byId.get(newId),
+    }))
+    .filter(
+      (
+        candidate,
+      ): candidate is {
+        oldId: string
+        newId: string
+        oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>
+        newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>
+      } => !!candidate.oldNode && !!candidate.newNode && isSameShape(candidate.oldNode, candidate.newNode),
+    )
+    .sort((left, right) => right.oldNode.subtreeSize - left.oldNode.subtreeSize)
+
+  for (const candidate of exactSubtrees) {
+    if (blockedOld.has(candidate.oldId) || blockedNew.has(candidate.newId)) continue
+    if (context.matchesByOld.has(candidate.oldId) || context.matchesByNew.has(candidate.newId)) continue
+    addMatch(context, candidate.oldId, candidate.newId, 'exact-subtree', undefined, 1)
+    coverDescendants(context.oldIndex, candidate.oldId, blockedOld)
+    coverDescendants(context.newIndex, candidate.newId, blockedNew)
+  }
+}
+
+async function collectDeterministicCandidates(
+  context: DiffContext,
+  blockedOld: Set<string>,
+  blockedNew: Set<string>,
+): Promise<MatchCandidate[]> {
+  const candidates: MatchCandidate[] = []
   const exactSelf = uniqueSharedHashes(context.oldIndex.bySelfHash, context.newIndex.bySelfHash)
     .map(([oldId, newId]) => ({ oldId, newId, matchKind: 'exact-self' as const, priority: 5, score: 1 }))
   const exactDirect = uniqueSharedHashes(context.oldIndex.byDirectHash, context.newIndex.byDirectHash)
     .map(([oldId, newId]) => ({ oldId, newId, matchKind: 'exact-direct' as const, priority: 4, score: 1 }))
 
   candidates.push(
-    ...exactSubtrees.filter((candidate) => canDeterministicallyMatch(context, candidate.oldId, candidate.newId, true)),
-    ...exactSelf.filter((candidate) => canDeterministicallyMatch(context, candidate.oldId, candidate.newId, false)),
+    ...exactSelf.filter(
+      (candidate) =>
+        !blockedOld.has(candidate.oldId) &&
+        !blockedNew.has(candidate.newId) &&
+        canDeterministicallyMatch(context, candidate.oldId, candidate.newId),
+    ),
     ...exactDirect.filter((candidate) => {
       const oldNode = context.oldIndex.byId.get(candidate.oldId)
       const newNode = context.newIndex.byId.get(candidate.newId)
       return (
+        !blockedOld.has(candidate.oldId) &&
+        !blockedNew.has(candidate.newId) &&
         oldNode?.entity === 'section' &&
         newNode?.entity === 'section' &&
-        canDeterministicallyMatch(context, candidate.oldId, candidate.newId, false)
+        canDeterministicallyMatch(context, candidate.oldId, candidate.newId)
       )
     }),
   )
@@ -226,8 +271,8 @@ async function alignChildren(
 ): Promise<DiffChange[]> {
   const oldChildren = context.oldIndex.childrenById.get(oldParentId) ?? []
   const newChildren = context.newIndex.childrenById.get(newParentId) ?? []
-  const oldTokens = oldChildren.map((childId) => projectToken(context, childId, newParentId))
-  const newTokens = newChildren.map((childId) => projectToken(context, childId, oldParentId))
+  const oldTokens = oldChildren.map((childId) => projectToken(context, childId, newParentId, 'old'))
+  const newTokens = newChildren.map((childId) => projectToken(context, childId, oldParentId, 'new'))
   const edits = alignSequence(oldTokens, newTokens, context.options)
   const changes: DiffChange[] = []
 
@@ -305,7 +350,7 @@ async function pairGapNodes(
 ): Promise<AlignedPair[]> {
   if (oldIds.length === 0 || newIds.length === 0) return []
 
-  type Candidate = AlignedPair & { oldScores: number[]; newScores: number[] }
+  type Candidate = AlignedPair & { siblingDistance: number }
   const candidates: Candidate[] = []
 
   for (const oldId of oldIds) {
@@ -328,13 +373,6 @@ async function pairGapNodes(
       const shortHeadingFallback = shouldUseShortHeadingFallback(context, oldNode, newNode, oldParentId, newParentId)
       if (!shortHeadingFallback && score < context.options.minSimilarity) return
 
-      const reverseComparable = oldIds
-        .map((candidateOldId) => context.oldIndex.byId.get(candidateOldId))
-        .filter((candidateOld): candidateOld is NonNullable<typeof candidateOld> => !!candidateOld && isSameShape(candidateOld, newNode))
-      const reverseScores = reverseComparable.map((candidateOld) =>
-        computeNodeSimilarity(candidateOld, newNode, context.options, parentContextScore(context, oldParentId, newParentId)),
-      )
-
       candidates.push({
         oldId,
         newId,
@@ -342,27 +380,21 @@ async function pairGapNodes(
         pairKey: makePairKey('align', oldId, newId),
         score,
         shortHeadingFallback,
-        oldScores: scores,
-        newScores: reverseScores,
+        siblingDistance: Math.abs((oldNode.siblingIndex ?? 0) - (newNode.siblingIndex ?? 0)),
       })
     })
   }
 
-  candidates.sort((left, right) => (right.score ?? 0) - (left.score ?? 0))
+  candidates.sort(
+    (left, right) =>
+      (right.score ?? 0) - (left.score ?? 0) || left.siblingDistance - right.siblingDistance,
+  )
   const usedOld = new Set<string>()
   const usedNew = new Set<string>()
   const result: AlignedPair[] = []
 
   for (const candidate of candidates) {
     if (usedOld.has(candidate.oldId) || usedNew.has(candidate.newId)) continue
-    const oldMargin = uniquenessMargin(candidate.oldScores)
-    const newMargin = uniquenessMargin(candidate.newScores)
-    const permit =
-      candidate.shortHeadingFallback ||
-      (oldMargin >= context.options.minUniquenessMargin && newMargin >= context.options.minUniquenessMargin) ||
-      (candidate.oldScores.length === 1 && candidate.newScores.length === 1)
-    if (!permit) continue
-
     usedOld.add(candidate.oldId)
     usedNew.add(candidate.newId)
     result.push(candidate)
@@ -451,7 +483,7 @@ async function buildAlignedChange(
     }
 
     if (context.options.enhancedLocalRecovery) {
-      maybeApplyStructuralFallback(context, change, oldNode, newNode)
+      await maybeApplyStructuralFallback(context, change, oldNode, newNode)
     }
   }
 
@@ -546,18 +578,36 @@ function matchLocalBy(
   }
 }
 
-function maybeApplyStructuralFallback(
+async function maybeApplyStructuralFallback(
   context: DiffContext,
   change: DiffChange,
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-): void {
+): Promise<void> {
   const oldChildren = context.oldIndex.childrenById.get(oldNode.id) ?? []
   const newChildren = context.newIndex.childrenById.get(newNode.id) ?? []
   const unresolved = change.children.filter((child) => child.primaryOp !== 'equal').length
   const total = Math.max(oldChildren.length + newChildren.length, 1)
   if (total === 0 || unresolved / total <= context.options.aptedUnpairedThreshold) return
-  change.warnings.push('enhanced-local-recovery-fallback')
+  if (Math.max(oldNode.subtreeSize, newNode.subtreeSize) > context.options.aptedMaxSubtreeSize) {
+    change.warnings.push('enhanced-local-recovery-budget-exceeded')
+    return
+  }
+
+  const fallbackPairs = collectStructuralFallbackPairs(context, change, oldNode.id, newNode.id)
+  if (fallbackPairs.length === 0) {
+    change.warnings.push('enhanced-local-recovery-no-candidates')
+    return
+  }
+
+  change.children = await rewriteChildrenWithFallbackPairs(context, change.children, fallbackPairs)
+  if (change.children.some((child) => child.primaryOp !== 'equal' || child.status.descendantChanged)) {
+    change.status.descendantChanged = true
+  }
+  if (oldNode.selfHash === newNode.selfHash && change.status.descendantChanged) {
+    change.primaryOp = 'equal'
+    change.status.selfChanged = false
+  }
 }
 
 function buildDeleteChange(context: DiffContext, oldId: string): DiffChange {
@@ -697,8 +747,8 @@ async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Pr
     }
 
     if (oldNode.blockType === 'table' && newNode.blockType === 'table') {
-      const tableMeta = computeTableMetadataChange(oldNode, newNode)
-      if (tableMeta.structureChanged && !tableMeta.shapeChanged && tableMeta.cellDiffs.length === 0) {
+      const tableMeta = await computeTableMetadataChange(oldNode, newNode, context.options)
+      if (isStructuralOnlyTableChange(oldNode, newNode, tableMeta)) {
         upgradeToMatch(change)
         change.primaryOp = 'meta-update'
         change.status.metaChanged = true
@@ -746,7 +796,11 @@ async function computePresentationDiffs(context: DiffContext, root: DiffChange):
 
     if (oldNode.entity === 'block' && newNode.entity === 'block') {
       if (oldNode.blockType === 'paragraph' && newNode.blockType === 'paragraph') {
-        const result = await diffInlineNodes(oldNode.block?.children ?? [], newNode.block?.children ?? [], context.options.maxInlineDiffCost)
+        const result = await diffInlineNodes(
+          oldNode.block?.children ?? [],
+          newNode.block?.children ?? [],
+          context.options.maxInlineDiffCost,
+        )
         change.inlineSpans = result.spans
         if (result.inlineStructureChanged) change.status.inlineStructureChanged = true
         if (result.deferred) change.warnings.push('inline-deferred')
@@ -759,7 +813,7 @@ async function computePresentationDiffs(context: DiffContext, root: DiffChange):
       }
 
       if (oldNode.blockType === 'table' && newNode.blockType === 'table') {
-        change.tableDiff ??= computeTableMetadataChange(oldNode, newNode)
+        change.tableDiff ??= await computeTableMetadataChange(oldNode, newNode, context.options)
       }
     }
 
@@ -777,6 +831,10 @@ function validateTree(root: DiffChange, warnings: string[]): void {
     if (change.primaryOp === 'move' && !change.status.moved) warnings.push(`invalid-move-state:${change.summary}`)
     if (change.primaryOp === 'meta-update' && !change.status.metaChanged) warnings.push(`invalid-meta-state:${change.summary}`)
     if (change.primaryOp === 'equal' && change.status.selfChanged && !change.status.renamed) warnings.push(`invalid-equal-state:${change.summary}`)
+    if (change.status.isMatchPair && change.pairKind !== 'match') warnings.push(`invalid-match-kind:${change.summary}`)
+    if (change.status.isAlignedPair && change.pairKind !== 'align') warnings.push(`invalid-align-kind:${change.summary}`)
+    if (change.primaryOp === 'meta-update' && !change.status.isMatchPair) warnings.push(`invalid-meta-pair:${change.summary}`)
+    if (change.primaryOp === 'move' && (!change.logicalMoveId || !change.moveRole)) warnings.push(`invalid-move-link:${change.summary}`)
   }
 }
 
@@ -821,6 +879,7 @@ async function diffInlineNodes(
     oldTokens.map((token) => token.hash),
     newTokens.map((token) => token.hash),
     { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 },
+    'myers',
   )
 
   const spans: InlineSpan[] = []
@@ -868,46 +927,8 @@ async function diffInlineNodes(
 function diffCodeLines(oldValue: string, newValue: string, options: DiffOptions): LineDiffSpan[] {
   const oldLines = oldValue.split(/\r?\n/u)
   const newLines = newValue.split(/\r?\n/u)
-  const edits = alignSequence(oldLines, newLines, options)
-  const spans: LineDiffSpan[] = []
-
-  for (const edit of edits) {
-    if (edit.op === 'equal') {
-      spans.push({ op: 'equal', oldLine: oldLines[edit.oldIndex!], newLine: newLines[edit.newIndex!] })
-      continue
-    }
-
-    if (edit.op === 'delete') {
-      spans.push({ op: 'delete', oldLine: oldLines[edit.oldIndex!] })
-      continue
-    }
-
-    if (edit.op === 'insert') {
-      spans.push({ op: 'insert', newLine: newLines[edit.newIndex!] })
-    }
-  }
-
-  for (let index = 0; index < spans.length - 1; index++) {
-    const current = spans[index]
-    const next = spans[index + 1]
-    if (current?.op === 'delete' && next?.op === 'insert') {
-      spans.splice(index, 2, {
-        op: 'replace',
-        oldLine: current.oldLine,
-        newLine: next.newLine,
-        charSpans: diffCharacters(current.oldLine ?? '', next.newLine ?? ''),
-      })
-      continue
-    }
-    if (current?.op === 'insert' && next?.op === 'delete') {
-      spans.splice(index, 2, {
-        op: 'replace',
-        oldLine: next.oldLine,
-        newLine: current.newLine,
-        charSpans: diffCharacters(next.oldLine ?? '', current.newLine ?? ''),
-      })
-    }
-  }
+  const edits = alignSequence(oldLines, newLines, options, 'heckel')
+  const spans = coalesceLineDiffSpans(edits, oldLines, newLines)
 
   if (oldLines.length > options.longCodeLineThreshold || newLines.length > options.longCodeLineThreshold) {
     return foldLongCodeSpans(spans, options.codeFoldContextLines)
@@ -915,12 +936,15 @@ function diffCodeLines(oldValue: string, newValue: string, options: DiffOptions)
   return spans
 }
 
-function computeTableMetadataChange(
+async function computeTableMetadataChange(
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-): TableDiff {
+  options: DiffOptions,
+): Promise<TableDiff> {
   const oldRows = readTableCells(oldNode.block)
   const newRows = readTableCells(newNode.block)
+  const oldStructuredRows = readStructuredTableCells(oldNode.block)
+  const newStructuredRows = readStructuredTableCells(newNode.block)
   const oldAlign = Array.isArray(oldNode.block?.align) ? (oldNode.block.align as string[]) : []
   const newAlign = Array.isArray(newNode.block?.align) ? (newNode.block.align as string[]) : []
   const shapeChanged = oldRows.length !== newRows.length || maxColumns(oldRows) !== maxColumns(newRows)
@@ -929,21 +953,25 @@ function computeTableMetadataChange(
 
   if (!shapeChanged) {
     for (let row = 0; row < oldRows.length; row++) {
-      const oldRow = oldRows[row] ?? []
-      const newRow = newRows[row] ?? []
+      const oldRow = oldStructuredRows[row] ?? []
+      const newRow = newStructuredRows[row] ?? []
       for (let column = 0; column < oldRow.length; column++) {
-        const oldCell = oldRow[column] ?? ''
-        const newCell = newRow[column] ?? ''
-        if (oldCell === newCell) continue
+        const oldCell = oldRow[column] ?? []
+        const newCell = newRow[column] ?? []
+        const oldText = extractInlineText(oldCell)
+        const newText = extractInlineText(newCell)
+        const result = await diffInlineNodes(oldCell, newCell, options.maxInlineDiffCost)
+        const spans = result.spans.length > 0 ? result.spans : [{
+          op: 'replace' as const,
+          oldText,
+          newText,
+          wordSpans: diffWordTextSync(oldText, newText),
+        }]
+        if (!hasMeaningfulInlineDiff(spans, oldText, newText)) continue
         cellDiffs.push({
           row,
           column,
-          spans: [{
-            op: 'replace',
-            oldText: oldCell,
-            newText: newCell,
-            wordSpans: diffWordTextSync(oldCell, newCell),
-          }],
+          spans,
         })
       }
     }
@@ -974,12 +1002,8 @@ function diffWordTextSync(
 ): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
   const oldWords = tokenizeText(oldText)
   const newWords = tokenizeText(newText)
-  const edits = alignSequence(oldWords, newWords, { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 })
-  return edits.map((edit) => ({
-    op: edit.op === 'equal' ? 'equal' : edit.op === 'delete' ? 'delete' : 'insert',
-    oldText: edit.oldIndex !== undefined ? oldWords[edit.oldIndex] : undefined,
-    newText: edit.newIndex !== undefined ? newWords[edit.newIndex] : undefined,
-  }))
+  const edits = alignSequence(oldWords, newWords, { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 }, 'myers')
+  return coalesceTextSpans(edits, oldWords, newWords, ' ')
 }
 
 async function buildInlineReplaceSpan(oldTokens: InlineToken[], newTokens: InlineToken[]): Promise<InlineSpan> {
@@ -1002,12 +1026,129 @@ function diffCharacters(
 ): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
   const oldChars = [...oldText]
   const newChars = [...newText]
-  const edits = alignSequence(oldChars, newChars, { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 })
-  return edits.map((edit) => ({
-    op: edit.op === 'equal' ? 'equal' : edit.op === 'delete' ? 'delete' : 'insert',
-    oldText: edit.oldIndex !== undefined ? oldChars[edit.oldIndex] : undefined,
-    newText: edit.newIndex !== undefined ? newChars[edit.newIndex] : undefined,
-  }))
+  const edits = alignSequence(oldChars, newChars, { shortSequenceThreshold: 80, heckelUniqueRatio: 0.6 }, 'myers')
+  return coalesceTextSpans(edits, oldChars, newChars, '')
+}
+
+function coalesceTextSpans(
+  edits: Array<{ op: 'equal' | 'insert' | 'delete'; oldIndex?: number; newIndex?: number }>,
+  oldUnits: string[],
+  newUnits: string[],
+  separator: string,
+): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
+  const spans: Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> = []
+  let pendingDeletes: string[] = []
+  let pendingInserts: string[] = []
+
+  const flushPending = () => {
+    if (pendingDeletes.length === 0 && pendingInserts.length === 0) return
+    if (pendingDeletes.length > 0 && pendingInserts.length > 0) {
+      spans.push({
+        op: 'replace',
+        oldText: pendingDeletes.join(separator),
+        newText: pendingInserts.join(separator),
+      })
+    } else if (pendingDeletes.length > 0) {
+      spans.push({ op: 'delete', oldText: pendingDeletes.join(separator) })
+    } else {
+      spans.push({ op: 'insert', newText: pendingInserts.join(separator) })
+    }
+    pendingDeletes = []
+    pendingInserts = []
+  }
+
+  for (const edit of edits) {
+    if (edit.op === 'equal') {
+      flushPending()
+      spans.push({
+        op: 'equal',
+        oldText: edit.oldIndex !== undefined ? oldUnits[edit.oldIndex] : undefined,
+        newText: edit.newIndex !== undefined ? newUnits[edit.newIndex] : undefined,
+      })
+      continue
+    }
+
+    if (edit.op === 'delete' && edit.oldIndex !== undefined) pendingDeletes.push(oldUnits[edit.oldIndex] ?? '')
+    if (edit.op === 'insert' && edit.newIndex !== undefined) pendingInserts.push(newUnits[edit.newIndex] ?? '')
+  }
+
+  flushPending()
+  return spans
+}
+
+function coalesceLineDiffSpans(
+  edits: Array<{ op: 'equal' | 'insert' | 'delete'; oldIndex?: number; newIndex?: number }>,
+  oldLines: string[],
+  newLines: string[],
+): LineDiffSpan[] {
+  const spans: LineDiffSpan[] = []
+  let deleteIndexes: number[] = []
+  let insertIndexes: number[] = []
+
+  const flushPending = () => {
+    if (deleteIndexes.length === 0 && insertIndexes.length === 0) return
+
+    if (deleteIndexes.length > 0 && insertIndexes.length > 0) {
+      const deletes = deleteIndexes.map((index) => oldLines[index] ?? '')
+      const inserts = insertIndexes.map((index) => newLines[index] ?? '')
+      const max = Math.max(deletes.length, inserts.length)
+      for (let offset = 0; offset < max; offset++) {
+        const oldLine = deletes[offset]
+        const newLine = inserts[offset]
+        if (oldLine !== undefined && newLine !== undefined) {
+          spans.push({
+            op: 'replace',
+            oldLine,
+            newLine,
+            charSpans: diffCharacters(oldLine, newLine),
+          })
+        } else if (oldLine !== undefined) {
+          spans.push({ op: 'delete', oldLine })
+        } else if (newLine !== undefined) {
+          spans.push({ op: 'insert', newLine })
+        }
+      }
+    } else if (deleteIndexes.length > 0) {
+      deleteIndexes.forEach((index) => spans.push({ op: 'delete', oldLine: oldLines[index] }))
+    } else {
+      insertIndexes.forEach((index) => spans.push({ op: 'insert', newLine: newLines[index] }))
+    }
+
+    deleteIndexes = []
+    insertIndexes = []
+  }
+
+  for (const edit of edits) {
+    if (edit.op === 'equal') {
+      flushPending()
+      spans.push({
+        op: 'equal',
+        oldLine: edit.oldIndex !== undefined ? oldLines[edit.oldIndex] : undefined,
+        newLine: edit.newIndex !== undefined ? newLines[edit.newIndex] : undefined,
+      })
+      continue
+    }
+
+    if (edit.op === 'delete' && edit.oldIndex !== undefined) deleteIndexes.push(edit.oldIndex)
+    if (edit.op === 'insert' && edit.newIndex !== undefined) insertIndexes.push(edit.newIndex)
+  }
+
+  flushPending()
+  return spans
+}
+
+function hasMeaningfulInlineDiff(spans: InlineSpan[], oldText: string, newText: string): boolean {
+  if (spans.some((span) => span.op !== 'equal')) return true
+  return oldText !== newText
+}
+
+function isStructuralOnlyTableChange(
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  tableDiff: TableDiff,
+): boolean {
+  if (!tableDiff.structureChanged || tableDiff.cellDiffs.length > 0) return false
+  return JSON.stringify(readTableCells(oldNode.block)) === JSON.stringify(readTableCells(newNode.block))
 }
 
 function foldLongCodeSpans(spans: LineDiffSpan[], contextLines: number): LineDiffSpan[] {
@@ -1096,12 +1237,7 @@ function addMatch(
   return pair
 }
 
-function canDeterministicallyMatch(
-  context: DiffContext,
-  oldId: string,
-  newId: string,
-  allowRootlessSubtree: boolean,
-): boolean {
+function canDeterministicallyMatch(context: DiffContext, oldId: string, newId: string): boolean {
   const oldNode = context.oldIndex.byId.get(oldId)
   const newNode = context.newIndex.byId.get(newId)
   if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) return false
@@ -1111,12 +1247,8 @@ function canDeterministicallyMatch(
     if (parentPair?.newId === newNode.parentId) return true
   }
 
-  if (allowRootlessSubtree && oldNode.parentId === context.oldIndex.rootId && newNode.parentId === context.newIndex.rootId) {
-    return true
-  }
-
   if (Math.abs(oldNode.siblingIndex - newNode.siblingIndex) > context.options.preorderOffsetThreshold) return false
-  return hasLocalHashContext(context, oldNode, newNode)
+  return hasLocalHashContext(context, oldNode, newNode) || hasPathOrRangeContext(oldNode, newNode)
 }
 
 function hasLocalHashContext(
@@ -1145,15 +1277,44 @@ function hasLocalHashContext(
   })
 }
 
-function projectToken(context: DiffContext, childId: string, oppositeParentId: string): string {
-  const match = context.matchesByOld.get(childId) ?? context.matchesByNew.get(childId)
+function hasPathOrRangeContext(
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  if (oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash) return true
+
+  const oldStart = oldNode.sourceRange?.start
+  const newStart = newNode.sourceRange?.start
+  if (!oldStart || !newStart) return false
+
+  if (
+    oldStart.line !== undefined &&
+    newStart.line !== undefined &&
+    Math.abs(oldStart.line - newStart.line) <= 3
+  ) {
+    return true
+  }
+
+  if (
+    oldStart.offset !== undefined &&
+    newStart.offset !== undefined &&
+    Math.abs(oldStart.offset - newStart.offset) <= 200
+  ) {
+    return true
+  }
+
+  return false
+}
+
+function projectToken(context: DiffContext, childId: string, oppositeParentId: string, tree: 'old' | 'new'): string {
+  const match = tree === 'old' ? context.matchesByOld.get(childId) : context.matchesByNew.get(childId)
   if (match) {
-    const oppositeId = context.matchesByOld.has(childId) ? match.newId : match.oldId
+    const oppositeId = tree === 'old' ? match.newId : match.oldId
     const oppositeNode = context.newIndex.byId.get(oppositeId) ?? context.oldIndex.byId.get(oppositeId)
     if (oppositeNode?.parentId === oppositeParentId) return `MATCHED:${match.pairKey}`
   }
 
-  const node = context.oldIndex.byId.get(childId) ?? context.newIndex.byId.get(childId)
+  const node = tree === 'old' ? context.oldIndex.byId.get(childId) : context.newIndex.byId.get(childId)
   return `SELF:${node?.selfHash ?? childId}`
 }
 
@@ -1223,12 +1384,9 @@ function classifyMove(
     return 'move-direct'
   }
   if (oldNode.kind === 'heading' && newNode.kind === 'heading' && oldNode.titleSlug === newNode.titleSlug) {
-    const candidates = inserts
-      .map((change) => change.newId ? context.newIndex.byId.get(change.newId) : undefined)
-      .filter((candidate): candidate is NonNullable<typeof candidate> => !!candidate && candidate.kind === 'heading' && candidate.titleSlug === oldNode.titleSlug)
-      .map((candidate) => computeNodeSimilarity(oldNode, candidate, context.options, 0.7))
-    const score = oldNode.headingBodyHash === newNode.headingBodyHash ? 1 : jaccardSimilarity(oldNode.textTokens, newNode.textTokens)
-    if (score >= context.options.minSimilarity && uniquenessMargin(candidates) >= context.options.minUniquenessMargin) {
+    const score = computeHeadingMoveScore(oldNode, newNode)
+    const strongSimilarity = oldNode.headingBodyHash === newNode.headingBodyHash || score >= context.options.minSimilarity
+    if (strongSimilarity && isUniqueHeadingMoveCandidate(context, oldId, newId, deletes, inserts, score)) {
       return 'move-heading'
     }
   }
@@ -1236,6 +1394,54 @@ function classifyMove(
     return 'move-code'
   }
   return undefined
+}
+
+function computeHeadingMoveScore(
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): number {
+  if (oldNode.headingBodyHash && newNode.headingBodyHash && oldNode.headingBodyHash === newNode.headingBodyHash) return 1
+  if (oldNode.contentOnlyHash === newNode.contentOnlyHash) return 1
+  return jaccardSimilarity(oldNode.textTokens, newNode.textTokens)
+}
+
+function isUniqueHeadingMoveCandidate(
+  context: DiffContext,
+  oldId: string,
+  newId: string,
+  deletes: DiffChange[],
+  inserts: DiffChange[],
+  score: number,
+): boolean {
+  const candidates = deletes
+    .map((change) => (change.oldId ? context.oldIndex.byId.get(change.oldId) : undefined))
+    .filter((node): node is NonNullable<typeof node> => !!node && node.kind === 'heading')
+    .flatMap((oldHeading) =>
+      inserts
+        .map((change) => (change.newId ? context.newIndex.byId.get(change.newId) : undefined))
+        .filter(
+          (node): node is NonNullable<typeof node> =>
+            !!node && node.kind === 'heading' && node.titleSlug === oldHeading.titleSlug,
+        )
+        .map((newHeading) => ({
+          oldId: oldHeading.id,
+          newId: newHeading.id,
+          score: computeHeadingMoveScore(oldHeading, newHeading),
+        })),
+    )
+  const target = candidates.find((candidate) => candidate.oldId === oldId && candidate.newId === newId)
+  if (!target || target.score !== score) return false
+
+  const sortedScores = candidates.map((candidate) => candidate.score).sort((left, right) => right - left)
+  if (sortedScores[0] !== score) return false
+  if (sortedScores.length > 1 && score - (sortedScores[1] ?? 0) < context.options.minUniquenessMargin) return false
+
+  const oldScores = candidates.filter((candidate) => candidate.oldId === oldId).map((candidate) => candidate.score)
+  const newScores = candidates.filter((candidate) => candidate.newId === newId).map((candidate) => candidate.score)
+  return (
+    uniquenessMargin(oldScores) >= context.options.minUniquenessMargin &&
+    uniquenessMargin(newScores) >= context.options.minUniquenessMargin
+  )
 }
 
 function uniqueMoveHash(
@@ -1270,6 +1476,147 @@ function shareMatchedNeighborContext(
     const pair = context.matchesByOld.get(oldNeighborId)
     return !!pair && newNeighborIds.includes(pair.newId)
   })
+}
+
+function collectStructuralFallbackPairs(
+  context: DiffContext,
+  change: DiffChange,
+  oldParentId: string,
+  newParentId: string,
+): AlignedPair[] {
+  const deletes = change.children
+    .filter((child) => child.primaryOp === 'delete' && !!child.oldId)
+    .map((child) => child.oldId!)
+  const inserts = change.children
+    .filter((child) => child.primaryOp === 'insert' && !!child.newId)
+    .map((child) => child.newId!)
+  if (deletes.length === 0 || inserts.length === 0) return []
+
+  type RawCandidate = AlignedPair
+  const candidates: RawCandidate[] = []
+  const scoresByOld = new Map<string, number[]>()
+  const scoresByNew = new Map<string, number[]>()
+
+  for (const oldId of deletes) {
+    const oldChild = context.oldIndex.byId.get(oldId)
+    if (!oldChild) continue
+    for (const newId of inserts) {
+      const newChild = context.newIndex.byId.get(newId)
+      if (!newChild || !isSameShape(oldChild, newChild)) continue
+      const score = computeStructuralFallbackScore(context, oldChild, newChild, oldParentId, newParentId)
+      push(scoresByOld, oldId, score)
+      push(scoresByNew, newId, score)
+      candidates.push({
+        oldId,
+        newId,
+        pairKind: 'align',
+        pairKey: makePairKey('align', oldId, newId),
+        score,
+      })
+    }
+  }
+
+  const filtered = candidates
+    .map((candidate) => ({
+      ...candidate,
+      oldMargin: uniquenessMargin(scoresByOld.get(candidate.oldId) ?? [candidate.score ?? 0]),
+      newMargin: uniquenessMargin(scoresByNew.get(candidate.newId) ?? [candidate.score ?? 0]),
+    }))
+    .filter((candidate) => {
+      const score = candidate.score ?? 0
+      return (
+        score >= context.options.minSimilarity &&
+        candidate.oldMargin >= context.options.minUniquenessMargin &&
+        candidate.newMargin >= context.options.minUniquenessMargin
+      )
+    })
+    .sort((left, right) => (right.score ?? 0) - (left.score ?? 0))
+
+  const usedOld = new Set<string>()
+  const usedNew = new Set<string>()
+  const pairs: AlignedPair[] = []
+  for (const candidate of filtered) {
+    if (usedOld.has(candidate.oldId) || usedNew.has(candidate.newId)) continue
+    usedOld.add(candidate.oldId)
+    usedNew.add(candidate.newId)
+    pairs.push(candidate)
+  }
+  return pairs
+}
+
+function computeStructuralFallbackScore(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  oldParentId: string,
+  newParentId: string,
+): number {
+  const base = computeNodeSimilarity(oldNode, newNode, context.options, parentContextScore(context, oldParentId, newParentId))
+  const oldChildren = context.oldIndex.childrenById.get(oldNode.id) ?? []
+  const newChildren = context.newIndex.childrenById.get(newNode.id) ?? []
+  const childShapeScore = childShapeSimilarity(context, oldChildren, newChildren)
+  const pathScore = oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash ? 1 : 0.7
+  const rangeScore = sourceRangeCloseness(oldNode, newNode)
+  const structuralBonus = oldChildren.length === newChildren.length && childShapeScore === 1 ? 0.2 : 0
+  return Math.max(
+    0,
+    Math.min(1, 0.35 * base + 0.3 * childShapeScore + 0.15 * pathScore + 0.1 * rangeScore + structuralBonus),
+  )
+}
+
+function childShapeSimilarity(context: DiffContext, oldChildren: string[], newChildren: string[]): number {
+  const oldSignature = oldChildren
+    .map((childId) => context.oldIndex.byId.get(childId))
+    .filter((node): node is NonNullable<typeof node> => !!node)
+    .map((node) => (node.entity === 'section' ? `section:${node.kind}` : `block:${node.blockType}`))
+  const newSignature = newChildren
+    .map((childId) => context.newIndex.byId.get(childId))
+    .filter((node): node is NonNullable<typeof node> => !!node)
+    .map((node) => (node.entity === 'section' ? `section:${node.kind}` : `block:${node.blockType}`))
+  if (oldSignature.length === 0 && newSignature.length === 0) return 1
+  return jaccardSimilarity(oldSignature, newSignature)
+}
+
+function sourceRangeCloseness(
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): number {
+  const oldStart = oldNode.sourceRange?.start
+  const newStart = newNode.sourceRange?.start
+  if (!oldStart || !newStart) return 0.7
+  if (oldStart.line !== undefined && newStart.line !== undefined) {
+    return Math.max(0, 1 - Math.abs(oldStart.line - newStart.line) / 10)
+  }
+  if (oldStart.offset !== undefined && newStart.offset !== undefined) {
+    return Math.max(0, 1 - Math.abs(oldStart.offset - newStart.offset) / 400)
+  }
+  return 0.7
+}
+
+async function rewriteChildrenWithFallbackPairs(
+  context: DiffContext,
+  existingChildren: DiffChange[],
+  fallbackPairs: AlignedPair[],
+): Promise<DiffChange[]> {
+  const pairByOld = new Map(fallbackPairs.map((pair) => [pair.oldId, pair]))
+  const consumedNew = new Set<string>()
+  const rewritten: DiffChange[] = []
+
+  for (const child of existingChildren) {
+    if (child.primaryOp === 'delete' && child.oldId) {
+      const pair = pairByOld.get(child.oldId)
+      if (pair && !consumedNew.has(pair.newId)) {
+        rewritten.push(await buildAlignedChange(context, pair, 'local'))
+        consumedNew.add(pair.newId)
+        continue
+      }
+    }
+
+    if (child.primaryOp === 'insert' && child.newId && consumedNew.has(child.newId)) continue
+    rewritten.push(child)
+  }
+
+  return rewritten
 }
 
 function convertChangeToMove(change: DiffChange, pair: MatchPair, role: 'source' | 'target'): void {
@@ -1389,6 +1736,15 @@ function readTableCells(block: any): string[][] {
   return block.children.map((row: any) =>
     Array.isArray(row.children)
       ? row.children.map((cell: any) => extractNodeText(cell))
+      : [],
+  )
+}
+
+function readStructuredTableCells(block: any): InlineContent[][][] {
+  if (!block || !Array.isArray(block.children)) return []
+  return block.children.map((row: any) =>
+    Array.isArray(row.children)
+      ? row.children.map((cell: any) => (Array.isArray(cell.children) ? (cell.children as InlineContent[]) : []))
       : [],
   )
 }
