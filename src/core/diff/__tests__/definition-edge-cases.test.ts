@@ -23,7 +23,7 @@ function definitionChanges(result: Awaited<ReturnType<typeof diffMarkdown>>) {
 }
 
 describe('definition edge cases', () => {
-  it.fails('would ideally keep a same-identifier definition paired even when surrounding context paragraphs change completely', async () => {
+  it('keeps a same-identifier definition paired even when surrounding context paragraphs change completely', async () => {
     const result = await diffMarkdown(
       'API docs reference [docs].\n\n[docs]: https://example.com/api/v1 "API Reference"',
       'Migration guide reference [docs].\n\n[docs]: https://example.com/migrate "Migration Guide"',
@@ -34,6 +34,9 @@ describe('definition edge cases', () => {
     expect(definition?.matchKind).toBe('definition-identifier')
     expect(definition?.primaryOp).toBe('meta-update')
     expect(definition?.status.metaChanged).toBe(true)
+    expect(definitionChanges(result).some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert')).toBe(false)
+    expect(result.matches.some((pair) => pair.matchKind === 'definition-identifier')).toBe(true)
+    expect(result.warnings).toEqual([])
   })
 
   it('keeps same-identifier definitions paired across root-level reordering and metadata changes', async () => {
@@ -124,6 +127,19 @@ describe('definition edge cases', () => {
     expect(result.matches.some((pair) => pair.matchKind === 'definition-identifier')).toBe(false)
   })
 
+  it('does not create identifier-based matches when both sides have duplicate identifiers', async () => {
+    const result = await diffMarkdown(
+      ['[docs]: https://example.com/one "One"', '[docs]: https://example.com/two "Two"'].join('\n\n'),
+      ['[docs]: https://example.com/three "Three"', '[docs]: https://example.com/four "Four"'].join('\n\n'),
+    )
+    const definitions = definitionChanges(result)
+
+    expect(result.matches.some((pair) => pair.matchKind === 'definition-identifier')).toBe(false)
+    expect(definitions.some((change) => change.oldId && change.newId)).toBe(false)
+    expect(definitions.filter((change) => change.primaryOp === 'delete')).toHaveLength(2)
+    expect(definitions.filter((change) => change.primaryOp === 'insert')).toHaveLength(2)
+  })
+
   it('prefers definition-identity over identifier matching for pure renames', async () => {
     const result = await diffMarkdown(
       '[repo]: https://example.com/docs "Documentation"',
@@ -145,6 +161,29 @@ describe('definition edge cases', () => {
     expect(result.stats.inserts).toBe(0)
     expect(result.stats.deletes).toBe(0)
     expect(result.warnings).toEqual([])
+  })
+
+  it('does not let identifier-based recovery swallow unrelated deletions alongside a same-identifier meta-update', async () => {
+    const result = await diffMarkdown(
+      [
+        '[docs]: https://example.com/start "Quick Start Guide"',
+        '',
+        '[legacy]: https://example.com/legacy "Legacy Guide"',
+      ].join('\n'),
+      '[docs]: https://reference.example.org/full "Protocol Reference"',
+    )
+    const definitions = definitionChanges(result)
+    const docsDefinition = definitions.find(
+      (change) => change.oldId && change.newId && String((change.oldNode as { identifier?: string } | undefined)?.identifier) === 'docs',
+    )
+    const legacyDefinition = definitions.find(
+      (change) => change.primaryOp === 'delete' && String((change.oldNode as { identifier?: string } | undefined)?.identifier) === 'legacy',
+    )
+
+    expect(docsDefinition?.pairKind).toBe('match')
+    expect(docsDefinition?.primaryOp).toBe('meta-update')
+    expect(legacyDefinition?.primaryOp).toBe('delete')
+    expect(definitions.filter((change) => change.primaryOp === 'delete')).toHaveLength(1)
   })
 
   it('still cleanly renames a unique definition in a document that also reorders sections and changes frontmatter', async () => {

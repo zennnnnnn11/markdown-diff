@@ -254,6 +254,37 @@ describe('global collection', () => {
     expect(tree.definitions!.length).toBe(2)
   })
 
+  it('U32b: root items and collected definitions use distinct block ids', async () => {
+    const md = 'text\n\n[docs]: https://example.com/docs "Docs"'
+    const tree = transformMarkdown(await parseMarkdown(md))
+    const itemIds = tree.items.map((item) => item.id)
+    const definitionIds = (tree.definitions ?? []).map((definition) => definition.id)
+
+    expect(itemIds).toHaveLength(1)
+    expect(definitionIds).toHaveLength(1)
+    expect(new Set([...itemIds, ...definitionIds]).size).toBe(itemIds.length + definitionIds.length)
+  })
+
+  it('U32c: multiple root items and collected definitions all keep distinct ids', async () => {
+    const md = [
+      'first paragraph',
+      '',
+      '[docs]: https://example.com/docs "Docs"',
+      '',
+      'second paragraph',
+      '',
+      '[repo]: https://example.com/repo "Repo"',
+    ].join('\n')
+    const tree = transformMarkdown(await parseMarkdown(md))
+    const itemIds = tree.items.map((item) => item.id)
+    const definitionIds = (tree.definitions ?? []).map((definition) => definition.id)
+    const allIds = [...itemIds, ...definitionIds]
+
+    expect(tree.items).toHaveLength(2)
+    expect(tree.definitions).toHaveLength(2)
+    expect(new Set(allIds).size).toBe(allIds.length)
+  })
+
   it('U33: footnoteDefinition → root.footnotes', async () => {
     const md = 'text[^1]\n\n[^1]: fn'
     const tree = transformMarkdown(await parseMarkdown(md))

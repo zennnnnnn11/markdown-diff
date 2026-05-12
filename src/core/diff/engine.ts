@@ -139,6 +139,7 @@ export async function diffMarkdownTrees(
 
   const root = await buildMatchedChange(context, rootPair, 'global')
   await recoverMoves(context, root)
+  await recoverDefinitionIdentifierPairs(context, root)
   await recoverRenamesAndMeta(context, root)
   await computePresentationDiffs(context, root)
   validateTree(root, context.warnings)
@@ -635,6 +636,7 @@ async function seedLocalMatches(context: DiffContext, oldParentId: string, newPa
 
   matchLocalBy(context, oldChildren, newChildren, (node) => node?.selfHash, 'exact-self-with-context')
   matchLocalBy(context, oldChildren, newChildren, (node) => (node?.kind === 'heading' ? node.titleSlug : undefined), 'local-heading-slug')
+  matchLocalBy(context, oldChildren, newChildren, headingBodyLocalKey, 'local-heading-body')
   matchLocalBy(
     context,
     oldChildren,
@@ -856,6 +858,45 @@ async function recoverMoves(context: DiffContext, root: DiffChange): Promise<voi
   }
 }
 
+async function recoverDefinitionIdentifierPairs(context: DiffContext, root: DiffChange): Promise<void> {
+  const deletes = collectChanges(
+    root,
+    (change) => change.primaryOp === 'delete' && change.blockType === 'definition' && !!change.oldId,
+  )
+  const inserts = collectChanges(
+    root,
+    (change) => change.primaryOp === 'insert' && change.blockType === 'definition' && !!change.newId,
+  )
+  if (deletes.length === 0 || inserts.length === 0) return
+
+  const oldByIdentifier = new Map<string, string[]>()
+  const newByIdentifier = new Map<string, string[]>()
+
+  for (const change of deletes) {
+    const node = change.oldId ? context.oldIndex.byId.get(change.oldId) : undefined
+    const identifier = normalizeIdentifier((node?.block as any)?.identifier)
+    if (!node || !identifier || context.matchesByOld.has(node.id)) continue
+    push(oldByIdentifier, identifier, node.id)
+  }
+  for (const change of inserts) {
+    const node = change.newId ? context.newIndex.byId.get(change.newId) : undefined
+    const identifier = normalizeIdentifier((node?.block as any)?.identifier)
+    if (!node || !identifier || context.matchesByNew.has(node.id)) continue
+    push(newByIdentifier, identifier, node.id)
+  }
+
+  let recovered = false
+  for (const [identifier, oldIds] of oldByIdentifier) {
+    const newIds = newByIdentifier.get(identifier)
+    if (!newIds || oldIds.length !== 1 || newIds.length !== 1) continue
+    const pair = addMatch(context, oldIds[0]!, newIds[0]!, 'definition-identifier', undefined, 1)
+    if (pair) recovered = true
+  }
+
+  if (!recovered) return
+  root.children = await rewriteChildrenWithExistingMatches(context, root.children, 'global')
+}
+
 async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Promise<void> {
   for (const change of collectChanges(root, () => true)) {
     if (!change.oldId || !change.newId) continue
@@ -866,7 +907,10 @@ async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Pr
     if (oldNode.kind === 'heading' && newNode.kind === 'heading') {
       const titlesDiffer = oldNode.normalizedTitle !== newNode.normalizedTitle
       if (titlesDiffer && uniqueHeadingSiblingNames(context, oldNode, newNode)) {
-        if (oldNode.headingBodyHash === newNode.headingBodyHash && sameHeadingStructure(oldNode, newNode)) {
+        if (
+          sameHeadingStructure(oldNode, newNode) &&
+          (oldNode.headingBodyHash === newNode.headingBodyHash || hasStrongHeadingDirectMatchEvidence(context, oldNode, newNode))
+        ) {
           upgradeToMatch(change)
           change.primaryOp = 'equal'
           change.status.renamed = true
@@ -1694,6 +1738,18 @@ function shouldUseShortHeadingFallback(
   return oldNode.headingBodyHash === newNode.headingBodyHash || (oldNode.logicalChildren.length === 0 && newNode.logicalChildren.length === 0)
 }
 
+function headingBodyLocalKey(
+  node: SemanticIndex['byId'] extends Map<string, infer T> ? T | undefined : never,
+): string | undefined {
+  if (!node || node.kind !== 'heading' || !node.headingBodyHash) return undefined
+  return [
+    node.section?.headingDepth ?? '',
+    node.section?.listDepth ?? '',
+    node.section?.quoteDepth ?? '',
+    node.headingBodyHash,
+  ].join(':')
+}
+
 function uniqueHeadingSiblingNames(
   context: DiffContext,
   oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
@@ -1708,6 +1764,23 @@ function uniqueHeadingSiblingNames(
     .map((id) => context.newIndex.byId.get(id))
     .some((candidate) => candidate && candidate.id !== newNode.id && candidate.kind === 'heading' && candidate.normalizedTitle === oldNode.normalizedTitle)
   return !duplicateOld && !duplicateNew
+}
+
+function hasStrongHeadingDirectMatchEvidence(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  const oldChildren = context.oldIndex.childrenById.get(oldNode.id) ?? []
+  const newChildren = new Set(context.newIndex.childrenById.get(newNode.id) ?? [])
+  if (oldChildren.length === 0 || newChildren.size === 0) return false
+
+  const matchedDirectChildren = oldChildren.filter((childId) => {
+    const pair = context.matchesByOld.get(childId)
+    return !!pair && newChildren.has(pair.newId)
+  }).length
+  const minimumMatchedChildren = Math.max(2, Math.ceil(Math.min(oldChildren.length, newChildren.size) / 2))
+  return matchedDirectChildren >= minimumMatchedChildren
 }
 
 function moveCandidateAllowed(context: DiffContext, deleted: DiffChange, inserted: DiffChange): boolean {

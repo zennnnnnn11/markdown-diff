@@ -89,6 +89,192 @@ describe('diff integration', () => {
     expect(heading?.titleInlineSpans?.length).toBeGreaterThan(0)
   })
 
+  it('recovers a top-level heading rename even when descendants also change', async () => {
+    const result = await diffMarkdown(
+      [
+        '# Semantic Markdown Diff',
+        '',
+        '## Overview',
+        '',
+        'The engine compares Markdown by structure instead of raw lines.',
+        '',
+        'It prefers conservative matches when a semantic operation is uncertain.',
+        '',
+        '## Installation',
+        '',
+        'Install dependencies with npm.',
+        '',
+        '## CLI',
+        '',
+        'Run the command with two Markdown files.',
+        '',
+        '## Configuration',
+        '',
+        'The engine accepts a small set of options.',
+        '',
+        '## Matching Rules',
+        '',
+        'The matcher first finds deterministic anchors.',
+        '',
+        '## Rendering',
+        '',
+        'Inline changes are shown inside paragraphs.',
+      ].join('\n'),
+      [
+        '# Semantic Markdown Diff Engine',
+        '',
+        '## Summary',
+        '',
+        'The engine compares Markdown by structure instead of raw lines.',
+        '',
+        'It prefers conservative matches when a semantic operation is uncertain.',
+        '',
+        '## Installation',
+        '',
+        'Install dependencies with npm.',
+        '',
+        '## Configuration',
+        '',
+        'The engine accepts a focused set of options.',
+        '',
+        '## CLI',
+        '',
+        'Run the command with two Markdown files.',
+        '',
+        '## Rendering',
+        '',
+        'Inline changes are highlighted inside paragraphs.',
+        '',
+        '## Matching Rules',
+        '',
+        'The matcher first finds deterministic anchors.',
+      ].join('\n'),
+    )
+    const topHeading = flatten(result.root).find(
+      (change) => change.kind === 'heading' && sectionTitle(change.oldNode) === 'Semantic Markdown Diff',
+    )
+
+    expect(topHeading?.pairKind).toBe('match')
+    expect(topHeading?.primaryOp).toBe('equal')
+    expect(topHeading?.status.renamed).toBe(true)
+    expect(topHeading?.titleInlineSpans?.length).toBeGreaterThan(0)
+  })
+
+  it('recovers a local heading rename from stable body content even when title tokens diverge', async () => {
+    const result = await diffMarkdown(
+      [
+        '# Parent',
+        '',
+        '## Overview',
+        '',
+        'The engine compares Markdown by structure instead of raw lines.',
+        '',
+        'It prefers conservative matches when a semantic operation is uncertain.',
+      ].join('\n'),
+      [
+        '# Parent',
+        '',
+        '## Summary',
+        '',
+        'The engine compares Markdown by structure instead of raw lines.',
+        '',
+        'It prefers conservative matches when a semantic operation is uncertain.',
+      ].join('\n'),
+    )
+    const localHeading = flatten(result.root).find(
+      (change) => change.kind === 'heading' && sectionTitle(change.newNode) === 'Summary',
+    )
+
+    expect(localHeading?.pairKind).toBe('match')
+    expect(localHeading?.primaryOp).toBe('equal')
+    expect(localHeading?.status.renamed).toBe(true)
+  })
+
+  it('recovers parallel sibling heading renames with identical body content without crossing pairs', async () => {
+    const result = await diffMarkdown(
+      [
+        '# Parent',
+        '',
+        '## Overview',
+        '',
+        'Shared explanation.',
+        '',
+        '## Background',
+        '',
+        'Shared explanation.',
+      ].join('\n'),
+      [
+        '# Parent',
+        '',
+        '## Summary',
+        '',
+        'Shared explanation.',
+        '',
+        '## Context',
+        '',
+        'Shared explanation.',
+      ].join('\n'),
+    )
+    const headings = flatten(result.root).filter((change) => change.kind === 'heading')
+    const summary = headings.find((change) => sectionTitle(change.newNode) === 'Summary')
+    const context = headings.find((change) => sectionTitle(change.newNode) === 'Context')
+
+    expect(result.matches.some((pair) => pair.matchKind === 'local-heading-body')).toBe(false)
+    expect(summary?.oldNode ? sectionTitle(summary.oldNode) : undefined).toBe('Overview')
+    expect(summary?.pairKind).toBe('match')
+    expect(summary?.primaryOp).toBe('equal')
+    expect(summary?.status.renamed).toBe(true)
+    expect(context?.oldNode ? sectionTitle(context.oldNode) : undefined).toBe('Background')
+    expect(context?.pairKind).toBe('match')
+    expect(context?.primaryOp).toBe('equal')
+    expect(context?.status.renamed).toBe(true)
+    expect(headings.some((change) => change.primaryOp === 'insert' || change.primaryOp === 'delete')).toBe(false)
+  })
+
+  it('keeps a top-level heading rename conservative when descendant evidence is too weak', async () => {
+    const result = await diffMarkdown(
+      [
+        '# Alpha Manual',
+        '',
+        '## Shared One',
+        '',
+        'stable one',
+        '',
+        '## Shared Two',
+        '',
+        'stable two',
+        '',
+        '## Old Only',
+        '',
+        'legacy body',
+      ].join('\n'),
+      [
+        '# Beta Manual',
+        '',
+        '## Shared One',
+        '',
+        'stable one',
+        '',
+        '## New Only',
+        '',
+        'replacement body',
+      ].join('\n'),
+    )
+    const topHeading = flatten(result.root).find(
+      (change) => change.kind === 'heading' && sectionTitle(change.oldNode) === 'Alpha Manual',
+    )
+    const insertedHeading = flatten(result.root).find(
+      (change) => change.kind === 'heading' && sectionTitle(change.newNode) === 'Beta Manual',
+    )
+
+    expect(topHeading?.pairKind).toBeUndefined()
+    expect(topHeading?.primaryOp).toBe('delete')
+    expect(topHeading?.status.renamed).not.toBe(true)
+    expect(insertedHeading?.pairKind).toBeUndefined()
+    expect(insertedHeading?.primaryOp).toBe('insert')
+    expect(insertedHeading?.status.renamed).not.toBe(true)
+  })
+
   it('recovers exact section move as move source and target', async () => {
     const oldMarkdown = `# A
 

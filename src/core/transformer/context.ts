@@ -58,7 +58,7 @@ export function isSection(item: Section['items'][number]): item is Section {
 }
 
 export function finalize(ctx: TransformContext): Section {
-  ctx.root.definitions = ctx.definitions.map((d) => createBlock(d))
+  ctx.root.definitions = ctx.definitions.map((d) => createBlock(d, ctx))
   ctx.root.footnotes = ctx.footnotes
   for (const ref of ctx.footnoteRefs) {
     const fs = ctx.footnoteMap.get(ref.identifier)

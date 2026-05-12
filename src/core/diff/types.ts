@@ -14,6 +14,7 @@ export type MatchKind =
   | 'definition-identity'
   | 'definition-identifier'
   | 'local-heading-slug'
+  | 'local-heading-body'
   | 'local-similarity'
   | 'local-identity'
   | 'move-exact'
