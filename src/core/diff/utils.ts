@@ -2,6 +2,7 @@
 import { xxhash128 } from 'hash-wasm'
 import type { Block, InlineContent, Section } from '../transformer'
 import type { InlineToken, MetadataChange, SourcePoint, SourceRange } from './types'
+import { charikarSimHashWasm } from './simhash-wasm'
 
 const HASH_SEED_LOW = 0
 const HASH_SEED_HIGH = 0
@@ -137,6 +138,14 @@ export function extractInlineStructure(node: Block | InlineContent | undefined):
 
 export async function charikarSimHash(tokens: readonly string[]): Promise<string | undefined> {
   if (tokens.length === 0) return undefined
+  try {
+    return await charikarSimHashWasm(tokens)
+  } catch {
+    return charikarSimHashLegacy(tokens)
+  }
+}
+
+async function charikarSimHashLegacy(tokens: readonly string[]): Promise<string | undefined> {
   const hashed = await Promise.all(tokens.map((token) => hashText(token)))
   const weights = Array.from<number>({ length: 64 }).fill(0)
   for (const hex of hashed) {

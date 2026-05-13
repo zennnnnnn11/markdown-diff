@@ -171,19 +171,43 @@ describe('diff utilities', () => {
     expect(extractInlineStructure(nestedTokens[0]?.source as any)).toEqual(['strong', 'text', 'inlineCode'])
   })
 
-  it('computes simhashes and similarity helpers consistently', async () => {
-    const first = await charikarSimHash(['alpha', 'beta', 'gamma'])
-    const second = await charikarSimHash(['alpha', 'beta', 'gamma'])
-    const third = await charikarSimHash(['delta', 'epsilon'])
+    it('computes simhashes and similarity helpers consistently', async () => {
+      const first = await charikarSimHash(['alpha', 'beta', 'gamma'])
+      const second = await charikarSimHash(['alpha', 'beta', 'gamma'])
+      const third = await charikarSimHash(['delta', 'epsilon'])
 
     expect(first).toBe(second)
     expect(first).toBeDefined()
     expect(third).toBeDefined()
     expect(await charikarSimHash([])).toBeUndefined()
     expect(jaccardSimilarity(['a', 'a', 'b'], ['a', 'c'])).toBe(1 / 3)
-    expect(multisetJaccardSimilarity(['a', 'a', 'b'], ['a', 'c'])).toBe(1 / 4)
-    expect(sequenceSimilarity(['a', 'b', 'c'], ['a', 'x', 'c'])).toBeCloseTo(2 / 3)
-  })
+      expect(multisetJaccardSimilarity(['a', 'a', 'b'], ['a', 'c'])).toBe(1 / 4)
+      expect(sequenceSimilarity(['a', 'b', 'c'], ['a', 'x', 'c'])).toBeCloseTo(2 / 3)
+    })
+
+    it('preserves the legacy simhash outputs for representative token sets', async () => {
+      expect(await charikarSimHash(['hello', 'world'])).toBe('ffedf9adb79bbeff')
+      expect(
+        await charikarSimHash([
+          'token',
+          'set',
+          '1',
+          'alpha',
+          'beta',
+          'gamma',
+          'delta',
+          'epsilon',
+          'zeta',
+          'eta',
+          'theta',
+          'iota',
+          'kappa',
+          'lambda',
+          'mu',
+        ]),
+      ).toBe('1d2475a58e7db019')
+      expect(await charikarSimHash(['你好', '世界', 'foo', 'bar', 'baz', 'qux'])).toBe('fdabfbfe94012d21')
+    })
 
   it('creates pair and move keys and hashes path parts deterministically', () => {
     expect(makePairKey('match', 'old-1', 'new-2')).toBe('match:old-1:new-2')
