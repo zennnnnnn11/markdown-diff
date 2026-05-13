@@ -29,6 +29,7 @@ export type SectionKind =
 export interface Section {
   id: string
   kind: SectionKind
+  position?: Node['position']
   depth: number
   treeDepth: number
   title: string

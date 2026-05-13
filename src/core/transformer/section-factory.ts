@@ -38,10 +38,12 @@ export function createFrontmatterSection(
   type: 'yaml' | 'toml',
   value: string,
   treeDepth: number,
+  position?: Section['position'],
 ): Section {
   return {
     id: '',
     kind: 'frontmatter',
+    position,
     depth: 0,
     treeDepth,
     title: '',

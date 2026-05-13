@@ -289,6 +289,7 @@ async function createDiffNode(
   const text = extractNodeText(section)
   const textTokens = tokenizeText(text)
   const sourceRange = mergeSourceRanges([
+    sourceRangeFromPosition((section as any).position),
     sourceRangeFromPosition((section.heading as any)?.position),
     ...childNodes.map((child) => child.sourceRange),
   ])
