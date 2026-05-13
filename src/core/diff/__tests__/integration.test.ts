@@ -76,6 +76,17 @@ describe('diff integration', () => {
     expect(paragraph?.oldId && paragraph?.newId).toBeTruthy()
   })
 
+  it('keeps punctuation-only paragraph edits paired with character-level word spans', async () => {
+    const result = await diffMarkdown('# Intro\n\n...', '# Intro\n\n!!!')
+    const paragraph = flatten(result.root).find((change) => change.blockType === 'paragraph')
+    const replaceSpan = paragraph?.inlineSpans?.find((span) => span.op === 'replace')
+
+    expect(paragraph?.primaryOp).toBe('replace')
+    expect(paragraph?.score).toBeLessThan(1)
+    expect(replaceSpan?.wordSpans?.length).toBeGreaterThan(0)
+    expect(replaceSpan?.wordSpans?.every((span) => (span.oldText ?? span.newText ?? '').length <= 3)).toBe(true)
+  })
+
   it('keeps exact-subtree matches at the maximal covered level only', async () => {
     const result = await diffMarkdown('# Stable\n\nBody')
     const exactSubtrees = result.matches.filter((pair) => pair.matchKind === 'exact-subtree')
@@ -95,6 +106,14 @@ describe('diff integration', () => {
     expect(heading?.primaryOp).toBe('equal')
     expect(heading?.pairKind).toBe('match')
     expect(heading?.titleInlineSpans?.length).toBeGreaterThan(0)
+  })
+
+  it('does not recover a punctuation-only leaf heading as a rename', async () => {
+    const result = await diffMarkdown('# ...', '# !!!')
+    const heading = flatten(result.root).find((change) => change.kind === 'heading')
+
+    expect(heading?.status.renamed).toBe(false)
+    expect(heading?.primaryOp).toBe('replace')
   })
 
   it('recovers a top-level heading rename even when descendants also change', async () => {

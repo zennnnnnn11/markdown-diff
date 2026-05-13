@@ -136,8 +136,10 @@ describe('definition edge cases', () => {
       '[docs]: https://example.com/one "One"',
       ['[docs]: https://example.com/two "Two"', '[docs]: https://example.com/three "Three"'].join('\n\n'),
     )
+    const definitions = definitionChanges(result)
 
     expect(result.matches.some((pair) => pair.matchKind === 'definition-identifier')).toBe(false)
+    expect(definitions.some((change) => change.oldId && change.newId)).toBe(false)
   })
 
   it('does not create identifier-based matches when both sides have duplicate identifiers', async () => {

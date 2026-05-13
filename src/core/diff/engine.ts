@@ -35,6 +35,7 @@ import {
   normalizeIdentifier,
   simHashHammingDistanceBatch,
   simHashHammingDistance,
+  sequenceSimilarity,
   tokenizeText,
 } from './utils'
 
@@ -549,6 +550,34 @@ function collectGapMatches(
   return matched
 }
 
+function definitionGapPairAllowed(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  oldIds: string[],
+  newIds: string[],
+): boolean {
+  if (oldNode.blockType !== 'definition' || newNode.blockType !== 'definition') return true
+
+  const oldIdentifier = normalizeIdentifier((oldNode.block as any)?.identifier)
+  const newIdentifier = normalizeIdentifier((newNode.block as any)?.identifier)
+  if (!oldIdentifier || oldIdentifier !== newIdentifier) return true
+
+  const oldCount = countDefinitionIdentifier(context.oldIndex, oldIds, oldIdentifier)
+  const newCount = countDefinitionIdentifier(context.newIndex, newIds, newIdentifier)
+  return oldCount === 1 && newCount === 1
+}
+
+function countDefinitionIdentifier(index: SemanticIndex, ids: string[], identifier: string): number {
+  let count = 0
+  for (const id of ids) {
+    const node = index.byId.get(id)
+    if (node?.blockType !== 'definition') continue
+    if (normalizeIdentifier((node.block as any)?.identifier) === identifier) count++
+  }
+  return count
+}
+
 async function pairGapNodes(
   context: DiffContext,
   oldIds: string[],
@@ -568,6 +597,7 @@ async function pairGapNodes(
       .map((newId) => {
         const newNode = context.newIndex.byId.get(newId)
         if (!newNode || !isSameShape(oldNode, newNode)) return undefined
+        if (!definitionGapPairAllowed(context, oldNode, newNode, oldIds, newIds)) return undefined
         return { newId, newNode }
       })
       .filter(
@@ -1092,6 +1122,7 @@ async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Pr
     if (oldNode.kind === 'heading' && newNode.kind === 'heading') {
       const titlesDiffer = oldNode.normalizedTitle !== newNode.normalizedTitle
       if (titlesDiffer && uniqueHeadingSiblingNames(context, oldNode, newNode)) {
+        if (lacksLeafHeadingRenameEvidence(oldNode, newNode)) return
         if (
           sameHeadingStructure(oldNode, newNode) &&
           (oldNode.headingBodyHash === newNode.headingBodyHash ||
@@ -1463,8 +1494,12 @@ function diffWordTextSync(
 ): Array<{ op: 'equal' | 'insert' | 'delete' | 'replace'; oldText?: string; newText?: string }> {
   const oldWords = tokenizeText(oldText)
   const newWords = tokenizeText(newText)
-  const edits = alignSequence(oldWords, newWords, sequenceOptions, 'myers')
-  return coalesceTextSpans(edits, oldWords, newWords, ' ')
+  const useCharacterFallback =
+    oldWords.length === 0 && newWords.length === 0 && (oldText.length > 0 || newText.length > 0)
+  const oldUnits = useCharacterFallback ? [...oldText] : oldWords
+  const newUnits = useCharacterFallback ? [...newText] : newWords
+  const edits = alignSequence(oldUnits, newUnits, sequenceOptions, 'myers')
+  return coalesceTextSpans(edits, oldUnits, newUnits, useCharacterFallback ? '' : ' ')
 }
 
 async function buildInlineReplaceSpan(
@@ -2110,6 +2145,27 @@ function hasStrongHeadingDirectMatchEvidence(
     Math.ceil(Math.min(oldChildren.length, newChildren.size) / 2),
   )
   return matchedDirectChildren >= minimumMatchedChildren
+}
+
+function lacksLeafHeadingRenameEvidence(
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  if ((oldNode.logicalChildren.length ?? 0) > 0 || (newNode.logicalChildren.length ?? 0) > 0) {
+    return false
+  }
+
+  const oldTokens = oldNode.titleTokens
+  const newTokens = newNode.titleTokens
+  const score =
+    oldTokens.length > 0 || newTokens.length > 0
+      ? Math.max(jaccardSimilarity(oldTokens, newTokens), sequenceSimilarity(oldTokens, newTokens))
+      : sequenceSimilarity(
+          [...String(oldNode.section?.title ?? '')],
+          [...String(newNode.section?.title ?? '')],
+        )
+
+  return score <= 0
 }
 
 function moveCandidateAllowed(

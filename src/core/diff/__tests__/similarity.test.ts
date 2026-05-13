@@ -148,6 +148,48 @@ describe('node similarity', () => {
     expect(computeNodeSimilarity(oldParagraph, newParagraph, OPTIONS, 1)).toBeGreaterThanOrEqual(0.75)
   })
 
+  it('keeps punctuation-only paragraph replacements pairable without treating them as perfect matches', () => {
+    const oldParagraph = makeNode({
+      selfHash: 'old-punct',
+      textTokens: [],
+      block: { type: 'paragraph', children: [{ type: 'text', value: '...' }] } as any,
+    })
+    const newParagraph = makeNode({
+      selfHash: 'new-punct',
+      textTokens: [],
+      block: { type: 'paragraph', children: [{ type: 'text', value: '!!!' }] } as any,
+    })
+
+    const score = computeNodeSimilarity(oldParagraph, newParagraph, OPTIONS, 1)
+    expect(score).toBeGreaterThanOrEqual(0.75)
+    expect(score).toBeLessThan(1)
+  })
+
+  it('falls back to character-level title similarity for punctuation-only headings', () => {
+    const oldHeading = makeNode({
+      entity: 'section',
+      kind: 'heading',
+      section: { kind: 'heading', title: '...', headingDepth: 2, items: [], children: [] } as any,
+      raw: { kind: 'heading' } as any,
+      selfHash: 'old-heading',
+      titleTokens: [],
+      logicalChildren: [],
+    })
+    const newHeading = makeNode({
+      entity: 'section',
+      kind: 'heading',
+      section: { kind: 'heading', title: '!!!', headingDepth: 2, items: [], children: [] } as any,
+      raw: { kind: 'heading' } as any,
+      selfHash: 'new-heading',
+      titleTokens: [],
+      logicalChildren: [],
+    })
+
+    const score = computeNodeSimilarity(oldHeading, newHeading, OPTIONS, 1)
+    expect(score).toBeGreaterThan(0)
+    expect(score).toBeLessThan(1)
+  })
+
   it('scores headings with matching body hashes and stronger context higher than weaker alternatives', () => {
     const oldHeading = makeNode({
       entity: 'section',

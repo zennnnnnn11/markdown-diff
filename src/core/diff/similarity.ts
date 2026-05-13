@@ -61,9 +61,14 @@ function paragraphSimilarity(
   options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
   structuralContext: number,
 ): number {
-  const textSimilarity = Math.max(
-    tokenSimilarity(oldNode.textTokens, newNode.textTokens, options),
-    sequenceSimilarity(oldNode.textTokens, newNode.textTokens),
+  const oldText = extractNodeText(oldNode.block)
+  const newText = extractNodeText(newNode.block)
+  const textSimilarity = textContentSimilarity(
+    oldText,
+    newText,
+    oldNode.textTokens,
+    newNode.textTokens,
+    options,
   )
   const structureSimilarity = sequenceSimilarity(
     oldNode.block?.children?.map((child) => child.type) ?? [],
@@ -77,8 +82,8 @@ function paragraphSimilarity(
     baseScore,
     structureFallbackScore(
       structureSimilarity,
-      oldNode.textTokens.length,
-      newNode.textTokens.length,
+      textContentUnitCount(oldNode.textTokens, oldText),
+      textContentUnitCount(newNode.textTokens, newText),
       structuralContext,
       DIFF_HEURISTICS.similarity.paragraph,
     ),
@@ -91,9 +96,14 @@ function blockquoteSimilarity(
   options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
   structuralContext: number,
 ): number {
-  const textSimilarity = Math.max(
-    tokenSimilarity(oldNode.textTokens, newNode.textTokens, options),
-    sequenceSimilarity(oldNode.textTokens, newNode.textTokens),
+  const oldText = extractNodeText(oldNode.section)
+  const newText = extractNodeText(newNode.section)
+  const textSimilarity = textContentSimilarity(
+    oldText,
+    newText,
+    oldNode.textTokens,
+    newNode.textTokens,
+    options,
   )
   const structureSimilarity = sectionItemStructureSimilarity(oldNode, newNode)
   const baseScore = clamp01(
@@ -104,8 +114,8 @@ function blockquoteSimilarity(
     baseScore,
     structureFallbackScore(
       structureSimilarity,
-      oldNode.textTokens.length,
-      newNode.textTokens.length,
+      textContentUnitCount(oldNode.textTokens, oldText),
+      textContentUnitCount(newNode.textTokens, newText),
       structuralContext,
       DIFF_HEURISTICS.similarity.blockquote,
     ),
@@ -118,9 +128,14 @@ function listItemSimilarity(
   options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
   structuralContext: number,
 ): number {
-  const textSimilarity = Math.max(
-    tokenSimilarity(oldNode.textTokens, newNode.textTokens, options),
-    sequenceSimilarity(oldNode.textTokens, newNode.textTokens),
+  const oldText = extractNodeText(oldNode.section)
+  const newText = extractNodeText(newNode.section)
+  const textSimilarity = textContentSimilarity(
+    oldText,
+    newText,
+    oldNode.textTokens,
+    newNode.textTokens,
+    options,
   )
   const structureSimilarity = sectionItemStructureSimilarity(oldNode, newNode)
   const baseScore = clamp01(
@@ -131,8 +146,8 @@ function listItemSimilarity(
     baseScore,
     structureFallbackScore(
       structureSimilarity,
-      oldNode.textTokens.length,
-      newNode.textTokens.length,
+      textContentUnitCount(oldNode.textTokens, oldText),
+      textContentUnitCount(newNode.textTokens, newText),
       structuralContext,
       DIFF_HEURISTICS.similarity.listItem,
     ),
@@ -145,7 +160,13 @@ function headingSimilarity(
   options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
   structuralContext: number,
 ): number {
-  const titleSimilarity = tokenSimilarity(oldNode.titleTokens, newNode.titleTokens, options)
+  const titleSimilarity = textContentSimilarity(
+    oldNode.section?.title ?? '',
+    newNode.section?.title ?? '',
+    oldNode.titleTokens,
+    newNode.titleTokens,
+    options,
+  )
   const hasChildren = (oldNode.logicalChildren.length ?? 0) > 0 && (newNode.logicalChildren.length ?? 0) > 0
   const headingBodySimilarity =
     oldNode.headingBodyHash === newNode.headingBodyHash
@@ -224,7 +245,13 @@ function footnoteOrDefinitionSimilarity(
   if (oldNode.blockType === 'definition' && newNode.blockType === 'definition') {
     return definitionFieldSimilarity(oldNode, newNode, options)
   }
-  return tokenSimilarity(oldNode.textTokens, newNode.textTokens, options)
+  return textContentSimilarity(
+    extractNodeText(oldNode.section ?? oldNode.block),
+    extractNodeText(newNode.section ?? newNode.block),
+    oldNode.textTokens,
+    newNode.textTokens,
+    options,
+  )
 }
 
 function definitionFieldSimilarity(
@@ -238,9 +265,9 @@ function definitionFieldSimilarity(
   const newTitle = String((newNode.block as any)?.title ?? '')
   const oldLabel = String((oldNode.block as any)?.label ?? extractNodeText(oldNode.block))
   const newLabel = String((newNode.block as any)?.label ?? extractNodeText(newNode.block))
-  const urlSimilarity = tokenSimilarity(tokenizeText(oldUrl), tokenizeText(newUrl), options)
-  const titleSimilarity = tokenSimilarity(tokenizeText(oldTitle), tokenizeText(newTitle), options)
-  const labelSimilarity = tokenSimilarity(tokenizeText(oldLabel), tokenizeText(newLabel), options)
+  const urlSimilarity = textContentSimilarity(oldUrl, newUrl, tokenizeText(oldUrl), tokenizeText(newUrl), options)
+  const titleSimilarity = textContentSimilarity(oldTitle, newTitle, tokenizeText(oldTitle), tokenizeText(newTitle), options)
+  const labelSimilarity = textContentSimilarity(oldLabel, newLabel, tokenizeText(oldLabel), tokenizeText(newLabel), options)
   return clamp01(
     DIFF_HEURISTICS.similarity.definition.urlWeight * urlSimilarity +
       DIFF_HEURISTICS.similarity.definition.titleWeight * titleSimilarity +
@@ -258,6 +285,30 @@ function tokenSimilarity(
     return estimateJaccardWithMinHash(oldTokens, newTokens, options.minHashNumFunctions)
   }
   return jaccardSimilarity(oldTokens, newTokens)
+}
+
+function textContentSimilarity(
+  oldText: string,
+  newText: string,
+  oldTokens: readonly string[],
+  newTokens: readonly string[],
+  options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
+): number {
+  const hasTokenContent = oldTokens.length > 0 || newTokens.length > 0
+  if (!hasTokenContent) {
+    if (!oldText && !newText) return 1
+    return sequenceSimilarity([...oldText], [...newText])
+  }
+
+  return Math.max(
+    tokenSimilarity(oldTokens, newTokens, options),
+    sequenceSimilarity(oldTokens, newTokens),
+  )
+}
+
+function textContentUnitCount(tokens: readonly string[], rawText: string): number {
+  if (tokens.length > 0) return tokens.length
+  return rawText.length > 0 ? rawText.length : 0
 }
 
 function estimateJaccardWithMinHash(left: readonly string[], right: readonly string[], functions: number): number {

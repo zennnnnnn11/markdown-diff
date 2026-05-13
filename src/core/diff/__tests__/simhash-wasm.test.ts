@@ -57,6 +57,18 @@ describe('simhash wasm helpers', () => {
       undefined,
     ])
   })
+
+  it('falls back to Buffer decoding when atob is unavailable', async () => {
+    const originalAtob = globalThis.atob
+    // @ts-expect-error test environment override
+    globalThis.atob = undefined
+    try {
+      expect(await charikarSimHashWasm(['hello', 'world'])).toBe('ffedf9adb79bbeff')
+      expect(simHashHammingDistanceBatchWasm('ffedf9adb79bbeff', ['ffedf9adb79bbeff'])).toEqual([0])
+    } finally {
+      globalThis.atob = originalAtob
+    }
+  })
 })
 
 function legacyMinHashSimilarity(left: readonly string[], right: readonly string[], functions: number): number {
