@@ -2,6 +2,7 @@
 import type { DiffNode, DiffOptions } from './types'
 import { DIFF_HEURISTICS } from './heuristics'
 import { extractNodeText, jaccardSimilarity, sequenceSimilarity, tokenizeText } from './utils'
+import { estimateMinHashSimilarityWasm } from './simhash-wasm'
 
 export function computeNodeSimilarity(
   oldNode: DiffNode,
@@ -260,6 +261,14 @@ function tokenSimilarity(
 }
 
 function estimateJaccardWithMinHash(left: readonly string[], right: readonly string[], functions: number): number {
+  try {
+    return estimateMinHashSimilarityWasm(left, right, functions)
+  } catch {
+    return estimateJaccardWithMinHashLegacy(left, right, functions)
+  }
+}
+
+function estimateJaccardWithMinHashLegacy(left: readonly string[], right: readonly string[], functions: number): number {
   const leftSketch = computeMinHashSketch(left, functions)
   const rightSketch = computeMinHashSketch(right, functions)
   let equal = 0

@@ -2,7 +2,7 @@
 import { xxhash128 } from 'hash-wasm'
 import type { Block, InlineContent, Section } from '../transformer'
 import type { InlineToken, MetadataChange, SourcePoint, SourceRange } from './types'
-import { charikarSimHashWasm } from './simhash-wasm'
+import { charikarSimHashWasm, simHashHammingDistanceBatchWasm } from './simhash-wasm'
 
 const HASH_SEED_LOW = 0
 const HASH_SEED_HIGH = 0
@@ -173,6 +173,17 @@ export function simHashHammingDistance(left?: string, right?: string): number | 
     value >>= 1n
   }
   return distance
+}
+
+export function simHashHammingDistanceBatch(
+  query: string | undefined,
+  candidates: readonly (string | undefined)[],
+): Array<number | undefined> {
+  try {
+    return simHashHammingDistanceBatchWasm(query, candidates)
+  } catch {
+    return candidates.map((candidate) => simHashHammingDistance(query, candidate))
+  }
 }
 
 export function jaccardSimilarity(left: readonly string[], right: readonly string[]): number {

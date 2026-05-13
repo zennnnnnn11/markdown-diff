@@ -33,6 +33,7 @@ import {
   makePairKey,
   multisetJaccardSimilarity,
   normalizeIdentifier,
+  simHashHammingDistanceBatch,
   simHashHammingDistance,
   tokenizeText,
 } from './utils'
@@ -881,10 +882,14 @@ function recallComparableNodes(
     )
   if (sameShape.length <= DIFF_HEURISTICS.recall.maxComparableNodes) return sameShape
 
+  const distances = simHashHammingDistanceBatch(
+    oldNode.textSimHash,
+    sameShape.map((newNode) => newNode.textSimHash),
+  )
   const ranked = sameShape
-    .map((newNode) => ({
+    .map((newNode, index) => ({
       node: newNode,
-      distance: simHashDistanceForRecall(oldNode, newNode),
+      distance: distances[index],
       structuralBias:
         (oldNode.pathHash && newNode.pathHash && oldNode.pathHash === newNode.pathHash
           ? 0
