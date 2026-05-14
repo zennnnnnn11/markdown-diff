@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import DiffDebugPanel from './components/DiffDebugPanel.vue'
 import DiffDetailModal from './components/DiffDetailModal.vue'
@@ -30,6 +30,17 @@ const detail = computed(() => workbench.detail.value)
 const peerHighlightKey = computed(() => workbench.peerHighlightKey.value)
 const debugVisible = computed(() => !!workbench.result.value && workbench.showDebug.value)
 const debugSnapshot = computed(() => workbench.debugSnapshot.value)
+const showWarnings = ref(false)
+const allWarnings = computed(() => {
+  if (!workbench.result.value) return []
+  const globalWarnings = workbench.result.value.warnings
+  const perChangeWarnings = workbench.result.value.changeIndex
+    ? [...workbench.result.value.changeIndex.byOldId.values()]
+        .flatMap((c) => c.warnings)
+        .filter((w) => w)
+    : []
+  return [...new Set([...globalWarnings, ...perChangeWarnings])]
+})
 
 onMounted(async () => {
   await workbench.executeDiff()
@@ -86,6 +97,15 @@ function selectLine(changeKey?: string, side?: 'old' | 'new'): void {
       @highlight="setHighlight"
     />
 
+    <details v-if="resultVisible && allWarnings.length > 0" class="warnings-banner" @toggle="showWarnings = ($event.target as HTMLDetailsElement).open">
+      <summary>
+        ⚠ {{ allWarnings.length }} 个警告
+      </summary>
+      <ul class="warnings-list">
+        <li v-for="(warning, index) in allWarnings" :key="index">{{ warning }}</li>
+      </ul>
+    </details>
+
     <div v-if="resultVisible" class="projection-grid">
       <DiffProjectionTable
         :projection-lines="oldProjectionLines"
@@ -133,6 +153,32 @@ function selectLine(changeKey?: string, side?: 'old' | 'new'): void {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.warnings-banner {
+  border: 1px solid #d0a44d;
+  border-radius: 8px;
+  background: #fffcf0;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.warnings-banner summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #9a6700;
+}
+
+.warnings-list {
+  margin: 8px 0 0 0;
+  padding-left: 20px;
+  color: #57606a;
+}
+
+.warnings-list li {
+  font-family: ui-monospace, monospace;
+  font-size: 13px;
+  word-break: break-all;
 }
 
 .projection-grid {

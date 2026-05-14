@@ -254,6 +254,49 @@ describe('useDiffWorkbench', () => {
     expect(workbench.peerSide.value).toBeUndefined()
   })
 
+  it('exposes global warnings through the result', () => {
+    const workbench = useDiffWorkbench('old', 'new')
+
+    workbench.result.value = {
+      ...makeEmptyResult(),
+      warnings: ['invalid-equal-state:s1', 'subtree-budget-exceeded'],
+    }
+
+    expect(workbench.result.value?.warnings).toHaveLength(2)
+    expect(workbench.result.value?.warnings).toContain('subtree-budget-exceeded')
+  })
+
+  it('collects per-change warnings through changeIndex', () => {
+    const workbench = useDiffWorkbench('old', 'new')
+
+    const warnedChange: any = {
+      entity: 'section', kind: 'heading', primaryOp: 'equal',
+      pairKey: 'match:w1:w2', oldId: 'w1', newId: 'w2',
+      oldNode: { kind: 'heading', title: 'Warned', headingDepth: 1, items: [] },
+      newNode: { kind: 'heading', title: 'Warned', headingDepth: 1, items: [] },
+      pairKind: 'match',
+      status: { isMatchPair: true, isAlignedPair: false, moved: false, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
+      summary: 'warned', children: [], warnings: ['inline-deferred'],
+    }
+
+    workbench.result.value = {
+      ...makeEmptyResult(),
+      root: { ...makeEmptyResult().root, children: [warnedChange] },
+      changeIndex: {
+        byOldId: new Map([['w1', warnedChange]]),
+        byNewId: new Map(),
+        byPairKey: new Map(),
+      },
+      warnings: ['global-warning'],
+    }
+
+    const perChangeWarnings = [...(workbench.result.value?.changeIndex.byOldId.values() ?? [])]
+      .flatMap((c) => c.warnings)
+
+    expect(perChangeWarnings).toContain('inline-deferred')
+    expect(workbench.result.value?.warnings).toContain('global-warning')
+  })
+
   it('returns undefined peerHighlightKey when detail has no moveInfo', () => {
     const workbench = useDiffWorkbench('old', 'new')
 
