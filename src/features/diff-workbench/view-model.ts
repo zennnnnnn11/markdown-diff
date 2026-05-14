@@ -2,6 +2,7 @@ import { parseMarkdown } from '@/core/parser'
 import { diffMarkdownTrees, forEachChange } from '@/core/diff'
 import type {
   DiffChange,
+  DiffChangeIndex,
   DiffResult,
   InlineSpan,
   LineDiffSpan,
@@ -62,6 +63,13 @@ export interface DetailTableRowModel {
   cells: DetailTableCellModel[]
 }
 
+export interface MoveInfo {
+  role: 'source' | 'target'
+  peerChangeKey: string
+  peerLineNumber?: number
+  peerHeading?: string
+}
+
 export interface DetailPanelModel {
   heading: string
   operation: string
@@ -80,6 +88,7 @@ export interface DetailPanelModel {
   }>
   newTableRows?: DetailTableRowModel[]
   metadataChanges?: DetailMetadataItem[]
+  moveInfo?: MoveInfo
 }
 
 export interface DebugSnapshot {
@@ -192,7 +201,11 @@ export function buildProjectionLines(newMarkdown: string, result: DiffResult): P
   })
 }
 
-export function buildDetailPanel(change: DiffChange | undefined): DetailPanelModel | undefined {
+export function buildDetailPanel(
+  change: DiffChange | undefined,
+  changeIndex?: DiffChangeIndex,
+  newIndex?: SemanticIndex,
+): DetailPanelModel | undefined {
   if (!change) return undefined
 
   const highlightTone = tonesForChange(change)[0] ?? 'replace'
@@ -214,6 +227,7 @@ export function buildDetailPanel(change: DiffChange | undefined): DetailPanelMod
       oldValueText: formatMetadataValue(entry.oldValue),
       newValueText: formatMetadataValue(entry.newValue),
     })),
+    moveInfo: buildMoveInfo(change, changeIndex, newIndex),
   }
 }
 
@@ -1021,6 +1035,56 @@ function rangeSpan(range: SourceRange): number {
   const end = range.end?.line
   if (!start || !end) return Number.MAX_SAFE_INTEGER
   return end - start
+}
+
+function buildMoveInfo(
+  change: DiffChange,
+  changeIndex?: DiffChangeIndex,
+  newIndex?: SemanticIndex,
+): MoveInfo | undefined {
+  if (change.primaryOp !== 'move' || !change.moveRole || !change.movePeerKey) return undefined
+
+  const peerChange = findPeerChange(change, changeIndex)
+  if (!peerChange) return undefined
+
+  const peerRange =
+    peerChange.newId && newIndex
+      ? newIndex.byId.get(peerChange.newId)?.sourceRange
+      : undefined
+  const peerHeading = extractMoveHeading(peerChange)
+
+  return {
+    role: change.moveRole,
+    peerChangeKey: getChangeReference(peerChange),
+    peerLineNumber: peerRange?.start?.line,
+    peerHeading,
+  }
+}
+
+function findPeerChange(
+  change: DiffChange,
+  changeIndex?: DiffChangeIndex,
+): DiffChange | undefined {
+  if (!changeIndex || !change.logicalMoveId) return undefined
+
+  if (change.moveRole === 'source') {
+    return [...changeIndex.byNewId.values()].find(
+      (c) => c.logicalMoveId === change.logicalMoveId && c.moveRole === 'target',
+    )
+  }
+  return [...changeIndex.byOldId.values()].find(
+    (c) => c.logicalMoveId === change.logicalMoveId && c.moveRole === 'source',
+  )
+}
+
+function extractMoveHeading(change: DiffChange): string | undefined {
+  if (change.kind === 'heading' && change.newNode) {
+    return (change.newNode as Section).title
+  }
+  if (change.kind === 'heading' && change.oldNode) {
+    return (change.oldNode as Section).title
+  }
+  return undefined
 }
 
 function uniqueTones(tones: Tone[]): Tone[] {

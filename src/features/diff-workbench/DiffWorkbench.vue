@@ -26,6 +26,7 @@ const statsCards = computed(() => workbench.statsCards.value)
 const projectionLines = computed(() => workbench.projectionLines.value)
 const activeFilter = computed(() => workbench.activeFilter.value)
 const detail = computed(() => workbench.detail.value)
+const peerHighlightKey = computed(() => workbench.peerHighlightKey.value)
 const debugVisible = computed(() => !!workbench.result.value && workbench.showDebug.value)
 const debugSnapshot = computed(() => workbench.debugSnapshot.value)
 
@@ -83,6 +84,7 @@ function setHighlight(filter: HighlightFilter | null): void {
     <DiffProjectionTable
       :projection-lines="projectionLines"
       :active-filter="activeFilter"
+      :peer-highlight-key="peerHighlightKey"
       @select="workbench.selectLine"
     />
 

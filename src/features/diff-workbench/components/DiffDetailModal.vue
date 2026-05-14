@@ -56,6 +56,18 @@ function lineClassName(baseTone: Tone): string {
           配对方式：<strong>{{ detail.pairKind === 'match' ? '确认匹配（实线）' : '对齐匹配（虚线）' }}</strong>
         </p>
 
+        <p v-if="detail.moveInfo" class="move-info">
+          <template v-if="detail.moveInfo.role === 'source'">
+            已移出 →
+            目标：第 {{ detail.moveInfo.peerLineNumber ?? '?' }} 行
+            <template v-if="detail.moveInfo.peerHeading">（{{ detail.moveInfo.peerHeading }}）</template>
+          </template>
+          <template v-else>
+            移入自
+            <template v-if="detail.moveInfo.peerHeading">{{ detail.moveInfo.peerHeading }}</template>
+          </template>
+        </p>
+
         <div class="detail-columns">
           <section class="content-card">
             <h3>旧</h3>
@@ -174,6 +186,15 @@ function lineClassName(baseTone: Tone): string {
   margin: 0 0 4px 0;
   color: #57606a;
   font-size: 13px;
+}
+
+.move-info {
+  margin: 0 0 8px 0;
+  padding: 8px 12px;
+  background: #e5edff;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1f2328;
 }
 
 .content-card {

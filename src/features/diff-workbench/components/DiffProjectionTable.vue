@@ -5,6 +5,7 @@ import { lineMatchesFilter } from '../view-model'
 defineProps<{
   projectionLines: ProjectionLine[]
   activeFilter: HighlightFilter | null
+  peerHighlightKey?: string
 }>()
 
 const emit = defineEmits<{
@@ -36,6 +37,7 @@ function lineClassName(baseTone: Tone): string {
             active: lineMatchesFilter(line, activeFilter),
             'pair-match': line.pairKind === 'match',
             'pair-align': line.pairKind === 'align',
+            'peer-highlight': !!peerHighlightKey && line.changeKey === peerHighlightKey,
           },
         ]"
         :type="line.changeKey ? 'button' : undefined"
@@ -190,5 +192,10 @@ function lineClassName(baseTone: Tone): string {
 
 .projection-row.pair-align {
   border-left: 2px dashed #8b949e;
+}
+
+.projection-row.peer-highlight {
+  outline: 2px solid #0969da;
+  outline-offset: -2px;
 }
 </style>

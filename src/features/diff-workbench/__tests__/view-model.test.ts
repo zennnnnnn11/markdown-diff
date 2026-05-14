@@ -223,6 +223,78 @@ describe('diff workbench view-model', () => {
     expect(detail?.pairKind).toBe('align')
   })
 
+  it('populates moveInfo in detail panel when changeIndex is provided', () => {
+    const expectedPeerKey = 'match:b1:b3'
+    const movePeerKey = 'move:b1:b3'
+    const sourceChange: any = {
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'source',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:b1:b3',
+      oldId: 'b1',
+      oldNode: { kind: 'heading', title: 'Moved Heading', headingDepth: 2, items: [] },
+      pairKind: 'match',
+      status: {
+        isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false,
+        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'Move source',
+      children: [],
+      warnings: [],
+    }
+
+    const targetChange: any = {
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'target',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:b1:b3',
+      newId: 'b3',
+      newNode: { kind: 'heading', title: 'Moved Heading', headingDepth: 2, items: [] },
+      pairKind: 'match',
+      status: {
+        isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false,
+        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'Move target',
+      children: [],
+      warnings: [],
+    }
+
+    const changeIndex = {
+      byOldId: new Map([['b1', sourceChange]]),
+      byNewId: new Map([['b3', targetChange]]),
+      byPairKey: new Map([['match:b1:b3', targetChange]]),
+    }
+
+    const newIndex = {
+      byId: new Map([['b3', { sourceRange: { start: { line: 5, column: 1 }, end: { line: 7, column: 1 } } }]]),
+    } as any
+
+    const detail = buildDetailPanel(sourceChange, changeIndex as any, newIndex)
+
+    expect(detail?.moveInfo).toBeDefined()
+    expect(detail?.moveInfo?.role).toBe('source')
+    expect(detail?.moveInfo?.peerChangeKey).toBe(expectedPeerKey)
+    expect(detail?.moveInfo?.peerLineNumber).toBe(5)
+    expect(detail?.moveInfo?.peerHeading).toBe('Moved Heading')
+  })
+
+  it('provides no moveInfo for non-move changes', async () => {
+    const result = await runMarkdownDiff('# Title\n\nparagraph', '# Title\n\nparagraph')
+    const headingChange = flattenChanges(result.root).find((change) => change.kind === 'heading')
+    const detail = buildDetailPanel(headingChange)
+
+    expect(detail?.moveInfo).toBeUndefined()
+  })
+
   it('includes quality, global warnings, and fallback markers in debug snapshots', async () => {
     const result = await runMarkdownDiff('# Alpha\n\nBody text', '# Beta\n\nBody text')
     result.warnings.push('invalid-equal-state:test')

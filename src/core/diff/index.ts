@@ -5,6 +5,7 @@ export { forEachChange, forEachChangeAsync, summarizeChanges } from './summary'
 export type {
   AlignedPair,
   DiffChange,
+  DiffChangeIndex,
   DiffEntity,
   DiffNode,
   DiffOptions,

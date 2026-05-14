@@ -34,7 +34,14 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
   const selectedChange = computed(() =>
     selectedChangeKey.value ? changeByKey.value.get(selectedChangeKey.value) : undefined,
   )
-  const detail = computed(() => buildDetailPanel(selectedChange.value))
+  const detail = computed(() =>
+    buildDetailPanel(
+      selectedChange.value,
+      result.value?.changeIndex,
+      result.value?.newIndex,
+    ),
+  )
+  const peerHighlightKey = computed(() => detail.value?.moveInfo?.peerChangeKey)
   const debugSnapshot = computed(() => (result.value ? buildDebugSnapshot(result.value) : undefined))
   const warningCount = computed(() => {
     if (!result.value) return 0
@@ -106,6 +113,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     debugSnapshot,
     canRun,
     statsCards,
+    peerHighlightKey,
     executeDiff,
     clearEditor,
     selectLine,
