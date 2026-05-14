@@ -201,6 +201,10 @@ function rowId(line: ProjectionLine): string {
   background: #fffde0;
 }
 
+.tone-reorder {
+  background: #f0f4f8;
+}
+
 .projection-row.pair-match {
   border-left: 2px solid #1f2328;
 }

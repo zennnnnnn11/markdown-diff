@@ -351,6 +351,10 @@ pre {
   background: #fffde0;
 }
 
+.tone-reorder {
+  background: #f0f4f8;
+}
+
 @media (max-width: 960px) {
   .detail-columns {
     grid-template-columns: 1fr;

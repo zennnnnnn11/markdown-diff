@@ -16,7 +16,7 @@ import type {
 import { transformMarkdown } from '@/core/transformer'
 import type { Block, Section } from '@/core/transformer'
 
-export type Tone = 'plain' | 'insert' | 'delete' | 'replace' | 'move' | 'meta' | 'rename'
+export type Tone = 'plain' | 'insert' | 'delete' | 'replace' | 'move' | 'meta' | 'rename' | 'reorder'
 export type HighlightFilter = Tone | 'warning'
 
 export interface ProjectionSegment {
@@ -130,7 +130,8 @@ const TONE_PRIORITY: Record<Tone, number> = {
   insert: 3,
   meta: 4,
   rename: 5,
-  plain: 6,
+  reorder: 6,
+  plain: 7,
 }
 
 export const matchKindLabels: Record<MatchKind, string> = {
@@ -162,6 +163,7 @@ export const toneLabels: Record<Tone, string> = {
   move: '移动',
   meta: '元数据',
   rename: '改名',
+  reorder: '重排',
 }
 
 export async function runMarkdownDiff(oldMarkdown: string, newMarkdown: string): Promise<DiffResult> {
@@ -540,6 +542,7 @@ function tonesForChange(change: DiffChange): Tone[] {
   if (change.primaryOp === 'equal' && change.status.metaChanged) tones.push('meta')
   if (change.primaryOp === 'meta-update') tones.push('meta')
   if (change.status.renamed) tones.push('rename')
+  if (change.status.movedWithinParent || change.reordered) tones.push('reorder')
   if (tones.length === 0) tones.push('plain')
   return uniqueTones(tones).sort((left, right) => TONE_PRIORITY[left] - TONE_PRIORITY[right])
 }
@@ -1103,6 +1106,7 @@ function operationLabel(change: DiffChange): string {
   if (change.primaryOp === 'move') return '移动'
   if (change.primaryOp === 'meta-update') return '元数据更新'
   if (change.status.metaChanged) return '元数据更新'
+  if (change.status.movedWithinParent || change.reordered) return '重排'
   return '无变更'
 }
 

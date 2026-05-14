@@ -9,6 +9,7 @@ import {
   lineMatchesFilter,
   matchKindLabels,
   runMarkdownDiff,
+  toneLabels,
 } from '../view-model'
 
 describe('diff workbench view-model', () => {
@@ -628,6 +629,58 @@ describe('diff workbench view-model', () => {
 
     expect(insertedLines.length).toBeGreaterThan(0)
     expect(insertedLines.every((line) => line.pairKind === undefined)).toBe(true)
+  })
+
+  // ─── movedWithinParent / reorder ───
+
+  it('projects reorder tone for swapped sibling sections', async () => {
+    const result = await runMarkdownDiff(
+      '# Alpha\n\nalpha content\n\n# Beta\n\nbeta content',
+      '# Beta\n\nbeta content\n\n# Alpha\n\nalpha content',
+    )
+    const reorderedChanges = flattenChanges(result.root).filter(
+      (change) => change.reordered || change.status.movedWithinParent,
+    )
+
+    expect(reorderedChanges.length).toBeGreaterThan(0)
+
+    const lines = buildProjectionLines(
+      '# Beta\n\nbeta content\n\n# Alpha\n\nalpha content',
+      result,
+    )
+    const reorderLines = lines.filter((line) => line.matchedTones.includes('reorder'))
+    expect(reorderLines.length).toBeGreaterThan(0)
+  })
+
+  it('includes reorder in matchedTones but reorder line has no pairKind border', async () => {
+    const result = await runMarkdownDiff(
+      '# Alpha\n\nalpha\n\n# Beta\n\nbeta',
+      '# Beta\n\nbeta\n\n# Alpha\n\nalpha',
+    )
+    const lines = buildProjectionLines('# Beta\n\nbeta\n\n# Alpha\n\nalpha', result)
+    const reorderLine = lines.find((line) => line.matchedTones.includes('reorder'))
+
+    expect(reorderLine).toBeDefined()
+    // Equal self + reorder → primaryOp='equal', pairKind='match' (from exact match)
+    expect(reorderLine?.pairKind).toBe('match')
+  })
+
+  it('labels reorder as operation in detail panel', async () => {
+    const result = await runMarkdownDiff(
+      '# Alpha\n\nalpha\n\n# Beta\n\nbeta',
+      '# Beta\n\nbeta\n\n# Alpha\n\nalpha',
+    )
+    const reorderedChange = flattenChanges(result.root).find(
+      (change) => change.reordered || change.status.movedWithinParent,
+    )
+    const detail = buildDetailPanel(reorderedChange)
+
+    expect(detail?.operation).toBe('重排')
+    expect(detail?.highlightTone).toBe('reorder')
+  })
+
+  it('has reorder tone label defined', () => {
+    expect(toneLabels.reorder).toBe('重排')
   })
 
   // ─── buildOldProjectionLines ───
