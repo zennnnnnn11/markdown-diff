@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import DiffDebugPanel from './components/DiffDebugPanel.vue'
 import DiffDetailModal from './components/DiffDetailModal.vue'
@@ -43,6 +43,11 @@ const allWarnings = computed(() => {
   return [...new Set([...globalWarnings, ...perChangeWarnings])]
 })
 
+watch(resultVisible, async (visible) => {
+  if (visible) await nextTick()
+  if (visible) setupScrollSync()
+})
+
 onMounted(async () => {
   await workbench.executeDiff()
 })
@@ -61,6 +66,30 @@ function toggleDebug(): void {
 
 function setHighlight(filter: HighlightFilter | null): void {
   workbench.activeFilter.value = filter
+}
+
+const oldTableRef = ref<InstanceType<typeof DiffProjectionTable> | null>(null)
+const newTableRef = ref<InstanceType<typeof DiffProjectionTable> | null>(null)
+let isScrollSyncing = false
+
+function setupScrollSync(): void {
+  const oldBody = oldTableRef.value?.scrollBody
+  const newBody = newTableRef.value?.scrollBody
+  if (!oldBody || !newBody) return
+
+  const sync = (source: HTMLElement, target: HTMLElement) => {
+    if (isScrollSyncing) return
+    isScrollSyncing = true
+    const maxScroll = source.scrollHeight - source.clientHeight
+    if (maxScroll <= 0) { isScrollSyncing = false; return }
+    const ratio = source.scrollTop / maxScroll
+    const targetMax = target.scrollHeight - target.clientHeight
+    target.scrollTop = ratio * targetMax
+    requestAnimationFrame(() => { isScrollSyncing = false })
+  }
+
+  oldBody.addEventListener('scroll', () => sync(oldBody, newBody), { passive: true })
+  newBody.addEventListener('scroll', () => sync(newBody, oldBody), { passive: true })
 }
 
 function selectLine(changeKey?: string, side?: 'old' | 'new'): void {
@@ -109,6 +138,7 @@ function selectLine(changeKey?: string, side?: 'old' | 'new'): void {
 
     <div v-if="resultVisible" class="projection-grid">
       <DiffProjectionTable
+        ref="oldTableRef"
         :projection-lines="oldProjectionLines"
         :active-filter="activeFilter"
         :peer-highlight-key="peerHighlightKey"
@@ -116,6 +146,7 @@ function selectLine(changeKey?: string, side?: 'old' | 'new'): void {
         @select="selectLine"
       />
       <DiffProjectionTable
+        ref="newTableRef"
         :projection-lines="projectionLines"
         :active-filter="activeFilter"
         :peer-highlight-key="peerHighlightKey"

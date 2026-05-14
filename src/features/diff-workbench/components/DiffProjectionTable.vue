@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { HighlightFilter, ProjectionLine, Tone } from '../view-model'
 import { lineMatchesFilter } from '../view-model'
+
+const scrollBody = ref<HTMLElement | null>(null)
+
+defineExpose({ scrollBody })
 
 const props = defineProps<{
   projectionLines: ProjectionLine[]
@@ -37,7 +41,7 @@ function rowId(line: ProjectionLine): string {
       <p>{{ description }}</p>
     </div>
 
-    <div class="projection-table" role="table" :aria-label="label">
+    <div ref="scrollBody" class="projection-table" role="table" :aria-label="label">
       <component
         :is="line.changeKey ? 'button' : 'div'"
         v-for="line in projectionLines"
