@@ -34,8 +34,9 @@ const showWarnings = ref(false)
 const allWarnings = computed(() => {
   if (!workbench.result.value) return []
   const globalWarnings = workbench.result.value.warnings
-  const perChangeWarnings = workbench.result.value.changeIndex
-    ? [...workbench.result.value.changeIndex.byOldId.values()]
+  const idx = workbench.result.value.changeIndex
+  const perChangeWarnings = idx
+    ? [...idx.byOldId.values(), ...idx.byNewId.values()]
         .flatMap((c) => c.warnings)
         .filter((w) => w)
     : []
