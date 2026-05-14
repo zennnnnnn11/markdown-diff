@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import DiffDebugPanel from './components/DiffDebugPanel.vue'
 import DiffDetailModal from './components/DiffDetailModal.vue'
 import DiffInputPanel from './components/DiffInputPanel.vue'
-import DiffProjectionTable from './components/DiffProjectionTable.vue'
 import DiffStatsBar from './components/DiffStatsBar.vue'
+import UnifiedDiffTable from './components/UnifiedDiffTable.vue'
 import { useDiffWorkbench } from './use-diff-workbench'
+import { buildMergedRows } from './view-model'
 import type { HighlightFilter } from './view-model'
 
 const props = defineProps<{
@@ -23,13 +24,16 @@ const errorMessage = computed(() => workbench.errorMessage.value)
 const showDebug = computed(() => workbench.showDebug.value)
 const resultVisible = computed(() => !!workbench.result.value)
 const statsCards = computed(() => workbench.statsCards.value)
-const projectionLines = computed(() => workbench.projectionLines.value)
-const oldProjectionLines = computed(() => workbench.oldProjectionLines.value)
 const activeFilter = computed(() => workbench.activeFilter.value)
 const detail = computed(() => workbench.detail.value)
 const peerHighlightKey = computed(() => workbench.peerHighlightKey.value)
 const debugVisible = computed(() => !!workbench.result.value && workbench.showDebug.value)
 const debugSnapshot = computed(() => workbench.debugSnapshot.value)
+const mergedRows = computed(() =>
+  workbench.result.value
+    ? buildMergedRows(workbench.oldMarkdown.value, workbench.newMarkdown.value, workbench.result.value)
+    : [],
+)
 const showWarnings = ref(false)
 const allWarnings = computed(() => {
   if (!workbench.result.value) return []
@@ -41,11 +45,6 @@ const allWarnings = computed(() => {
         .filter((w) => w)
     : []
   return [...new Set([...globalWarnings, ...perChangeWarnings])]
-})
-
-watch(resultVisible, async (visible) => {
-  if (visible) await nextTick()
-  if (visible) setupScrollSync()
 })
 
 onMounted(async () => {
@@ -68,31 +67,7 @@ function setHighlight(filter: HighlightFilter | null): void {
   workbench.activeFilter.value = filter
 }
 
-const oldTableRef = ref<InstanceType<typeof DiffProjectionTable> | null>(null)
-const newTableRef = ref<InstanceType<typeof DiffProjectionTable> | null>(null)
-let isScrollSyncing = false
-
-function setupScrollSync(): void {
-  const oldBody = oldTableRef.value?.scrollBody
-  const newBody = newTableRef.value?.scrollBody
-  if (!oldBody || !newBody) return
-
-  const sync = (source: HTMLElement, target: HTMLElement) => {
-    if (isScrollSyncing) return
-    isScrollSyncing = true
-    const maxScroll = source.scrollHeight - source.clientHeight
-    if (maxScroll <= 0) { isScrollSyncing = false; return }
-    const ratio = source.scrollTop / maxScroll
-    const targetMax = target.scrollHeight - target.clientHeight
-    target.scrollTop = ratio * targetMax
-    requestAnimationFrame(() => { isScrollSyncing = false })
-  }
-
-  oldBody.addEventListener('scroll', () => sync(oldBody, newBody), { passive: true })
-  newBody.addEventListener('scroll', () => sync(newBody, oldBody), { passive: true })
-}
-
-function selectLine(changeKey?: string, side?: 'old' | 'new'): void {
+function selectLine(changeKey?: string, _side?: 'old' | 'new'): void {
   workbench.selectLine(changeKey)
 }
 </script>
@@ -136,24 +111,13 @@ function selectLine(changeKey?: string, side?: 'old' | 'new'): void {
       </ul>
     </details>
 
-    <div v-if="resultVisible" class="projection-grid">
-      <DiffProjectionTable
-        ref="oldTableRef"
-        :projection-lines="oldProjectionLines"
-        :active-filter="activeFilter"
-        :peer-highlight-key="peerHighlightKey"
-        side="old"
-        @select="selectLine"
-      />
-      <DiffProjectionTable
-        ref="newTableRef"
-        :projection-lines="projectionLines"
-        :active-filter="activeFilter"
-        :peer-highlight-key="peerHighlightKey"
-        side="new"
-        @select="selectLine"
-      />
-    </div>
+    <UnifiedDiffTable
+      v-if="resultVisible"
+      :merged-rows="mergedRows"
+      :active-filter="activeFilter"
+      :peer-highlight-key="peerHighlightKey"
+      @select="selectLine"
+    />
 
     <DiffDetailModal :detail="detail" @close="workbench.closeDetail" />
 
@@ -213,23 +177,11 @@ function selectLine(changeKey?: string, side?: 'old' | 'new'): void {
   word-break: break-all;
 }
 
-.projection-grid {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
 .secondary-button {
   border: 1px solid #c4cbd3;
   border-radius: 6px;
   background: #f6f8fa;
   padding: 8px 12px;
   cursor: pointer;
-}
-
-@media (max-width: 1200px) {
-  .projection-grid {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

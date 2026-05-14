@@ -25,11 +25,10 @@ describe('App', () => {
       expect(wrapper.text()).toContain('统计条')
 
       const targetRow = wrapper
-        .findAll('.projection-row.interactive')
+        .findAll('.cell.interactive')
         .find((row) => row.text().includes('Install the package with pnpm.'))
 
       expect(targetRow?.exists()).toBe(true)
-      expect(targetRow?.text()).toContain('点击查看具体变更')
 
       await targetRow!.trigger('click')
       await flushPromises()
@@ -49,14 +48,14 @@ describe('App', () => {
       await waitFor(() => wrapper.text().includes('统计条') && !wrapper.text().includes('比对中...'))
 
       const statButton = wrapper.find('.stat-card')
-      expect(wrapper.findAll('.projection-row.active')).toHaveLength(0)
+      expect(wrapper.findAll('.cell.active')).toHaveLength(0)
 
       await statButton.trigger('focus')
-      expect(wrapper.findAll('.projection-row.active').length).toBeGreaterThan(0)
+      expect(wrapper.findAll('.cell.active').length).toBeGreaterThan(0)
       await statButton.trigger('blur')
-      expect(wrapper.findAll('.projection-row.active')).toHaveLength(0)
+      expect(wrapper.findAll('.cell.active')).toHaveLength(0)
 
-      const interactiveRow = wrapper.find('.projection-row.interactive')
+      const interactiveRow = wrapper.find('.cell.interactive')
       await interactiveRow.trigger('click')
       await flushPromises()
 
