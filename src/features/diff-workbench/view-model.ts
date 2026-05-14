@@ -71,6 +71,12 @@ export interface MoveInfo {
   peerHeading?: string
 }
 
+export interface BacklinkInfo {
+  oldIdentifier?: string
+  newIdentifier?: string
+  affectedLines: number[]
+}
+
 export interface DetailPanelModel {
   heading: string
   operation: string
@@ -96,6 +102,7 @@ export interface DetailPanelModel {
   newTableRows?: DetailTableRowModel[]
   metadataChanges?: DetailMetadataItem[]
   moveInfo?: MoveInfo
+  backlinkInfo?: BacklinkInfo
 }
 
 export interface DebugSnapshot {
@@ -254,6 +261,7 @@ export function buildDetailPanel(
   change: DiffChange | undefined,
   changeIndex?: DiffChangeIndex,
   newIndex?: SemanticIndex,
+  oldIndex?: SemanticIndex,
 ): DetailPanelModel | undefined {
   if (!change) return undefined
 
@@ -288,6 +296,7 @@ export function buildDetailPanel(
       newValueText: formatMetadataValue(entry.newValue),
     })),
     moveInfo: buildMoveInfo(change, changeIndex, newIndex),
+    backlinkInfo: buildBacklinkInfo(change, oldIndex, newIndex),
   }
 }
 
@@ -1168,6 +1177,55 @@ function extractMoveHeading(change: DiffChange): string | undefined {
     return (change.oldNode as Section).title
   }
   return undefined
+}
+
+function buildBacklinkInfo(
+  change: DiffChange,
+  oldIndex?: SemanticIndex,
+  newIndex?: SemanticIndex,
+): BacklinkInfo | undefined {
+  const isFootnote = change.kind === 'footnote'
+  const isDef = change.blockType === 'definition'
+  if (!isFootnote && !isDef) return undefined
+
+  const oldId = extractRefIdentifier(change.oldNode, isFootnote)
+  const newId = extractRefIdentifier(change.newNode, isFootnote)
+  if (!oldId && !newId) return undefined
+
+  const map = isFootnote ? 'footnotes' : 'definitions'
+  const oldLines = resolveBacklinkLines(oldIndex, map, oldId)
+  const newLines = resolveBacklinkLines(newIndex, map, newId)
+  const allLines = [...new Set([...oldLines, ...newLines])].sort((a, b) => a - b)
+
+  return { oldIdentifier: oldId, newIdentifier: newId, affectedLines: allLines }
+}
+
+function extractRefIdentifier(
+  node: Section | Block | undefined,
+  isFootnote: boolean,
+): string | undefined {
+  if (!node) return undefined
+  const raw = isFootnote
+    ? ((node as Section).heading as any)?.identifier
+    : (node as Block as any).identifier
+  return typeof raw === 'string' ? normalizeId(raw) : undefined
+}
+
+function normalizeId(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase()
+}
+
+function resolveBacklinkLines(
+  index: SemanticIndex | undefined,
+  mapKey: 'footnotes' | 'definitions',
+  identifier: string | undefined,
+): number[] {
+  if (!index || !identifier) return []
+  const holderIds = index.backlinks[mapKey].get(identifier)
+  if (!holderIds) return []
+  return holderIds
+    .map((holderId) => index.byId.get(holderId)?.sourceRange?.start?.line)
+    .filter((line): line is number => typeof line === 'number')
 }
 
 function uniqueTones(tones: Tone[]): Tone[] {

@@ -706,6 +706,37 @@ describe('diff workbench view-model', () => {
     expect(headingLine?.hasDescendantChange).toBe(false)
   })
 
+  // ─── backlink info ───
+
+  it('collects affected lines for footnote renames with backlinks', async () => {
+    const result = await runMarkdownDiff(
+      'Body with a reference[^old]\n\n[^old]: old footnote',
+      'Body with a reference[^new]\n\n[^new]: new footnote',
+    )
+    const noteChange = flattenChanges(result.root).find(
+      (change) => change.kind === 'footnote' && change.status.renamed,
+    )
+
+    if (!noteChange) return
+
+    const detail = buildDetailPanel(noteChange, undefined, result.newIndex, result.oldIndex)
+
+    expect(detail?.backlinkInfo).toBeDefined()
+    expect(detail?.backlinkInfo?.oldIdentifier).toBe('old')
+    expect(detail?.backlinkInfo?.newIdentifier).toBe('new')
+    expect(detail?.backlinkInfo?.affectedLines.length).toBeGreaterThan(0)
+  })
+
+  it('returns no backlinkInfo for non-footnote/definition changes', async () => {
+    const result = await runMarkdownDiff('# Title\n\nparagraph', '# Title\n\nparagraph')
+    const headingChange = flattenChanges(result.root).find((change) => change.kind === 'heading')
+    const detail = buildDetailPanel(headingChange)
+
+    expect(detail?.backlinkInfo).toBeUndefined()
+  })
+
+  // ─── descendantChanged ───
+
   it('omits descendant flag for non-section block changes', async () => {
     const result = await runMarkdownDiff('# Title\n\nold', '# Title\n\nnew')
     const lines = buildProjectionLines('# Title\n\nnew', result)

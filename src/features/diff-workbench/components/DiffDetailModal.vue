@@ -70,6 +70,21 @@ function lineClassName(baseTone: Tone): string {
           </template>
         </p>
 
+        <p v-if="detail.backlinkInfo" class="backlink-info">
+          <template v-if="detail.backlinkInfo.oldIdentifier && detail.backlinkInfo.newIdentifier && detail.backlinkInfo.oldIdentifier !== detail.backlinkInfo.newIdentifier">
+            标识符 {{ detail.backlinkInfo.oldIdentifier }} → {{ detail.backlinkInfo.newIdentifier }}
+          </template>
+          <template v-if="detail.backlinkInfo.affectedLines.length > 0">
+            · 引用位置：第
+            <span v-for="(line, index) in detail.backlinkInfo.affectedLines" :key="line">
+              <template v-if="index > 0">、</template>{{ line }}
+            </span> 行
+          </template>
+          <template v-if="detail.backlinkInfo.affectedLines.length === 0">
+            · 无引用
+          </template>
+        </p>
+
         <div v-if="detail.oldTitle !== undefined && detail.newTitle !== undefined" class="title-compare">
           <div class="title-compare-row">
             <span class="title-compare-label">旧标题</span>
@@ -252,6 +267,16 @@ function lineClassName(baseTone: Tone): string {
   margin: 0 0 8px 0;
   padding: 8px 12px;
   background: #e5edff;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #1f2328;
+}
+
+.backlink-info {
+  margin: 0 0 8px 0;
+  padding: 8px 12px;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
   border-radius: 6px;
   font-size: 14px;
   color: #1f2328;

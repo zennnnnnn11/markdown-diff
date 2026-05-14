@@ -49,6 +49,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
       selectedChange.value,
       result.value?.changeIndex,
       result.value?.newIndex,
+      result.value?.oldIndex,
     ),
   )
   const peerHighlightKey = computed(() => detail.value?.moveInfo?.peerChangeKey)
