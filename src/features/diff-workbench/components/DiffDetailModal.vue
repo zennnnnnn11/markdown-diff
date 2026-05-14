@@ -52,6 +52,10 @@ function lineClassName(baseTone: Tone): string {
           <button type="button" class="secondary-button" @click="emit('close')">关闭</button>
         </div>
 
+        <p v-if="detail.pairKind" class="pair-info">
+          配对方式：<strong>{{ detail.pairKind === 'match' ? '确认匹配（实线）' : '对齐匹配（虚线）' }}</strong>
+        </p>
+
         <div class="detail-columns">
           <section class="content-card">
             <h3>旧</h3>
@@ -164,6 +168,12 @@ function lineClassName(baseTone: Tone): string {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.pair-info {
+  margin: 0 0 4px 0;
+  color: #57606a;
+  font-size: 13px;
 }
 
 .content-card {

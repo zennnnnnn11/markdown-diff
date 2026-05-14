@@ -31,7 +31,12 @@ function lineClassName(baseTone: Tone): string {
         class="projection-row"
         :class="[
           lineClassName(line.baseTone),
-          { interactive: !!line.changeKey, active: lineMatchesFilter(line, activeFilter) },
+          {
+            interactive: !!line.changeKey,
+            active: lineMatchesFilter(line, activeFilter),
+            'pair-match': line.pairKind === 'match',
+            'pair-align': line.pairKind === 'align',
+          },
         ]"
         :type="line.changeKey ? 'button' : undefined"
         role="row"
@@ -177,5 +182,13 @@ function lineClassName(baseTone: Tone): string {
 
 .tone-rename {
   background: #fffde0;
+}
+
+.projection-row.pair-match {
+  border-left: 2px solid #1f2328;
+}
+
+.projection-row.pair-align {
+  border-left: 2px dashed #8b949e;
 }
 </style>

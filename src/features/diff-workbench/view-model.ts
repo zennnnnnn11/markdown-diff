@@ -7,6 +7,7 @@ import type {
   LineDiffSpan,
   MatchKind,
   MetadataChange,
+  PairKind,
   PrimaryOp,
   SemanticIndex,
   SourceRange,
@@ -31,6 +32,7 @@ export interface ProjectionLine {
   changeKeys: string[]
   segments?: ProjectionSegment[]
   changeKey?: string
+  pairKind?: PairKind
   warnings: string[]
 }
 
@@ -63,6 +65,7 @@ export interface DetailTableRowModel {
 export interface DetailPanelModel {
   heading: string
   operation: string
+  pairKind?: PairKind
   oldContent?: string
   newContent?: string
   newInlineSegments?: ProjectionSegment[]
@@ -183,6 +186,7 @@ export function buildProjectionLines(newMarkdown: string, result: DiffResult): P
       changeKeys,
       segments: dominant ? buildProjectionSegments(text, dominant.change, baseTone) : undefined,
       changeKey: dominant ? getChangeReference(dominant.change) : undefined,
+      pairKind: dominant?.change.pairKind,
       warnings,
     }
   })
@@ -196,6 +200,7 @@ export function buildDetailPanel(change: DiffChange | undefined): DetailPanelMod
   return {
     heading: `${entityLabel(change)} · ${operationLabel(change)}`,
     operation: operationLabel(change),
+    pairKind: change.pairKind,
     oldContent: buildOldContent(change),
     newContent: buildNewContent(change),
     newInlineSegments: buildSideInlineSegments(change, 'new'),

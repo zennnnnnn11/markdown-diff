@@ -188,12 +188,39 @@ describe('diff workbench view-model', () => {
       baseTone: 'meta' as const,
       matchedTones: ['meta' as const],
       changeKeys: ['change:1'],
+      pairKind: undefined as 'match' | 'align' | undefined,
       warnings: ['inline-deferred'],
     }
 
     expect(lineMatchesFilter(warningLine, 'meta')).toBe(true)
     expect(lineMatchesFilter(warningLine, 'warning')).toBe(true)
     expect(lineMatchesFilter(warningLine, 'replace')).toBe(false)
+  })
+
+  it('propagates pairKind from dominant change to projected line', async () => {
+    const result = await runMarkdownDiff('# Title\n\nParagraph text', '# Title\n\nParagraph text')
+    const lines = buildProjectionLines('# Title\n\nParagraph text', result)
+    const matchLine = lines.find((line) => line.pairKind === 'match')
+
+    expect(matchLine?.pairKind).toBe('match')
+  })
+
+  it('exposes pairKind in detail panel for matched changes', async () => {
+    const result = await runMarkdownDiff('# Title\n\nParagraph text', '# Title\n\nParagraph text')
+    const headingChange = flattenChanges(result.root).find((change) => change.kind === 'heading' && change.pairKind === 'match')
+    const detail = buildDetailPanel(headingChange)
+
+    expect(detail?.pairKind).toBe('match')
+  })
+
+  it('exposes pairKind in detail panel for aligned (replace) changes', async () => {
+    const result = await runMarkdownDiff('# Old Title\n\nold paragraph', '# New Title\n\nnew paragraph')
+    const headingChange = flattenChanges(result.root).find(
+      (change) => change.kind === 'heading' && change.pairKind === 'align',
+    )
+    const detail = buildDetailPanel(headingChange)
+
+    expect(detail?.pairKind).toBe('align')
   })
 
   it('includes quality, global warnings, and fallback markers in debug snapshots', async () => {
