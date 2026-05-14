@@ -240,7 +240,7 @@ describe('diff workbench view-model', () => {
   })
 
   it('populates moveInfo in detail panel when changeIndex is provided', () => {
-    const expectedPeerKey = 'match:b1:b3'
+    const expectedPeerKey = 'match:b1:b3:target'
     const movePeerKey = 'move:b1:b3'
     const sourceChange: any = {
       entity: 'section',
@@ -448,7 +448,7 @@ describe('diff workbench view-model', () => {
 
     expect(detail?.moveInfo).toBeDefined()
     expect(detail?.moveInfo?.role).toBe('target')
-    expect(detail?.moveInfo?.peerChangeKey).toBe('match:t1:t3')
+    expect(detail?.moveInfo?.peerChangeKey).toBe('match:t1:t3:source')
     expect(detail?.moveInfo?.peerLineNumber).toBeUndefined()
   })
 
@@ -516,7 +516,7 @@ describe('diff workbench view-model', () => {
     const detail = buildDetailPanel(sourceChange, changeIndex as any, newIndex)
 
     expect(detail?.moveInfo).toBeDefined()
-    expect(detail?.moveInfo?.peerChangeKey).toBe('match:nr1:nr3')
+    expect(detail?.moveInfo?.peerChangeKey).toBe('match:nr1:nr3:target')
     expect(detail?.moveInfo?.peerLineNumber).toBeUndefined()
   })
 

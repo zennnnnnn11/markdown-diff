@@ -126,9 +126,9 @@ describe('useDiffWorkbench', () => {
       },
     }
 
-    workbench.selectLine('match:s1:s2')
+    workbench.selectLine('match:s1:s2:source')
 
-    expect(workbench.peerHighlightKey.value).toBe('match:s1:s2')
+    expect(workbench.peerHighlightKey.value).toBe('match:s1:s2:target')
   })
 
   it('builds empty old projection lines when no result', () => {
@@ -147,11 +147,11 @@ describe('useDiffWorkbench', () => {
     const workbench = useDiffWorkbench('old', 'new')
 
     const movePeerKey = 'move:ps1:ps2'
-    const sourceKey = 'match:ps1:ps1'
+    const sourceKey = 'match:ps1:ps1:source'
     const sourceChange: any = {
       entity: 'section', kind: 'heading', primaryOp: 'move',
       moveRole: 'source', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: sourceKey, oldId: 'ps1',
+      pairKey: 'match:ps1:ps1', oldId: 'ps1',
       oldNode: { kind: 'heading', title: 'Src', headingDepth: 2, items: [] },
       pairKind: 'match',
       status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
@@ -173,7 +173,7 @@ describe('useDiffWorkbench', () => {
       changeIndex: {
         byOldId: new Map([['ps1', sourceChange]]),
         byNewId: new Map([['ps2', targetChange]]),
-        byPairKey: new Map([[sourceKey, sourceChange]]),
+        byPairKey: new Map([['match:ps1:ps1', sourceChange]]),
       },
       newIndex: {
         ...makeEmptyIndex(),
@@ -190,7 +190,7 @@ describe('useDiffWorkbench', () => {
     const workbench = useDiffWorkbench('old', 'new')
 
     const movePeerKey = 'move:pt1:pt2'
-    const targetKey = 'match:pt2:pt2'
+    const targetKey = 'match:pt2:pt2:target'
     const sourceChange: any = {
       entity: 'section', kind: 'heading', primaryOp: 'move',
       moveRole: 'source', movePeerKey, logicalMoveId: movePeerKey,
@@ -203,7 +203,7 @@ describe('useDiffWorkbench', () => {
     const targetChange: any = {
       entity: 'section', kind: 'heading', primaryOp: 'move',
       moveRole: 'target', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: targetKey, newId: 'pt2',
+      pairKey: 'match:pt2:pt2', newId: 'pt2',
       newNode: { kind: 'heading', title: 'Tgt', headingDepth: 2, items: [] },
       pairKind: 'match',
       status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
@@ -216,7 +216,7 @@ describe('useDiffWorkbench', () => {
       changeIndex: {
         byOldId: new Map([['pt1', sourceChange]]),
         byNewId: new Map([['pt2', targetChange]]),
-        byPairKey: new Map([[targetKey, targetChange]]),
+        byPairKey: new Map([['match:pt2:pt2', targetChange]]),
       },
       newIndex: {
         ...makeEmptyIndex(),

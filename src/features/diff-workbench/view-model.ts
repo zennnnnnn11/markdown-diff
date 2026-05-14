@@ -180,7 +180,10 @@ export function flattenChanges(root: DiffChange): DiffChange[] {
 }
 
 export function getChangeReference(change: DiffChange): string {
-  if (change.pairKey) return change.pairKey
+  if (change.pairKey) {
+    if (change.moveRole && change.primaryOp === 'move') return `${change.pairKey}:${change.moveRole}`
+    return change.pairKey
+  }
   if (change.oldId && change.newId) return `pair:${change.oldId}:${change.newId}`
   if (change.newId) return `new:${change.newId}`
   if (change.oldId) return `old:${change.oldId}`
