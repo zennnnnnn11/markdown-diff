@@ -2,77 +2,163 @@ import { describe, expect, it } from 'vitest'
 
 import { useDiffWorkbench } from '../use-diff-workbench'
 
+function makeEmptyResult(): any {
+  return {
+    root: {
+      entity: 'section',
+      primaryOp: 'equal',
+      status: {
+        isMatchPair: true, isAlignedPair: false, moved: false, movedWithinParent: false,
+        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'root',
+      children: [],
+      warnings: [],
+    },
+    oldIndex: makeEmptyIndex(),
+    newIndex: makeEmptyIndex(),
+    matches: [],
+    changeIndex: { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map() },
+    stats: { inserts: 0, deletes: 0, replaces: 0, moves: 0, metaUpdates: 0, renames: 0 },
+    quality: { degradedCount: 0, inlineDeferredCount: 0, warningCount: 0 },
+    warnings: [],
+  }
+}
+
+function makeEmptyIndex(): any {
+  return {
+    byId: new Map(),
+    byKind: new Map(),
+    byBlockType: new Map(),
+    bySelfHash: new Map(),
+    byDirectHash: new Map(),
+    bySubtreeHash: new Map(),
+    byIdentityHash: new Map(),
+    byHeadingBodyHash: new Map(),
+    byPathHash: new Map(),
+    backlinks: { footnotes: new Map(), definitions: new Map() },
+  }
+}
+
 describe('useDiffWorkbench', () => {
   it('uses the diff quality warning count for stats cards', () => {
     const workbench = useDiffWorkbench('old', 'new')
 
     workbench.result.value = {
-      root: {
-        entity: 'section',
-        primaryOp: 'equal',
-        status: {
-          isMatchPair: true,
-          isAlignedPair: false,
-          moved: false,
-          movedWithinParent: false,
-          renamed: false,
-          selfChanged: false,
-          descendantChanged: false,
-          metaChanged: false,
-          inlineStructureChanged: false,
-        },
-        summary: 'root',
-        children: [],
-        warnings: [],
-      },
-      oldIndex: {
-        byId: new Map(),
-        byKind: new Map(),
-        byBlockType: new Map(),
-        bySelfHash: new Map(),
-        byDirectHash: new Map(),
-        bySubtreeHash: new Map(),
-        byIdentityHash: new Map(),
-        byHeadingBodyHash: new Map(),
-        byPathHash: new Map(),
-        backlinks: { footnotes: new Map(), definitions: new Map() },
-      },
-      newIndex: {
-        byId: new Map(),
-        byKind: new Map(),
-        byBlockType: new Map(),
-        bySelfHash: new Map(),
-        byDirectHash: new Map(),
-        bySubtreeHash: new Map(),
-        byIdentityHash: new Map(),
-        byHeadingBodyHash: new Map(),
-        byPathHash: new Map(),
-        backlinks: { footnotes: new Map(), definitions: new Map() },
-      },
-      matches: [],
-      changeIndex: {
-        byOldId: new Map(),
-        byNewId: new Map(),
-        byPairKey: new Map(),
-      },
-      stats: {
-        inserts: 1,
-        deletes: 2,
-        replaces: 3,
-        moves: 4,
-        metaUpdates: 5,
-        renames: 6,
-      },
-      quality: {
-        degradedCount: 1,
-        inlineDeferredCount: 2,
-        warningCount: 7,
-      },
-      warnings: ['invalid-equal-state:test'],
-    } as any
+      ...makeEmptyResult(),
+      quality: { degradedCount: 1, inlineDeferredCount: 2, warningCount: 7 },
+    }
 
     const warningCard = workbench.statsCards.value.find((card) => card.key === 'warning')
 
     expect(warningCard?.value).toBe(7)
+  })
+
+  it('builds empty projection lines with pairKind undefined when no result', () => {
+    const workbench = useDiffWorkbench('old', 'line one\nline two\nline three')
+
+    const lines = workbench.projectionLines.value
+
+    expect(lines).toHaveLength(3)
+    for (const line of lines) {
+      expect(line.baseTone).toBe('plain')
+      expect(line.matchedTones).toEqual([])
+      expect(line.changeKeys).toEqual([])
+      expect(line.pairKind).toBeUndefined()
+      expect(line.warnings).toEqual([])
+    }
+    expect(lines[0]?.key).toBe('empty:1')
+    expect(lines[0]?.text).toBe('line one')
+    expect(lines[1]?.key).toBe('empty:2')
+    expect(lines[2]?.key).toBe('empty:3')
+  })
+
+  it('returns peerHighlightKey from moveInfo when detail has move linkage', () => {
+    const workbench = useDiffWorkbench('old', 'new')
+
+    const movePeerKey = 'move:s1:s2'
+    const sourceChange: any = {
+      entity: 'section', kind: 'heading', primaryOp: 'move',
+      moveRole: 'source', movePeerKey, logicalMoveId: movePeerKey,
+      pairKey: 'match:s1:s2', oldId: 's1',
+      oldNode: { kind: 'heading', title: 'Moved', headingDepth: 2, items: [] },
+      pairKind: 'match',
+      status: {
+        isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false,
+        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'source',
+      children: [],
+      warnings: [],
+    }
+    const targetChange: any = {
+      entity: 'section', kind: 'heading', primaryOp: 'move',
+      moveRole: 'target', movePeerKey, logicalMoveId: movePeerKey,
+      pairKey: 'match:s1:s2', newId: 's2',
+      newNode: { kind: 'heading', title: 'Moved', headingDepth: 2, items: [] },
+      pairKind: 'match',
+      status: {
+        isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false,
+        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'target',
+      children: [],
+      warnings: [],
+    }
+
+    workbench.result.value = {
+      ...makeEmptyResult(),
+      root: {
+        ...makeEmptyResult().root,
+        children: [sourceChange, targetChange],
+      },
+      changeIndex: {
+        byOldId: new Map([['s1', sourceChange]]),
+        byNewId: new Map([['s2', targetChange]]),
+        byPairKey: new Map([['match:s1:s2', targetChange]]),
+      },
+      newIndex: {
+        ...makeEmptyIndex(),
+        byId: new Map([['s2', { sourceRange: { start: { line: 8 }, end: { line: 10 } } }]]),
+      },
+    }
+
+    workbench.selectLine('match:s1:s2')
+
+    expect(workbench.peerHighlightKey.value).toBe('match:s1:s2')
+  })
+
+  it('returns undefined peerHighlightKey when detail has no moveInfo', () => {
+    const workbench = useDiffWorkbench('old', 'new')
+
+    const equalChange: any = {
+      entity: 'section', kind: 'heading', primaryOp: 'equal',
+      pairKey: 'match:e1:e2', oldId: 'e1', newId: 'e2',
+      oldNode: { kind: 'heading', title: 'Same', headingDepth: 1, items: [] },
+      newNode: { kind: 'heading', title: 'Same', headingDepth: 1, items: [] },
+      pairKind: 'match',
+      matchKind: 'exact-self',
+      score: 1,
+      status: {
+        isMatchPair: true, isAlignedPair: false, moved: false, movedWithinParent: false,
+        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'equal',
+      children: [],
+      warnings: [],
+    }
+
+    workbench.result.value = {
+      ...makeEmptyResult(),
+      root: { ...makeEmptyResult().root, children: [equalChange] },
+    }
+
+    workbench.selectLine('match:e1:e2')
+
+    expect(workbench.peerHighlightKey.value).toBeUndefined()
   })
 })
