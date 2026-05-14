@@ -62,7 +62,8 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
   )
   const statsCards = computed<StatCardModel[]>(() => {
     if (!result.value) return []
-    return [
+    const q = result.value.quality
+    const cards: StatCardModel[] = [
       { key: 'insert', label: '新增', value: result.value.stats.inserts, filter: 'insert' },
       { key: 'delete', label: '删除', value: result.value.stats.deletes, filter: 'delete' },
       { key: 'replace', label: '替换', value: result.value.stats.replaces, filter: 'replace' },
@@ -71,6 +72,9 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
       { key: 'rename', label: '改名', value: result.value.stats.renames, filter: 'rename' },
       { key: 'warning', label: '警告', value: warningCount.value, filter: 'warning' },
     ]
+    if (q.degradedCount > 0) cards.push({ key: 'degraded', label: '降级', value: q.degradedCount, filter: 'warning' })
+    if (q.inlineDeferredCount > 0) cards.push({ key: 'deferred', label: '延后', value: q.inlineDeferredCount, filter: 'warning' })
+    return cards
   })
 
   async function executeDiff(): Promise<void> {

@@ -297,6 +297,35 @@ describe('useDiffWorkbench', () => {
     expect(workbench.result.value?.warnings).toContain('global-warning')
   })
 
+  it('adds degraded and deferred stats cards when quality counts are non-zero', () => {
+    const workbench = useDiffWorkbench('old', 'new')
+
+    workbench.result.value = {
+      ...makeEmptyResult(),
+      quality: { degradedCount: 3, inlineDeferredCount: 2, warningCount: 1 },
+    }
+
+    const degradedCard = workbench.statsCards.value.find((card) => card.key === 'degraded')
+    const deferredCard = workbench.statsCards.value.find((card) => card.key === 'deferred')
+
+    expect(degradedCard?.value).toBe(3)
+    expect(degradedCard?.label).toBe('降级')
+    expect(deferredCard?.value).toBe(2)
+    expect(deferredCard?.label).toBe('延后')
+  })
+
+  it('omits degraded and deferred cards when counts are zero', () => {
+    const workbench = useDiffWorkbench('old', 'new')
+
+    workbench.result.value = {
+      ...makeEmptyResult(),
+      quality: { degradedCount: 0, inlineDeferredCount: 0, warningCount: 0 },
+    }
+
+    expect(workbench.statsCards.value.find((card) => card.key === 'degraded')).toBeUndefined()
+    expect(workbench.statsCards.value.find((card) => card.key === 'deferred')).toBeUndefined()
+  })
+
   it('returns undefined peerHighlightKey when detail has no moveInfo', () => {
     const workbench = useDiffWorkbench('old', 'new')
 
