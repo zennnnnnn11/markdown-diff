@@ -19,6 +19,11 @@ import type { Block, Section } from '@/core/transformer'
 export type Tone = 'plain' | 'insert' | 'delete' | 'replace' | 'move' | 'meta' | 'rename' | 'reorder'
 export type HighlightFilter = Tone | 'warning'
 
+export interface MergedRow {
+  oldLine: ProjectionLine | null
+  newLine: ProjectionLine | null
+}
+
 export interface ProjectionSegment {
   text: string
   tone: Tone
@@ -255,6 +260,63 @@ function buildProjectionLinesFromMarkdown(
       warnings,
     }
   })
+}
+
+export function buildMergedRows(
+  oldMarkdown: string,
+  newMarkdown: string,
+  result: DiffResult,
+): MergedRow[] {
+  const oldLines = buildOldProjectionLines(oldMarkdown, result)
+  const newLines = buildProjectionLines(newMarkdown, result)
+
+  const oldTokens = oldLines.map((line) => line.changeKey ?? line.key)
+  const newTokens = newLines.map((line) => line.changeKey ?? line.key)
+
+  let oldIndex = 0
+  let newIndex = 0
+  const merged: MergedRow[] = []
+
+  while (oldIndex < oldLines.length || newIndex < newLines.length) {
+    if (oldIndex >= oldLines.length) {
+      merged.push({ oldLine: null, newLine: newLines[newIndex]! })
+      newIndex++
+      continue
+    }
+    if (newIndex >= newLines.length) {
+      merged.push({ oldLine: oldLines[oldIndex]!, newLine: null })
+      oldIndex++
+      continue
+    }
+
+    const oldKey = oldTokens[oldIndex]!
+    const newKey = newTokens[newIndex]!
+
+    if (oldKey === newKey) {
+      merged.push({ oldLine: oldLines[oldIndex]!, newLine: newLines[newIndex]! })
+      oldIndex++
+      newIndex++
+    } else if (hasFutureMatch(newKey, oldTokens, oldIndex)) {
+      merged.push({ oldLine: oldLines[oldIndex]!, newLine: null })
+      oldIndex++
+    } else if (hasFutureMatch(oldKey, newTokens, newIndex)) {
+      merged.push({ oldLine: null, newLine: newLines[newIndex]! })
+      newIndex++
+    } else {
+      merged.push({ oldLine: oldLines[oldIndex]!, newLine: newLines[newIndex]! })
+      oldIndex++
+      newIndex++
+    }
+  }
+
+  return merged
+}
+
+function hasFutureMatch(key: string, tokens: readonly string[], start: number): boolean {
+  for (let index = start + 1; index < tokens.length; index++) {
+    if (tokens[index] === key) return true
+  }
+  return false
 }
 
 export function buildDetailPanel(

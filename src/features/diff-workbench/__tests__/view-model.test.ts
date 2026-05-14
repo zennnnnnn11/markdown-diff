@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDebugSnapshot,
   buildDetailPanel,
+  buildMergedRows,
   buildOldProjectionLines,
   buildProjectionLines,
   flattenChanges,
@@ -1026,6 +1027,90 @@ describe('diff workbench view-model', () => {
 
     expect(listItem).toBeDefined()
     expect(listItem?.primaryOp === 'replace' || listItem?.status.selfChanged).toBe(true)
+  })
+
+  // ─── buildMergedRows ───
+
+  it('pairs equal content on both sides in merged rows', async () => {
+    const result = await runMarkdownDiff('# A\n\nB', '# A\n\nB')
+    const rows = buildMergedRows('# A\n\nB', '# A\n\nB', result)
+
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every((row) => row.oldLine !== null && row.newLine !== null)).toBe(true)
+    expect(rows.every((row) => row.oldLine?.text === row.newLine?.text)).toBe(true)
+  })
+
+  it('places old-only deleted content with null new side', async () => {
+    const result = await runMarkdownDiff('# A\n\nold', '# A')
+    const rows = buildMergedRows('# A\n\nold', '# A', result)
+    const deleteRows = rows.filter((row) => row.oldLine !== null && row.newLine === null)
+
+    expect(deleteRows.length).toBeGreaterThan(0)
+    expect(deleteRows.some((row) => row.oldLine?.baseTone === 'delete')).toBe(true)
+  })
+
+  it('places new-only inserted content with null old side', async () => {
+    const result = await runMarkdownDiff('# A', '# A\n\nnew')
+    const rows = buildMergedRows('# A', '# A\n\nnew', result)
+    const insertRows = rows.filter((row) => row.oldLine === null && row.newLine !== null)
+
+    expect(insertRows.length).toBeGreaterThan(0)
+    expect(insertRows.some((row) => row.newLine?.baseTone === 'insert')).toBe(true)
+  })
+
+  it('aligns matched changeKey rows across old and new', async () => {
+    const result = await runMarkdownDiff('# Title\n\nold para', '# Title\n\nnew para')
+    const rows = buildMergedRows('# Title\n\nold para', '# Title\n\nnew para', result)
+
+    const headingRow = rows.find((row) => row.oldLine?.text === '# Title')
+    expect(headingRow).toBeDefined()
+    expect(headingRow?.newLine?.text).toBe('# Title')
+  })
+
+  it('handles empty old document with only new content', async () => {
+    const result = await runMarkdownDiff('', '# New\n\ncontent')
+    const rows = buildMergedRows('', '# New\n\ncontent', result)
+
+    expect(rows.length).toBeGreaterThan(0)
+    const hasNewContent = rows.some((row) => row.newLine !== null && row.newLine.baseTone !== 'plain')
+    expect(hasNewContent).toBe(true)
+  })
+
+  it('handles fully deleted document', async () => {
+    const result = await runMarkdownDiff('# Gone', '')
+    const rows = buildMergedRows('# Gone', '', result)
+
+    expect(rows.length).toBeGreaterThan(0)
+    const hasDelete = rows.some((row) => row.oldLine !== null && row.oldLine.baseTone === 'delete')
+    expect(hasDelete).toBe(true)
+  })
+
+  it('preserves changeKey across merged rows for matched content', async () => {
+    const result = await runMarkdownDiff('# Title\n\nbody', '# Title\n\nbody')
+    const rows = buildMergedRows('# Title\n\nbody', '# Title\n\nbody', result)
+
+    const paired = rows.filter((row) => row.oldLine?.changeKey && row.newLine?.changeKey)
+    expect(paired.some((row) => row.oldLine?.changeKey === row.newLine?.changeKey)).toBe(true)
+  })
+
+  it('pairs same changeKey spanning multiple lines correctly', async () => {
+    const result = await runMarkdownDiff(
+      '# Title\n\nline one\nline two',
+      '# Title\n\nline one\nline three',
+    )
+    const rows = buildMergedRows('# Title\n\nline one\nline two', '# Title\n\nline one\nline three', result)
+    const replaced = rows.filter(
+      (row) => row.oldLine?.baseTone === 'replace' || row.newLine?.baseTone === 'replace',
+    )
+
+    expect(replaced.length).toBeGreaterThan(0)
+  })
+
+  it('produces no row with both sides null', async () => {
+    const result = await runMarkdownDiff('# A\n\ndel\n\n# B', '# A\n\n# B\n\nins')
+    const rows = buildMergedRows('# A\n\ndel\n\n# B', '# A\n\n# B\n\nins', result)
+
+    expect(rows.every((row) => row.oldLine !== null || row.newLine !== null)).toBe(true)
   })
 
   it('includes quality, global warnings, and fallback markers in debug snapshots', async () => {
