@@ -48,8 +48,20 @@ describe('diff workbench view-model', () => {
     expect(lines[0]?.matchedTones).toContain('rename')
     expect(detail?.oldTitle).toBe('Old Name')
     expect(detail?.newTitle).toBe('New Name')
-    expect(detail?.newTitleSegments?.[0]).toEqual({ text: '# ', tone: 'plain' })
     expect(detail?.newTitleSegments?.some((segment) => segment.tone === 'rename')).toBe(true)
+    expect(detail?.newTitleSegments?.map((segment) => segment.text).join('')).toBe('New Name')
+  })
+
+  it('strips heading prefix from title segments for all heading depths', async () => {
+    const result = await runMarkdownDiff('### Old\n\nBody', '### New\n\nBody')
+    const headingChange = flattenChanges(result.root).find((change) => change.kind === 'heading' && change.status.renamed)
+    const detail = buildDetailPanel(headingChange)
+
+    expect(detail?.oldTitle).toBe('Old')
+    expect(detail?.newTitle).toBe('New')
+    expect(detail?.newTitleSegments?.map((segment) => segment.text).join('')).toBe('New')
+    // No heading prefix (#, ##, ###) should leak into the title segments
+    expect(detail?.newTitleSegments?.every((segment) => !/^#+ $/.test(segment.text))).toBe(true)
   })
 
   it('projects frontmatter metadata updates back to source lines', async () => {

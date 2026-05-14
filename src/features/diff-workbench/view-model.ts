@@ -240,6 +240,7 @@ export function buildDetailPanel(
   const isHeadingRename = change.status.renamed && change.kind === 'heading'
   const oldSection = isHeadingRename && change.oldNode && isSectionNode(change.oldNode) ? change.oldNode : undefined
   const newSection = isHeadingRename && change.newNode && isSectionNode(change.newNode) ? change.newNode : undefined
+  const rawTitleSegments = isHeadingRename ? buildSideInlineSegments(change, 'new') : undefined
 
   return {
     heading: `${entityLabel(change)} · ${operationLabel(change)}`,
@@ -252,7 +253,7 @@ export function buildDetailPanel(
     newContent: buildNewContent(change),
     oldTitle: oldSection?.title,
     newTitle: newSection?.title,
-    newTitleSegments: isHeadingRename ? buildSideInlineSegments(change, 'new') : undefined,
+    newTitleSegments: stripHeadingPrefix(rawTitleSegments),
     newInlineSegments: isHeadingRename ? undefined : buildSideInlineSegments(change, 'new'),
     highlightTone,
     newHighlightedLines: buildHighlightedNewLines(change, highlightTone),
@@ -375,6 +376,18 @@ function buildSideInlineSegments(
 
   const merged = mergeAdjacentSegments(segments)
   return merged.length > 0 ? merged : undefined
+}
+
+function stripHeadingPrefix(
+  segments: ProjectionSegment[] | undefined,
+): ProjectionSegment[] | undefined {
+  if (!segments?.length) return segments
+  const first = segments[0]
+  if (!first) return segments
+  if (first.tone === 'plain' && /^#+ $/.test(first.text)) {
+    return segments.length === 1 ? undefined : segments.slice(1)
+  }
+  return segments
 }
 
 function buildCodeLineDetails(codeSpans?: LineDiffSpan[]): DetailPanelModel['codeLines'] {
