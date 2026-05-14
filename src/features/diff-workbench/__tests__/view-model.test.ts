@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildDebugSnapshot,
   buildDetailPanel,
+  buildOldProjectionLines,
   buildProjectionLines,
   flattenChanges,
   lineMatchesFilter,
@@ -625,6 +626,92 @@ describe('diff workbench view-model', () => {
 
     expect(insertedLines.length).toBeGreaterThan(0)
     expect(insertedLines.every((line) => line.pairKind === undefined)).toBe(true)
+  })
+
+  // ─── buildOldProjectionLines ───
+
+  it('projects old document equal lines as plain', async () => {
+    const result = await runMarkdownDiff('# Title\n\nBody', '# Title\n\nBody')
+    const oldLines = buildOldProjectionLines('# Title\n\nBody', result)
+
+    expect(oldLines[0]?.text).toBe('# Title')
+    expect(oldLines[0]?.baseTone).toBe('plain')
+  })
+
+  it('projects old document deleted content with delete tone', async () => {
+    const result = await runMarkdownDiff('# Removed\n\nold paragraph', '# Title')
+    const oldLines = buildOldProjectionLines('# Removed\n\nold paragraph', result)
+    const deletedLine = oldLines.find((line) => line.baseTone === 'delete')
+
+    expect(deletedLine).toBeDefined()
+    expect(deletedLine?.pairKind).toBeUndefined()
+  })
+
+  it('projects old document replaced content with replace tone', async () => {
+    const result = await runMarkdownDiff('# Title\n\nold text', '# Title\n\nnew text')
+    const oldLines = buildOldProjectionLines('# Title\n\nold text', result)
+    const oldReplaceLine = oldLines.find((line) => line.baseTone === 'replace')
+
+    expect(oldReplaceLine).toBeDefined()
+    expect(oldReplaceLine?.pairKind).toBe('align')
+  })
+
+  it('projects old document frontmatter metadata change with meta tone', async () => {
+    const result = await runMarkdownDiff(
+      '---\nversion: 1.0\n---',
+      '---\nversion: 2.0\n---',
+    )
+    const oldLines = buildOldProjectionLines('---\nversion: 1.0\n---', result)
+    const metaLine = oldLines.find((line) => line.baseTone === 'meta')
+
+    expect(metaLine).toBeDefined()
+    expect(metaLine?.changeKeys.length).toBeGreaterThan(0)
+  })
+
+  it('excludes inserted content from old document projection', async () => {
+    const result = await runMarkdownDiff('# Title', '# Title\n\nnew paragraph')
+    const oldLines = buildOldProjectionLines('# Title', result)
+
+    expect(oldLines.every((line) => line.baseTone !== 'insert')).toBe(true)
+    expect(oldLines.length).toBeGreaterThan(0)
+  })
+
+  it('projects move-source in old document with move tone and match pairKind', async () => {
+    const result = await runMarkdownDiff(
+      '# Section A\n\ncontent A\n\n# Section B\n\ncontent B',
+      '# Section B\n\ncontent B\n\n# Section A\n\ncontent A',
+    )
+    const allChanges = flattenChanges(result.root)
+    const moveSource = allChanges.find(
+      (change) => change.primaryOp === 'move' && change.moveRole === 'source',
+    )
+
+    if (!moveSource) return
+
+    const oldLines = buildOldProjectionLines(
+      '# Section A\n\ncontent A\n\n# Section B\n\ncontent B',
+      result,
+    )
+    const movedOldLine = oldLines.find((line) => line.baseTone === 'move')
+
+    expect(movedOldLine).toBeDefined()
+    expect(movedOldLine?.pairKind).toBe('match')
+  })
+
+  it('handles empty old document gracefully', async () => {
+    const result = await runMarkdownDiff('', '# New\n\ncontent')
+    const oldLines = buildOldProjectionLines('', result)
+
+    expect(oldLines.length).toBeLessThanOrEqual(1)
+  })
+
+  it('produces symmetric plain projection for unchanged documents', async () => {
+    const result = await runMarkdownDiff('# A\n\nB', '# A\n\nB')
+    const newLines = buildProjectionLines('# A\n\nB', result)
+    const oldLines = buildOldProjectionLines('# A\n\nB', result)
+
+    expect(newLines.map((line) => line.baseTone)).toEqual(oldLines.map((line) => line.baseTone))
+    expect(newLines.every((line) => line.baseTone === 'plain')).toBe(true)
   })
 
   it('includes quality, global warnings, and fallback markers in debug snapshots', async () => {

@@ -189,14 +189,28 @@ export function getChangeReference(change: DiffChange): string {
 }
 
 export function buildProjectionLines(newMarkdown: string, result: DiffResult): ProjectionLine[] {
-  const lines = newMarkdown.split(/\r?\n/)
+  return buildProjectionLinesFromMarkdown(newMarkdown, result, getProjectionRange)
+}
+
+export function buildOldProjectionLines(oldMarkdown: string, result: DiffResult): ProjectionLine[] {
+  return buildProjectionLinesFromMarkdown(oldMarkdown, result, getOldProjectionRange)
+}
+
+type RangeLookup = (change: DiffChange, result: DiffResult) => SourceRange | undefined
+
+function buildProjectionLinesFromMarkdown(
+  markdown: string,
+  result: DiffResult,
+  getRange: RangeLookup,
+): ProjectionLine[] {
+  const lines = markdown.split(/\r?\n/)
   const changes = flattenChanges(result.root)
 
   return lines.map((text, index) => {
     const lineNumber = index + 1
     const matched = changes
       .map((change) => {
-        const range = getProjectionRange(change, result)
+        const range = getRange(change, result)
         if (!range?.start?.line || !range?.end?.line) return undefined
         if (lineNumber < range.start.line || lineNumber > range.end.line) return undefined
         return {
@@ -530,19 +544,28 @@ function tonesForChange(change: DiffChange): Tone[] {
 function getProjectionRange(change: DiffChange, result: DiffResult): SourceRange | undefined {
   if (change.newId) {
     const newNode = result.newIndex.byId.get(change.newId)
-    if (newNode?.sourceRange) return narrowSectionRange(change, newNode.sourceRange)
+    if (newNode?.sourceRange) return narrowSectionRange(change, newNode.sourceRange, change.newNode)
   }
 
   return undefined
 }
 
-function narrowSectionRange(change: DiffChange, sourceRange: SourceRange): SourceRange {
-  const headingRange = getHeadingRange(change.newNode)
+function narrowSectionRange(change: DiffChange, sourceRange: SourceRange, node?: Section | Block): SourceRange {
+  const headingRange = getHeadingRange(node)
   if (!headingRange) return sourceRange
 
   if (change.status.renamed) return headingRange
   if (change.primaryOp === 'meta-update' && change.entity === 'section') return headingRange
   return sourceRange
+}
+
+function getOldProjectionRange(change: DiffChange, result: DiffResult): SourceRange | undefined {
+  if (change.oldId) {
+    const oldNode = result.oldIndex.byId.get(change.oldId)
+    if (oldNode?.sourceRange) return narrowSectionRange(change, oldNode.sourceRange, change.oldNode)
+  }
+
+  return undefined
 }
 
 function getHeadingRange(node: Section | Block | undefined): SourceRange | undefined {

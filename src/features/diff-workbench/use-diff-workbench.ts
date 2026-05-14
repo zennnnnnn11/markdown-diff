@@ -7,6 +7,7 @@ import type { HighlightFilter, ProjectionLine } from './view-model'
 import {
   buildDebugSnapshot,
   buildDetailPanel,
+  buildOldProjectionLines,
   buildProjectionLines,
   flattenChanges,
   getChangeReference,
@@ -31,6 +32,15 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
   const projectionLines = computed<ProjectionLine[]>(() =>
     result.value ? buildProjectionLines(newMarkdown.value, result.value) : buildEmptyLines(newMarkdown.value),
   )
+  const oldProjectionLines = computed<ProjectionLine[]>(() =>
+    result.value ? buildOldProjectionLines(oldMarkdown.value, result.value) : buildEmptyLines(oldMarkdown.value),
+  )
+  const peerSide = computed<'old' | 'new' | undefined>(() => {
+    const role = detail.value?.moveInfo?.role
+    if (role === 'source') return 'new'
+    if (role === 'target') return 'old'
+    return undefined
+  })
   const selectedChange = computed(() =>
     selectedChangeKey.value ? changeByKey.value.get(selectedChangeKey.value) : undefined,
   )
@@ -109,11 +119,13 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     selectedChangeKey,
     result,
     projectionLines,
+    oldProjectionLines,
     detail,
     debugSnapshot,
     canRun,
     statsCards,
     peerHighlightKey,
+    peerSide,
     executeDiff,
     clearEditor,
     selectLine,

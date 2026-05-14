@@ -1,33 +1,47 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { HighlightFilter, ProjectionLine, Tone } from '../view-model'
 import { lineMatchesFilter } from '../view-model'
 
-defineProps<{
+const props = defineProps<{
   projectionLines: ProjectionLine[]
   activeFilter: HighlightFilter | null
   peerHighlightKey?: string
+  side: 'old' | 'new'
 }>()
 
 const emit = defineEmits<{
-  select: [changeKey?: string]
+  (e: 'select', changeKey: string | undefined, side: 'old' | 'new'): void
 }>()
+
+const label = computed(() => (props.side === 'old' ? '旧文档源码投射' : '新文档源码投射'))
+const description = computed(() =>
+  props.side === 'old'
+    ? '按旧文档逐行投射变更，删除/移出/修改的行在此可见。'
+    : '按新文档逐行投射变更，并在可行时展示 inline 级别高亮。',
+)
 
 function lineClassName(baseTone: Tone): string {
   return `tone-${baseTone}`
+}
+
+function rowId(line: ProjectionLine): string {
+  return `${props.side}:${line.key}`
 }
 </script>
 
 <template>
   <section class="panel">
     <div class="panel-header">
-      <h2>源码投射</h2>
-      <p>按新文档逐行投射变更，并在可行时展示 inline 级别高亮。</p>
+      <h2>{{ label }}</h2>
+      <p>{{ description }}</p>
     </div>
 
-    <div class="projection-table" role="table" aria-label="源码投射">
+    <div class="projection-table" role="table" :aria-label="label">
       <component
         :is="line.changeKey ? 'button' : 'div'"
         v-for="line in projectionLines"
+        :id="rowId(line)"
         :key="line.key"
         class="projection-row"
         :class="[
@@ -42,7 +56,7 @@ function lineClassName(baseTone: Tone): string {
         ]"
         :type="line.changeKey ? 'button' : undefined"
         role="row"
-        @click="emit('select', line.changeKey)"
+        @click="emit('select', line.changeKey, side)"
       >
         <div class="gutter" role="cell">
           <span class="line-number">{{ line.lineNumber }}</span>
@@ -80,7 +94,8 @@ function lineClassName(baseTone: Tone): string {
 .projection-table {
   border: 1px solid #d0d7de;
   border-radius: 6px;
-  overflow: hidden;
+  overflow-y: auto;
+  max-height: 70vh;
   font-family: ui-monospace, monospace;
 }
 

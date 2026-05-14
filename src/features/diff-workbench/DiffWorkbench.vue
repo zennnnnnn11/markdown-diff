@@ -24,6 +24,7 @@ const showDebug = computed(() => workbench.showDebug.value)
 const resultVisible = computed(() => !!workbench.result.value)
 const statsCards = computed(() => workbench.statsCards.value)
 const projectionLines = computed(() => workbench.projectionLines.value)
+const oldProjectionLines = computed(() => workbench.oldProjectionLines.value)
 const activeFilter = computed(() => workbench.activeFilter.value)
 const detail = computed(() => workbench.detail.value)
 const peerHighlightKey = computed(() => workbench.peerHighlightKey.value)
@@ -48,6 +49,10 @@ function toggleDebug(): void {
 
 function setHighlight(filter: HighlightFilter | null): void {
   workbench.activeFilter.value = filter
+}
+
+function selectLine(changeKey?: string, side?: 'old' | 'new'): void {
+  workbench.selectLine(changeKey)
 }
 </script>
 
@@ -81,12 +86,22 @@ function setHighlight(filter: HighlightFilter | null): void {
       @highlight="setHighlight"
     />
 
-    <DiffProjectionTable
-      :projection-lines="projectionLines"
-      :active-filter="activeFilter"
-      :peer-highlight-key="peerHighlightKey"
-      @select="workbench.selectLine"
-    />
+    <div v-if="resultVisible" class="projection-grid">
+      <DiffProjectionTable
+        :projection-lines="oldProjectionLines"
+        :active-filter="activeFilter"
+        :peer-highlight-key="peerHighlightKey"
+        side="old"
+        @select="selectLine"
+      />
+      <DiffProjectionTable
+        :projection-lines="projectionLines"
+        :active-filter="activeFilter"
+        :peer-highlight-key="peerHighlightKey"
+        side="new"
+        @select="selectLine"
+      />
+    </div>
 
     <DiffDetailModal :detail="detail" @close="workbench.closeDetail" />
 
@@ -120,11 +135,23 @@ function setHighlight(filter: HighlightFilter | null): void {
   gap: 12px;
 }
 
+.projection-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .secondary-button {
   border: 1px solid #c4cbd3;
   border-radius: 6px;
   background: #f6f8fa;
   padding: 8px 12px;
   cursor: pointer;
+}
+
+@media (max-width: 1200px) {
+  .projection-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

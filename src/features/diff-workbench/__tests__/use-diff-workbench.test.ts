@@ -131,6 +131,129 @@ describe('useDiffWorkbench', () => {
     expect(workbench.peerHighlightKey.value).toBe('match:s1:s2')
   })
 
+  it('builds empty old projection lines when no result', () => {
+    const workbench = useDiffWorkbench('old line 1\nold line 2', '')
+
+    const lines = workbench.oldProjectionLines.value
+
+    expect(lines).toHaveLength(2)
+    expect(lines[0]?.text).toBe('old line 1')
+    expect(lines[0]?.pairKind).toBeUndefined()
+    expect(lines[0]?.baseTone).toBe('plain')
+    expect(lines[1]?.text).toBe('old line 2')
+  })
+
+  it('returns peerSide new when moveInfo role is source', () => {
+    const workbench = useDiffWorkbench('old', 'new')
+
+    const movePeerKey = 'move:ps1:ps2'
+    const sourceKey = 'match:ps1:ps1'
+    const sourceChange: any = {
+      entity: 'section', kind: 'heading', primaryOp: 'move',
+      moveRole: 'source', movePeerKey, logicalMoveId: movePeerKey,
+      pairKey: sourceKey, oldId: 'ps1',
+      oldNode: { kind: 'heading', title: 'Src', headingDepth: 2, items: [] },
+      pairKind: 'match',
+      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
+      summary: 'src', children: [], warnings: [],
+    }
+    const targetChange: any = {
+      entity: 'section', kind: 'heading', primaryOp: 'move',
+      moveRole: 'target', movePeerKey, logicalMoveId: movePeerKey,
+      pairKey: 'match:ps2:ps2', newId: 'ps2',
+      newNode: { kind: 'heading', title: 'Tgt', headingDepth: 2, items: [] },
+      pairKind: 'match',
+      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
+      summary: 'tgt', children: [], warnings: [],
+    }
+
+    workbench.result.value = {
+      ...makeEmptyResult(),
+      root: { ...makeEmptyResult().root, children: [sourceChange, targetChange] },
+      changeIndex: {
+        byOldId: new Map([['ps1', sourceChange]]),
+        byNewId: new Map([['ps2', targetChange]]),
+        byPairKey: new Map([[sourceKey, sourceChange]]),
+      },
+      newIndex: {
+        ...makeEmptyIndex(),
+        byId: new Map([['ps2', { sourceRange: { start: { line: 5 }, end: { line: 7 } } }]]),
+      },
+    }
+
+    workbench.selectLine(sourceKey)
+
+    expect(workbench.peerSide.value).toBe('new')
+  })
+
+  it('returns peerSide old when moveInfo role is target', () => {
+    const workbench = useDiffWorkbench('old', 'new')
+
+    const movePeerKey = 'move:pt1:pt2'
+    const targetKey = 'match:pt2:pt2'
+    const sourceChange: any = {
+      entity: 'section', kind: 'heading', primaryOp: 'move',
+      moveRole: 'source', movePeerKey, logicalMoveId: movePeerKey,
+      pairKey: 'match:pt1:pt1', oldId: 'pt1',
+      oldNode: { kind: 'heading', title: 'Src', headingDepth: 2, items: [] },
+      pairKind: 'match',
+      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
+      summary: 'src', children: [], warnings: [],
+    }
+    const targetChange: any = {
+      entity: 'section', kind: 'heading', primaryOp: 'move',
+      moveRole: 'target', movePeerKey, logicalMoveId: movePeerKey,
+      pairKey: targetKey, newId: 'pt2',
+      newNode: { kind: 'heading', title: 'Tgt', headingDepth: 2, items: [] },
+      pairKind: 'match',
+      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
+      summary: 'tgt', children: [], warnings: [],
+    }
+
+    workbench.result.value = {
+      ...makeEmptyResult(),
+      root: { ...makeEmptyResult().root, children: [sourceChange, targetChange] },
+      changeIndex: {
+        byOldId: new Map([['pt1', sourceChange]]),
+        byNewId: new Map([['pt2', targetChange]]),
+        byPairKey: new Map([[targetKey, targetChange]]),
+      },
+      newIndex: {
+        ...makeEmptyIndex(),
+        byId: new Map([['pt2', { sourceRange: { start: { line: 8 }, end: { line: 10 } } }]]),
+      },
+    }
+
+    workbench.selectLine(targetKey)
+
+    expect(workbench.peerSide.value).toBe('old')
+  })
+
+  it('returns undefined peerSide for non-move changes', () => {
+    const workbench = useDiffWorkbench('old', 'new')
+
+    const equalChange: any = {
+      entity: 'section', kind: 'heading', primaryOp: 'equal',
+      pairKey: 'match:e1:e2', oldId: 'e1', newId: 'e2',
+      oldNode: { kind: 'heading', title: 'Same', headingDepth: 1, items: [] },
+      newNode: { kind: 'heading', title: 'Same', headingDepth: 1, items: [] },
+      pairKind: 'match',
+      matchKind: 'exact-self',
+      score: 1,
+      status: { isMatchPair: true, isAlignedPair: false, moved: false, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
+      summary: 'equal', children: [], warnings: [],
+    }
+
+    workbench.result.value = {
+      ...makeEmptyResult(),
+      root: { ...makeEmptyResult().root, children: [equalChange] },
+    }
+
+    workbench.selectLine('match:e1:e2')
+
+    expect(workbench.peerSide.value).toBeUndefined()
+  })
+
   it('returns undefined peerHighlightKey when detail has no moveInfo', () => {
     const workbench = useDiffWorkbench('old', 'new')
 
