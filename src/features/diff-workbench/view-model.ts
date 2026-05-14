@@ -34,6 +34,7 @@ export interface ProjectionLine {
   segments?: ProjectionSegment[]
   changeKey?: string
   pairKind?: PairKind
+  hasDescendantChange?: boolean
   warnings: string[]
 }
 
@@ -242,6 +243,8 @@ function buildProjectionLinesFromMarkdown(
       segments: dominant ? buildProjectionSegments(text, dominant.change, baseTone) : undefined,
       changeKey: dominant ? getChangeReference(dominant.change) : undefined,
       pairKind: dominant?.change.pairKind,
+      hasDescendantChange:
+        dominant?.change.status.descendantChanged && !dominant?.change.status.selfChanged,
       warnings,
     }
   })

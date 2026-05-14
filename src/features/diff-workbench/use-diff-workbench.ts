@@ -142,6 +142,7 @@ function buildEmptyLines(markdown: string): ProjectionLine[] {
     matchedTones: [],
     changeKeys: [],
     pairKind: undefined,
+    hasDescendantChange: false,
     warnings: [],
   }))
 }

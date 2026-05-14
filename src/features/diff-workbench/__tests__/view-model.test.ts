@@ -683,6 +683,38 @@ describe('diff workbench view-model', () => {
     expect(toneLabels.reorder).toBe('重排')
   })
 
+  // ─── descendantChanged ───
+
+  it('marks heading line with descendant change when child content differs', async () => {
+    const result = await runMarkdownDiff(
+      '# Title\n\nold paragraph',
+      '# Title\n\nnew paragraph',
+    )
+    const lines = buildProjectionLines('# Title\n\nnew paragraph', result)
+    const headingLine = lines[0]
+
+    expect(headingLine?.baseTone).toBe('plain')
+    expect(headingLine?.hasDescendantChange).toBe(true)
+  })
+
+  it('omits descendant flag when heading and children are unchanged', async () => {
+    const result = await runMarkdownDiff('# Title\n\nsame', '# Title\n\nsame')
+    const lines = buildProjectionLines('# Title\n\nsame', result)
+    const headingLine = lines[0]
+
+    expect(headingLine?.baseTone).toBe('plain')
+    expect(headingLine?.hasDescendantChange).toBe(false)
+  })
+
+  it('omits descendant flag for non-section block changes', async () => {
+    const result = await runMarkdownDiff('# Title\n\nold', '# Title\n\nnew')
+    const lines = buildProjectionLines('# Title\n\nnew', result)
+    const paragraphLine = lines.find((line) => line.text === 'new')
+
+    expect(paragraphLine?.baseTone).toBe('replace')
+    expect(paragraphLine?.hasDescendantChange).toBe(false)
+  })
+
   // ─── buildOldProjectionLines ───
 
   it('projects old document equal lines as plain', async () => {

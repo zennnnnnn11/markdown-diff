@@ -61,6 +61,7 @@ function rowId(line: ProjectionLine): string {
         <div class="gutter" role="cell">
           <span class="line-number">{{ line.lineNumber }}</span>
           <span class="gutter-badges">
+            <span v-if="line.hasDescendantChange && line.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
             <span v-if="line.changeKeys.length > 1" class="overlap-flag" :title="`该行命中 ${line.changeKeys.length} 个变更`">
               +{{ line.changeKeys.length - 1 }}
             </span>
@@ -147,6 +148,11 @@ function rowId(line: ProjectionLine): string {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.descendant-flag {
+  color: #656d76;
+  font-size: 12px;
 }
 
 .warning-flag {
