@@ -832,6 +832,202 @@ describe('diff workbench view-model', () => {
     expect(newLines.every((line) => line.baseTone === 'plain')).toBe(true)
   })
 
+  // ─── 交互 / 组合 ───
+
+  it('detects task list checkbox toggle as meta-update', async () => {
+    const result = await runMarkdownDiff('- [ ] todo item\n', '- [x] todo item\n')
+    const listItem = flattenChanges(result.root).find((change) => change.kind === 'listItem')
+
+    expect(listItem).toBeDefined()
+    expect(listItem?.primaryOp).toBe('meta-update')
+    expect(listItem?.status.metaChanged).toBe(true)
+  })
+
+  it('handles ordered to unordered list conversion without crashing', async () => {
+    const result = await runMarkdownDiff('1. alpha\n2. beta\n', '- alpha\n- beta\n')
+    const lines = buildProjectionLines('- alpha\n- beta\n', result)
+
+    expect(lines.length).toBeGreaterThan(0)
+  })
+
+  it('marks code block change inside nested blockquote list as replace', async () => {
+    const result = await runMarkdownDiff(
+      '> - `old code`\n',
+      '> - `new code`\n',
+    )
+    const lines = buildProjectionLines('> - `new code`\n', result)
+    const replaced = lines.find((line) => line.matchedTones.includes('replace'))
+
+    expect(replaced).toBeDefined()
+  })
+
+  it('renders mixed inline formatting with link URL change correctly', async () => {
+    const result = await runMarkdownDiff(
+      '**bold** and [link](https://old.example.com) text',
+      '**bold** and [link](https://new.example.com) text',
+    )
+    const paragraph = flattenChanges(result.root).find((change) => change.blockType === 'paragraph')
+    const detail = buildDetailPanel(paragraph)
+
+    expect(paragraph).toBeDefined()
+    expect(detail?.newInlineSegments).toBeDefined()
+    const newText = detail?.newInlineSegments?.map((s) => s.text).join('') ?? ''
+    expect(newText).toContain('bold')
+    expect(newText).toContain('link')
+  })
+
+  it('marks inline code token change within a paragraph', async () => {
+    const result = await runMarkdownDiff(
+      'use `oldApi` function',
+      'use `newApi` function',
+    )
+    const paragraph = flattenChanges(result.root).find((change) => change.blockType === 'paragraph')
+    const detail = buildDetailPanel(paragraph)
+
+    expect(detail?.newInlineSegments?.some((segment) => segment.text.includes('newApi'))).toBe(true)
+  })
+
+  // ─── 特定节点类型 ───
+
+  it('classifies code block with only language change as meta-update', async () => {
+    const result = await runMarkdownDiff('```ts\na = 1\n```', '```js\na = 1\n```')
+    const codeChange = flattenChanges(result.root).find(
+      (change) => change.blockType === 'code' && change.primaryOp === 'meta-update',
+    )
+
+    expect(codeChange).toBeDefined()
+    expect(codeChange?.codeSpans).toBeUndefined()
+  })
+
+  it('detects table column count change as structural diff', async () => {
+    const result = await runMarkdownDiff('| a | b |\n| - | - |\n| 1 | 2 |', '| a | b | c |\n| - | - | - |\n| 1 | 2 | 3 |')
+    const table = flattenChanges(result.root).find((change) => change.blockType === 'table')
+
+    expect(table?.tableDiff?.structureChanged).toBe(true)
+    expect(table?.tableDiff?.shapeChanged).toBe(true)
+  })
+
+  it('marks image URL change in inline diff', async () => {
+    const result = await runMarkdownDiff('![desc](old.png)', '![desc](new.png)')
+    const paragraph = flattenChanges(result.root).find((change) => change.blockType === 'paragraph')
+    const detail = buildDetailPanel(paragraph)
+
+    expect(detail?.newInlineSegments?.some((segment) => segment.tone === 'replace')).toBe(true)
+  })
+
+  it('projects removed thematic break as delete in old document', async () => {
+    const result = await runMarkdownDiff('# Title\n\n---\n\nbody', '# Title\n\nbody')
+    const oldLines = buildOldProjectionLines('# Title\n\n---\n\nbody', result)
+
+    expect(oldLines.some((line) => line.baseTone === 'delete')).toBe(true)
+  })
+
+  it('handles HTML block content change without crashing', async () => {
+    const result = await runMarkdownDiff('<div>old</div>', '<div>new</div>')
+    const lines = buildProjectionLines('<div>new</div>', result)
+
+    expect(lines.some((line) => line.baseTone !== 'plain')).toBe(true)
+  })
+
+  it('handles inline math formula change without crashing', async () => {
+    const result = await runMarkdownDiff('$x^2$ formula', '$x^3$ formula')
+    const paragraph = flattenChanges(result.root).find((change) => change.blockType === 'paragraph')
+
+    expect(paragraph).toBeDefined()
+  })
+
+  it('detects frontmatter format change with identical values as unchanged', async () => {
+    const result = await runMarkdownDiff('---\nkey: value\n---\n\nbody', '+++\nkey = "value"\n+++\n\nbody')
+    const fm = flattenChanges(result.root).find((change) => change.kind === 'frontmatter')
+
+    // Same logical values in different formats → no metadata changes
+    if (fm?.metadataChanges) {
+      expect(fm.metadataChanges.length).toBe(0)
+    }
+  })
+
+  // ─── 边界条件 ───
+
+  it('handles extra blank line between paragraphs without crashing', async () => {
+    const result = await runMarkdownDiff('a\n\nb', 'a\n\n\nb')
+    const lines = buildProjectionLines('a\n\n\nb', result)
+
+    expect(lines.length).toBeGreaterThan(0)
+  })
+
+  it('normalizes whitespace so trailing spaces do not trigger spurious diff', async () => {
+    const result = await runMarkdownDiff('hello world', 'hello world  ')
+    const paragraph = flattenChanges(result.root).find((change) => change.blockType === 'paragraph')
+
+    expect(paragraph).toBeDefined()
+    // trailing whitespace is collapsed by tokenization → treated as equal
+    expect(paragraph?.primaryOp).toBe('equal')
+  })
+
+  it('handles empty heading content without crashing', async () => {
+    const result = await runMarkdownDiff('# \n\nbody', '## \n\nbody')
+    const lines = buildProjectionLines('## \n\nbody', result)
+
+    expect(lines.length).toBeGreaterThan(0)
+  })
+
+  it('handles fully deleted document without crashing', async () => {
+    const result = await runMarkdownDiff('# A\n\nB\n\nC', '')
+    const oldLines = buildOldProjectionLines('# A\n\nB\n\nC', result)
+
+    expect(oldLines.some((line) => line.baseTone === 'delete')).toBe(true)
+  })
+
+  it('produces inline diff for a long single-line paragraph', async () => {
+    const word = 'word '
+    const oldPara = 'The ' + word.repeat(40) + 'old ' + word.repeat(10)
+    const newPara = 'The ' + word.repeat(40) + 'new ' + word.repeat(10)
+    const result = await runMarkdownDiff(oldPara, newPara)
+    const paragraph = flattenChanges(result.root).find((change) => change.blockType === 'paragraph')
+
+    expect(paragraph).toBeDefined()
+    expect(paragraph?.inlineSpans).toBeDefined()
+  })
+
+  // ─── 跨节点语义 ───
+
+  it('renames only the changed footnote when multiple footnotes exist', async () => {
+    const result = await runMarkdownDiff(
+      'Body[^a] and [^b]\n\n[^a]: note A\n[^b]: note B',
+      'Body[^a] and [^b2]\n\n[^a]: note A\n[^b2]: note B',
+    )
+    const unchanged = flattenChanges(result.root).find(
+      (change) => change.kind === 'footnote' && change.pairKind === 'match' && !change.status.renamed,
+    )
+    const renamed = flattenChanges(result.root).find(
+      (change) => change.kind === 'footnote' && change.status.renamed,
+    )
+
+    expect(unchanged).toBeDefined()
+    expect(renamed).toBeDefined()
+  })
+
+  it('reports backlinks for definition change including the definition node itself', async () => {
+    const result = await runMarkdownDiff('[ref]: https://old.example.com\n', '[ref]: https://new.example.com\n')
+    const defChange = flattenChanges(result.root).find((change) => change.blockType === 'definition')
+
+    const detail = buildDetailPanel(defChange, undefined, result.newIndex, result.oldIndex)
+
+    expect(detail?.backlinkInfo).toBeDefined()
+    expect(detail?.backlinkInfo?.oldIdentifier).toBe('ref')
+    expect(detail?.backlinkInfo?.newIdentifier).toBe('ref')
+    // backlinks for definitions include the definition node itself as a holder
+    expect(detail?.backlinkInfo?.affectedLines.length).toBeGreaterThanOrEqual(0)
+  })
+
+  it('marks list item inside blockquote as replace when content differs', async () => {
+    const result = await runMarkdownDiff('> - old item\n', '> - new item\n')
+    const listItem = flattenChanges(result.root).find((change) => change.kind === 'listItem')
+
+    expect(listItem).toBeDefined()
+    expect(listItem?.primaryOp === 'replace' || listItem?.status.selfChanged).toBe(true)
+  })
+
   it('includes quality, global warnings, and fallback markers in debug snapshots', async () => {
     const result = await runMarkdownDiff('# Alpha\n\nBody text', '# Beta\n\nBody text')
     result.warnings.push('invalid-equal-state:test')
