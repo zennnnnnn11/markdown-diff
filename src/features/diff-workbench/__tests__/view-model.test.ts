@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildDetailPanel, buildProjectionLines, flattenChanges, runMarkdownDiff } from '../view-model'
+import {
+  buildDebugSnapshot,
+  buildDetailPanel,
+  buildProjectionLines,
+  flattenChanges,
+  lineMatchesFilter,
+  runMarkdownDiff,
+} from '../view-model'
 
 describe('diff workbench view-model', () => {
   it('projects paragraph replacements into line tones and inline segments', async () => {
@@ -12,8 +19,22 @@ describe('diff workbench view-model', () => {
 
     expect(paragraphLine).toBeDefined()
     expect(paragraphLine?.baseTone).toBe('replace')
-    expect(detail?.inlineSegments?.some((segment) => segment.tone === 'replace')).toBe(true)
-    expect(detail?.inlineSegments?.map((segment) => segment.text).join('')).toContain('hello')
+    expect(detail?.newInlineSegments?.some((segment) => segment.tone === 'replace')).toBe(true)
+    expect(detail?.newInlineSegments?.map((segment) => segment.text).join('')).toContain('new')
+  })
+
+  it('preserves original spacing and casing when rendering new-side inline highlights', async () => {
+    const result = await runMarkdownDiff(
+      'The default configuration favors conservative matching.',
+      'The default configuration favors balanced matching.',
+    )
+    const paragraphChange = flattenChanges(result.root).find((change) => change.blockType === 'paragraph')
+    const detail = buildDetailPanel(paragraphChange)
+
+    expect(detail?.newInlineSegments?.map((segment) => segment.text).join('')).toBe(
+      'The default configuration favors balanced matching.',
+    )
+    expect(detail?.newInlineSegments?.some((segment) => segment.text === ' balanced' || segment.text === 'balanced')).toBe(true)
   })
 
   it('projects heading renames as rename tone and exposes detail metadata', async () => {
@@ -24,8 +45,8 @@ describe('diff workbench view-model', () => {
 
     expect(lines[0]?.baseTone).toBe('rename')
     expect(lines[0]?.matchedTones).toContain('rename')
-    expect(detail?.pairing).toBe('稳定匹配')
-    expect(detail?.inlineSegments?.some((segment) => segment.tone === 'rename')).toBe(true)
+    expect(detail?.newInlineSegments?.[0]).toEqual({ text: '# ', tone: 'plain' })
+    expect(detail?.newInlineSegments?.some((segment) => segment.tone === 'rename')).toBe(true)
   })
 
   it('projects frontmatter metadata updates back to source lines', async () => {
@@ -37,5 +58,159 @@ describe('diff workbench view-model', () => {
 
     expect(lines[1]?.text).toBe('version: 2.1.0')
     expect(lines[1]?.baseTone).toBe('meta')
+    expect(lines[1]?.changeKeys.length).toBeGreaterThan(0)
+  })
+
+  it('formats metadata values for nested frontmatter detail views', async () => {
+    const result = await runMarkdownDiff(
+      '---\nreview:\n  required: true\n  reviewer: bob\n---',
+      '---\nreview:\n  required: true\n  reviewer: dana\n---',
+    )
+    const frontmatterChange = flattenChanges(result.root).find((change) => change.kind === 'frontmatter')
+    const detail = buildDetailPanel(frontmatterChange)
+
+    expect(detail?.metadataChanges?.[0]?.path).toBe('$.review.reviewer')
+    expect(detail?.metadataChanges?.[0]?.oldValueText).toBe('bob')
+    expect(detail?.metadataChanges?.[0]?.newValueText).toBe('dana')
+    expect(detail?.newHighlightedLines?.[3]?.segments?.some((segment) => segment.tone === 'meta')).toBe(true)
+    expect(detail?.newHighlightedLines?.[3]?.segments?.map((segment) => segment.text).join('')).toBe(
+      '  reviewer: dana',
+    )
+  })
+
+  it('falls back to highlighting the full frontmatter block for list metadata changes', async () => {
+    const result = await runMarkdownDiff(
+      [
+        '---',
+        'features:',
+        '  - parser',
+        '  - transformer',
+        '  - diff',
+        '---',
+      ].join('\n'),
+      [
+        '---',
+        'features:',
+        '  - parser',
+        '  - transformer',
+        '  - diff',
+        '  - renderer',
+        '---',
+      ].join('\n'),
+    )
+    const frontmatterChange = flattenChanges(result.root).find((change) => change.kind === 'frontmatter')
+    const detail = buildDetailPanel(frontmatterChange)
+    const featureBlock = detail?.newHighlightedLines?.slice(1, 6) ?? []
+
+    expect(featureBlock).toHaveLength(5)
+    expect(featureBlock.every((line) => line.tone === 'meta')).toBe(true)
+    expect(featureBlock.map((line) => line.text)).toEqual([
+      'features:',
+      '  - parser',
+      '  - transformer',
+      '  - diff',
+      '  - renderer',
+    ])
+  })
+
+  it('renders code diffs on the new side without leaking deleted characters', async () => {
+    const result = await runMarkdownDiff(
+      '```ts\nconst value = oldName\n```',
+      '```ts\nconst value = name\n```',
+    )
+    const codeChange = flattenChanges(result.root).find((change) => change.blockType === 'code')
+    const detail = buildDetailPanel(codeChange)
+    const changedLine = detail?.codeLines?.find((line) => line.newLine?.includes('const value'))
+
+    expect(changedLine?.segments?.map((segment) => segment.text).join('')).toBe('const value = name')
+    expect(changedLine?.segments?.some((segment) => segment.tone === 'replace')).toBe(true)
+    expect(changedLine?.segments?.map((segment) => segment.text).join('')).not.toContain('oldName')
+  })
+
+  it('highlights code fence metadata updates when code content stays the same', async () => {
+    const result = await runMarkdownDiff(
+      '```ts title=\"old\"\nconst value = 1\n```',
+      '```tsx title=\"new\"\nconst value = 1\n```',
+    )
+    const codeChange = flattenChanges(result.root).find((change) => change.blockType === 'code' && change.primaryOp === 'meta-update')
+    const detail = buildDetailPanel(codeChange)
+
+    expect(detail?.codeLines).toBeUndefined()
+    expect(detail?.newHighlightedLines?.[0]?.segments?.some((segment) => segment.text.includes('tsx'))).toBe(true)
+    expect(detail?.newHighlightedLines?.[0]?.segments?.some((segment) => segment.text.includes('title=\"new\"'))).toBe(true)
+    expect(detail?.newContent).toContain('```tsx title="new"')
+  })
+
+  it('builds table cell highlights from table diff spans', async () => {
+    const result = await runMarkdownDiff(
+      '| name | age |\n| --- | --- |\n| Alice | 20 |',
+      '| name | age |\n| --- | --- |\n| Alice | 21 |',
+    )
+    const tableChange = flattenChanges(result.root).find((change) => change.blockType === 'table')
+    const detail = buildDetailPanel(tableChange)
+    const changedCell = detail?.newTableRows?.[1]?.cells[1]
+
+    expect(changedCell?.text).toBe('21')
+    expect(changedCell?.tone).toBe('replace')
+    expect(changedCell?.segments?.map((segment) => segment.text).join('')).toBe('21')
+  })
+
+  it('highlights changed definition metadata fields on the new side', async () => {
+    const result = await runMarkdownDiff(
+      '[ref]: https://old.example.com \"Old\"\n\nbody',
+      '[ref]: https://new.example.com \"New\"\n\nbody',
+    )
+    const definitionChange = flattenChanges(result.root).find((change) => change.blockType === 'definition' && change.oldId && change.newId)
+    const detail = buildDetailPanel(definitionChange)
+    const line = detail?.newHighlightedLines?.[0]
+
+    expect(line?.segments?.some((segment) => segment.text.includes('https://new.example.com'))).toBe(true)
+    expect(line?.segments?.some((segment) => segment.text.includes('New'))).toBe(true)
+  })
+
+  it('highlights pure definition renames on the new side', async () => {
+    const result = await runMarkdownDiff(
+      '[ref]: https://example.com/docs \"Docs\"\n\nbody',
+      '[ref-new]: https://example.com/docs \"Docs\"\n\nbody',
+    )
+    const definitionChange = flattenChanges(result.root).find((change) => change.blockType === 'definition' && change.oldId && change.newId)
+    const detail = buildDetailPanel(definitionChange)
+    const line = detail?.newHighlightedLines?.[0]
+
+    expect(line?.segments?.some((segment) => segment.text.includes('ref-new'))).toBe(true)
+  })
+
+  it('matches warning and tone filters against projected lines', () => {
+    const warningLine = {
+      key: 'line:1',
+      lineNumber: 1,
+      text: 'warn',
+      baseTone: 'meta' as const,
+      matchedTones: ['meta' as const],
+      changeKeys: ['change:1'],
+      warnings: ['inline-deferred'],
+    }
+
+    expect(lineMatchesFilter(warningLine, 'meta')).toBe(true)
+    expect(lineMatchesFilter(warningLine, 'warning')).toBe(true)
+    expect(lineMatchesFilter(warningLine, 'replace')).toBe(false)
+  })
+
+  it('includes quality, global warnings, and fallback markers in debug snapshots', async () => {
+    const result = await runMarkdownDiff('# Alpha\n\nBody text', '# Beta\n\nBody text')
+    result.warnings.push('invalid-equal-state:test')
+    const firstChange = flattenChanges(result.root).find((change) => change.kind === 'heading')
+    if (firstChange) {
+      firstChange.degraded = true
+      firstChange.shortHeadingFallback = true
+    }
+
+    const snapshot = buildDebugSnapshot(result)
+    const degradedEntry = snapshot.changes.find((change) => change.degraded)
+
+    expect(snapshot.quality).toEqual(result.quality)
+    expect(snapshot.warnings).toContain('invalid-equal-state:test')
+    expect(degradedEntry?.degraded).toBe(true)
+    expect(degradedEntry?.shortHeadingFallback).toBe(true)
   })
 })

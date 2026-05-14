@@ -28,18 +28,46 @@ export interface ProjectionLine {
   text: string
   baseTone: Tone
   matchedTones: Tone[]
+  changeKeys: string[]
   segments?: ProjectionSegment[]
   changeKey?: string
   warnings: string[]
 }
 
+export interface DetailMetadataItem {
+  path: string
+  op: MetadataChange['op']
+  oldValueText?: string
+  newValueText?: string
+}
+
+export interface DetailRenderedLine {
+  key: string
+  text: string
+  tone: Tone
+  segments?: ProjectionSegment[]
+}
+
+export interface DetailTableCellModel {
+  key: string
+  text: string
+  tone: Tone
+  segments?: ProjectionSegment[]
+}
+
+export interface DetailTableRowModel {
+  key: string
+  cells: DetailTableCellModel[]
+}
+
 export interface DetailPanelModel {
   heading: string
   operation: string
-  summary: string
   oldContent?: string
   newContent?: string
-  inlineSegments?: ProjectionSegment[]
+  newInlineSegments?: ProjectionSegment[]
+  highlightTone: Tone
+  newHighlightedLines?: DetailRenderedLine[]
   codeLines?: Array<{
     key: string
     oldLine?: string
@@ -47,21 +75,13 @@ export interface DetailPanelModel {
     op: LineDiffSpan['op']
     segments?: ProjectionSegment[]
   }>
-  tableCells?: Array<{
-    key: string
-    row: number
-    column: number
-    segments: ProjectionSegment[]
-  }>
-  metadataChanges?: MetadataChange[]
-  pairing?: string
-  evidence?: string
-  score?: string
-  moveSummary?: string
-  warnings: string[]
+  newTableRows?: DetailTableRowModel[]
+  metadataChanges?: DetailMetadataItem[]
 }
 
 export interface DebugSnapshot {
+  quality: DiffResult['quality']
+  warnings: string[]
   oldIndexSummary: Record<string, number>
   newIndexSummary: Record<string, number>
   matches: Array<{
@@ -80,6 +100,8 @@ export interface DebugSnapshot {
     matchKind?: DiffChange['matchKind']
     warnings: string[]
     status: DiffChange['status']
+    degraded?: boolean
+    shortHeadingFallback?: boolean
   }>
 }
 
@@ -149,6 +171,7 @@ export function buildProjectionLines(newMarkdown: string, result: DiffResult): P
     const matchedTones = uniqueTones(matched.flatMap((entry) => entry.tones))
     const dominant = pickDominantMatch(matched)
     const baseTone = dominant?.tones[0] ?? 'plain'
+    const changeKeys = uniqueStrings(matched.map((entry) => getChangeReference(entry.change)))
     const warnings = uniqueStrings(matched.flatMap((entry) => entry.change.warnings))
 
     return {
@@ -157,6 +180,7 @@ export function buildProjectionLines(newMarkdown: string, result: DiffResult): P
       text,
       baseTone,
       matchedTones,
+      changeKeys,
       segments: dominant ? buildProjectionSegments(text, dominant.change, baseTone) : undefined,
       changeKey: dominant ? getChangeReference(dominant.change) : undefined,
       warnings,
@@ -167,34 +191,32 @@ export function buildProjectionLines(newMarkdown: string, result: DiffResult): P
 export function buildDetailPanel(change: DiffChange | undefined): DetailPanelModel | undefined {
   if (!change) return undefined
 
+  const highlightTone = tonesForChange(change)[0] ?? 'replace'
+
   return {
     heading: `${entityLabel(change)} · ${operationLabel(change)}`,
     operation: operationLabel(change),
-    summary: change.summary,
     oldContent: buildOldContent(change),
     newContent: buildNewContent(change),
-    inlineSegments: buildInlineDetailSegments(change),
+    newInlineSegments: buildSideInlineSegments(change, 'new'),
+    highlightTone,
+    newHighlightedLines: buildHighlightedNewLines(change, highlightTone),
     codeLines: buildCodeLineDetails(change.codeSpans),
-    tableCells: change.tableDiff?.cellDiffs.map((cell) => ({
-      key: `cell:${cell.row}:${cell.column}`,
-      row: cell.row,
-      column: cell.column,
-      segments: spansToSegments(cell.spans, 'replace'),
+    newTableRows: buildTableRows(change, highlightTone),
+    metadataChanges: change.metadataChanges?.map((entry) => ({
+      path: entry.path,
+      op: entry.op,
+      oldValueText: formatMetadataValue(entry.oldValue),
+      newValueText: formatMetadataValue(entry.newValue),
     })),
-    metadataChanges: change.metadataChanges,
-    pairing: buildPairingText(change),
-    evidence: buildEvidenceText(change.matchKind),
-    score: formatScore(change.score),
-    moveSummary: change.logicalMoveId
-      ? `${change.moveRole === 'source' ? '移动来源' : '移动目标'} · ${change.logicalMoveId}`
-      : undefined,
-    warnings: change.warnings,
   }
 }
 
 export function buildDebugSnapshot(result: DiffResult): DebugSnapshot {
   const changes = flattenChanges(result.root)
   return {
+    quality: result.quality,
+    warnings: result.warnings,
     oldIndexSummary: buildIndexSummary(result.oldIndex),
     newIndexSummary: buildIndexSummary(result.newIndex),
     matches: result.matches.map((match) => ({
@@ -213,6 +235,8 @@ export function buildDebugSnapshot(result: DiffResult): DebugSnapshot {
       matchKind: change.matchKind,
       warnings: change.warnings,
       status: change.status,
+      degraded: change.degraded,
+      shortHeadingFallback: change.shortHeadingFallback,
     })),
   }
 }
@@ -270,29 +294,157 @@ function buildProjectionSegments(text: string, change: DiffChange, tone: Tone): 
   return undefined
 }
 
-function buildInlineDetailSegments(change: DiffChange): ProjectionSegment[] | undefined {
-  if (change.kind === 'heading' && change.titleInlineSpans) {
-    return spansToSegments(change.titleInlineSpans, 'rename')
+function buildSideInlineSegments(
+  change: DiffChange,
+  side: 'old' | 'new',
+): ProjectionSegment[] | undefined {
+  const spans = change.kind === 'heading' ? change.titleInlineSpans : change.inlineSpans
+  if (!spans?.length) return undefined
+
+  const tone = change.kind === 'heading' ? 'rename' : tonesForChange(change)[0] ?? 'replace'
+  const prefix = change.kind === 'heading' ? headingPrefix(change) : ''
+  const segments: ProjectionSegment[] = []
+
+  if (prefix) {
+    segments.push({
+      text: prefix,
+      tone: 'plain',
+    })
   }
-  if (change.inlineSpans) {
-    return spansToSegments(change.inlineSpans, tonesForChange(change)[0] ?? 'replace')
+
+  for (const span of spans) {
+    const next = buildPreciseSideSegments(span, side, tone)
+    if (next?.length) segments.push(...next)
   }
-  return undefined
+
+  const merged = mergeAdjacentSegments(segments)
+  return merged.length > 0 ? merged : undefined
 }
 
 function buildCodeLineDetails(codeSpans?: LineDiffSpan[]): DetailPanelModel['codeLines'] {
-  return codeSpans?.map((line, index) => ({
-    key: `code:${index}`,
-    oldLine: line.oldLine,
-    newLine: line.newLine,
-    op: line.op,
-    segments: line.charSpans
-      ?.map((span) => ({
-        text: span.newText ?? span.oldText ?? '',
-        tone: charSpanTone(span.op),
-      }))
-      .filter((segment) => segment.text.length > 0),
-  }))
+  if (!codeSpans?.length) return undefined
+
+  const lines: NonNullable<DetailPanelModel['codeLines']> = []
+  for (const [index, line] of codeSpans.entries()) {
+    const segments = line.charSpans
+      ?.map((span) => buildNewCodeSegment(span))
+      .filter((segment): segment is ProjectionSegment => !!segment)
+
+    const newLine = line.newLine ?? segments?.map((segment) => segment.text).join('')
+    if (line.op === 'delete' && !newLine) continue
+
+    lines.push({
+      key: `code:${index}`,
+      oldLine: line.oldLine,
+      newLine,
+      op: line.op,
+      segments: segments?.length ? mergeAdjacentSegments(segments) : undefined,
+    })
+  }
+
+  return lines.length ? lines : undefined
+}
+
+function buildHighlightedNewLines(change: DiffChange, highlightTone: Tone): DetailRenderedLine[] | undefined {
+  if (change.kind === 'frontmatter' && change.metadataChanges?.length) {
+    return buildMetadataHighlightedLines(change, highlightTone)
+  }
+
+  if (change.primaryOp === 'meta-update' || change.status.metaChanged || change.status.renamed) {
+    return buildFieldHighlightedLines(change, highlightTone)
+  }
+
+  return undefined
+}
+
+function buildMetadataHighlightedLines(change: DiffChange, highlightTone: Tone): DetailRenderedLine[] | undefined {
+  const newContent = buildNewContent(change)
+  if (!newContent || !change.metadataChanges?.length) return undefined
+
+  const lines = newContent.split('\n')
+  const lineRanges = lines.map(() => [] as Array<{ start: number; end: number; tone: Tone }>)
+  const fullLineIndexes = new Set<number>()
+
+  for (const metadataChange of change.metadataChanges) {
+    if (shouldHighlightMetadataBlock(metadataChange)) {
+      for (const lineIndex of findMetadataBlockLineIndexes(lines, metadataChange.path)) {
+        fullLineIndexes.add(lineIndex)
+      }
+      continue
+    }
+
+    for (const [lineIndex, line] of lines.entries()) {
+      lineRanges[lineIndex]!.push(...collectMetadataLineRanges(line, metadataChange, highlightTone))
+    }
+  }
+
+  const highlighted = lines.map((line, index) => {
+    const segments = fullLineIndexes.has(index)
+      ? [{ text: line, tone: highlightTone }]
+      : buildSegmentsFromRanges(line, lineRanges[index] ?? [])
+
+    return {
+      key: `meta:${index}`,
+      text: line,
+      tone: segments?.some((segment) => segment.tone !== 'plain') ? highlightTone : 'plain',
+      segments: segments?.some((segment) => segment.tone !== 'plain') ? segments : undefined,
+    }
+  })
+
+  return highlighted.some((line) => line.segments?.length) ? highlighted : undefined
+}
+
+function buildFieldHighlightedLines(change: DiffChange, highlightTone: Tone): DetailRenderedLine[] | undefined {
+  const newContent = buildNewContent(change)
+  if (!newContent) return undefined
+
+  const fields = collectChangedFields(change)
+  if (!fields.length) return undefined
+
+  const highlighted = newContent.split('\n').map((line, index) => {
+    const segments = buildFieldLineSegments(line, fields, highlightTone)
+    return {
+      key: `field:${index}`,
+      text: line,
+      tone: segments ? highlightTone : 'plain',
+      segments,
+    }
+  })
+
+  return highlighted.some((line) => line.segments?.length) ? highlighted : undefined
+}
+
+function buildTableRows(change: DiffChange, highlightTone: Tone): DetailTableRowModel[] | undefined {
+  if (change.blockType !== 'table' || !change.newNode || isSectionNode(change.newNode)) return undefined
+  const rows = Array.isArray(change.newNode.children) ? change.newNode.children : []
+  if (!rows.length) return undefined
+
+  const diffCells = new Map(
+    (change.tableDiff?.cellDiffs ?? []).map((cell) => [`${cell.row}:${cell.column}`, cell]),
+  )
+
+  const renderedRows = rows.map((row, rowIndex) => {
+    const cells = Array.isArray(row.children) ? row.children : []
+    return {
+      key: `table:${rowIndex}`,
+      cells: cells.map((cell, cellIndex) => {
+        const diffCell = diffCells.get(`${rowIndex}:${cellIndex}`)
+        const segments = diffCell
+          ? buildSideSegmentsFromSpans(diffCell.spans, 'new', highlightTone)
+          : undefined
+        const text = collectInlineText(cell.children)
+        const tone = diffCell || change.tableDiff?.structureChanged ? highlightTone : 'plain'
+        return {
+          key: `table:${rowIndex}:${cellIndex}`,
+          text,
+          tone,
+          segments,
+        }
+      }),
+    }
+  })
+
+  return renderedRows.some((row) => row.cells.some((cell) => cell.tone !== 'plain')) ? renderedRows : undefined
 }
 
 function tonesForChange(change: DiffChange): Tone[] {
@@ -424,7 +576,13 @@ function previewSection(section: Section): string {
 }
 
 function previewBlock(block: Block): string {
-  if (block.type === 'code') return String(block.value ?? '')
+  if (block.type === 'code') {
+    const lang = typeof block.lang === 'string' ? block.lang.trim() : ''
+    const meta = typeof block.meta === 'string' ? block.meta.trim() : ''
+    const info = [lang, meta].filter(Boolean).join(' ')
+    const opener = info ? `\`\`\`${info}` : '```'
+    return `${opener}\n${String(block.value ?? '')}\n\`\`\``
+  }
   if (block.type === 'definition') {
     const identifier = (block as { identifier?: string }).identifier ?? ''
     const url = (block as { url?: string }).url ?? ''
@@ -473,50 +631,359 @@ function buildListItemPreview(section: Section): string {
   return `${prefix}${checkbox}${section.title}`.trim()
 }
 
-function charSpanTone(op: LineDiffSpan['op']): Tone {
-  if (op === 'insert') return 'insert'
-  if (op === 'delete') return 'delete'
-  if (op === 'replace') return 'replace'
-  return 'plain'
+function buildNewCodeSegment(
+  span: NonNullable<LineDiffSpan['charSpans']>[number],
+): ProjectionSegment | undefined {
+  if (span.op === 'equal') {
+    const text = span.newText ?? span.oldText ?? ''
+    return text ? { text, tone: 'plain' } : undefined
+  }
+  if (span.op === 'insert') {
+    return span.newText ? { text: span.newText, tone: 'insert' } : undefined
+  }
+  if (span.op === 'delete') {
+    return undefined
+  }
+  return span.newText ? { text: span.newText, tone: 'replace' } : undefined
+}
+
+function buildSideWordSegment(
+  span: NonNullable<InlineSpan['wordSpans']>[number],
+  side: 'old' | 'new',
+  tone: Tone,
+): ProjectionSegment | undefined {
+  if (span.op === 'equal') {
+    const text = side === 'old' ? (span.oldText ?? span.newText ?? '') : (span.newText ?? span.oldText ?? '')
+    return text ? { text, tone: 'plain' } : undefined
+  }
+
+  if (span.op === 'insert') {
+    if (side === 'old') return undefined
+    return span.newText ? { text: span.newText, tone: 'insert' } : undefined
+  }
+
+  if (span.op === 'delete') {
+    if (side === 'new') return undefined
+    return span.oldText ? { text: span.oldText, tone: 'delete' } : undefined
+  }
+
+  if (side === 'old') {
+    return span.oldText ? { text: span.oldText, tone: 'delete' } : undefined
+  }
+  return span.newText ? { text: span.newText, tone } : undefined
+}
+
+function buildPreciseSideSegments(
+  span: InlineSpan,
+  side: 'old' | 'new',
+  tone: Tone,
+): ProjectionSegment[] | undefined {
+  const sourceText = side === 'old' ? span.oldText : span.newText
+  if (sourceText && span.wordSpans?.length) {
+    const precise = buildPreciseWordSegments(sourceText, span.wordSpans, side, tone)
+    if (precise?.length) return precise
+  }
+
+  const fallback = buildSideSpanSegment(span, side, tone)
+  return fallback ? [fallback] : undefined
+}
+
+function buildPreciseWordSegments(
+  sourceText: string,
+  wordSpans: NonNullable<InlineSpan['wordSpans']>,
+  side: 'old' | 'new',
+  tone: Tone,
+): ProjectionSegment[] | undefined {
+  const segments: ProjectionSegment[] = []
+  const loweredSource = sourceText.toLowerCase()
+  let cursor = 0
+
+  for (const wordSpan of wordSpans) {
+    const next = buildSideWordSegment(wordSpan, side, tone)
+    if (!next?.text) continue
+
+    const matchIndex = loweredSource.indexOf(next.text.toLowerCase(), cursor)
+    if (matchIndex < 0) return undefined
+
+    if (matchIndex > cursor) {
+      segments.push({
+        text: sourceText.slice(cursor, matchIndex),
+        tone: 'plain',
+      })
+    }
+
+    segments.push({
+      text: sourceText.slice(matchIndex, matchIndex + next.text.length),
+      tone: next.tone,
+    })
+    cursor = matchIndex + next.text.length
+  }
+
+  if (cursor < sourceText.length) {
+    segments.push({
+      text: sourceText.slice(cursor),
+      tone: 'plain',
+    })
+  }
+
+  const merged = mergeAdjacentSegments(segments.filter((segment) => segment.text.length > 0))
+  return merged.length > 0 ? merged : undefined
+}
+
+function buildSideSpanSegment(
+  span: InlineSpan,
+  side: 'old' | 'new',
+  tone: Tone,
+): ProjectionSegment | undefined {
+  if (span.op === 'equal') {
+    const text = side === 'old' ? (span.oldText ?? span.newText ?? '') : (span.newText ?? span.oldText ?? '')
+    return text ? { text, tone: 'plain' } : undefined
+  }
+
+  if (span.op === 'insert') {
+    if (side === 'old') return undefined
+    return span.newText ? { text: span.newText, tone: 'insert' } : undefined
+  }
+
+  if (span.op === 'delete') {
+    if (side === 'new') return undefined
+    return span.oldText ? { text: span.oldText, tone: 'delete' } : undefined
+  }
+
+  if (side === 'old') {
+    return span.oldText ? { text: span.oldText, tone: 'delete' } : undefined
+  }
+  return span.newText ? { text: span.newText, tone } : undefined
+}
+
+function buildSideSegmentsFromSpans(
+  spans: InlineSpan[],
+  side: 'old' | 'new',
+  tone: Tone,
+): ProjectionSegment[] | undefined {
+  const segments: ProjectionSegment[] = []
+  for (const span of spans) {
+    const next = buildPreciseSideSegments(span, side, tone)
+    if (next?.length) segments.push(...next)
+  }
+
+  const merged = mergeAdjacentSegments(segments)
+  return merged.length > 0 ? merged : undefined
 }
 
 function isSectionNode(node: Section | Block): node is Section {
   return 'kind' in node && Array.isArray((node as Section).items)
 }
 
-function buildPairingText(change: DiffChange): string | undefined {
-  if (!change.pairKind) return undefined
-  return change.pairKind === 'match' ? '稳定匹配' : '对齐匹配'
-}
-
-function buildEvidenceText(matchKind: MatchKind | undefined): string | undefined {
-  if (!matchKind) return undefined
-  const map: Record<MatchKind, string> = {
-    'forced-root': '根节点强制匹配',
-    'exact-subtree': '整棵子树完全一致',
-    'exact-self': '节点自身完全一致',
-    'exact-self-with-context': '节点自身一致且上下文支持',
-    'exact-direct': '直接子节点结构一致',
-    'frontmatter-anchor': 'frontmatter 锚点',
-    'footnote-identity': '脚注正文身份',
-    'footnote-identifier': '脚注标识符',
-    'definition-identity': 'definition 身份',
-    'definition-identifier': 'definition 标识符',
-    'local-heading-slug': '局部标题 slug',
-    'local-heading-body': '局部标题正文',
-    'local-similarity': '局部相似度',
-    'local-identity': '局部身份',
-    'move-exact': '移动恢复: 完全一致',
-    'move-direct': '移动恢复: 直接结构',
-    'move-heading': '移动恢复: 标题路径',
-    'move-code': '移动恢复: 代码特征',
+function formatMetadataValue(value: unknown): string | undefined {
+  if (value === undefined) return undefined
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean' || value === null) return String(value)
+  try {
+    return JSON.stringify(value, null, 2)
+  } catch {
+    return String(value)
   }
-  return map[matchKind]
 }
 
-function formatScore(score: number | undefined): string | undefined {
-  if (typeof score !== 'number') return undefined
-  return `${Math.round(score * 100)}%`
+function collectMetadataLineRanges(
+  line: string,
+  metadataChange: MetadataChange,
+  tone: Tone,
+): Array<{ start: number; end: number; tone: Tone }> {
+  const ranges: Array<{ start: number; end: number; tone: Tone }> = []
+  const key = extractMetadataKey(metadataChange.path)
+  if (!key || !lineIncludesMetadata(line, key, metadataChange)) return ranges
+
+  const keyIndex = line.indexOf(key)
+  if (keyIndex >= 0) {
+    ranges.push({
+      start: keyIndex,
+      end: keyIndex + key.length,
+      tone,
+    })
+  }
+
+  const newValueText = formatMetadataValue(metadataChange.newValue)
+  if (newValueText && !newValueText.includes('\n')) {
+    const valueIndex = line.indexOf(newValueText)
+    if (valueIndex >= 0) {
+      ranges.push({
+        start: valueIndex,
+        end: valueIndex + newValueText.length,
+        tone,
+      })
+    }
+  }
+
+  return ranges
+}
+
+function lineIncludesMetadata(line: string, key: string, change: MetadataChange): boolean {
+  if (line.includes(key)) return true
+  const newValueText = formatMetadataValue(change.newValue)
+  return !!(newValueText && !newValueText.includes('\n') && line.includes(newValueText))
+}
+
+function buildFieldLineSegments(
+  line: string,
+  fields: string[],
+  tone: Tone,
+): ProjectionSegment[] | undefined {
+  const ranges = fields
+    .map((field) => {
+      const start = line.indexOf(field)
+      if (start < 0) return undefined
+      return {
+        start,
+        end: start + field.length,
+        tone,
+      }
+    })
+    .filter((range): range is { start: number; end: number; tone: Tone } => !!range)
+
+  if (!ranges.length) return undefined
+  return buildSegmentsFromRanges(line, ranges)
+}
+
+function collectChangedFields(change: DiffChange): string[] {
+  const fields: string[] = []
+  const oldNode = change.oldNode
+  const newNode = change.newNode
+
+  if (newNode && !isSectionNode(newNode) && change.blockType === 'definition' && oldNode && !isSectionNode(oldNode)) {
+    const oldIdentifier = typeof oldNode.identifier === 'string' ? oldNode.identifier : ''
+    const newIdentifier = typeof newNode.identifier === 'string' ? newNode.identifier : ''
+    const oldUrl = typeof oldNode.url === 'string' ? oldNode.url : ''
+    const newUrl = typeof newNode.url === 'string' ? newNode.url : ''
+    const oldTitle = typeof oldNode.title === 'string' ? oldNode.title : ''
+    const newTitle = typeof newNode.title === 'string' ? newNode.title : ''
+
+    if (newIdentifier && oldIdentifier !== newIdentifier) fields.push(newIdentifier)
+    if (newUrl && oldUrl !== newUrl) fields.push(newUrl)
+    if (newTitle && oldTitle !== newTitle) fields.push(newTitle)
+  }
+
+  if (newNode && !isSectionNode(newNode) && change.blockType === 'code' && oldNode && !isSectionNode(oldNode)) {
+    const oldLang = typeof oldNode.lang === 'string' ? oldNode.lang : ''
+    const newLang = typeof newNode.lang === 'string' ? newNode.lang : ''
+    const oldMeta = typeof oldNode.meta === 'string' ? oldNode.meta : ''
+    const newMeta = typeof newNode.meta === 'string' ? newNode.meta : ''
+
+    if (newLang && oldLang !== newLang) fields.push(newLang)
+    if (newMeta && oldMeta !== newMeta) fields.push(newMeta)
+  }
+
+  if (newNode && isSectionNode(newNode) && change.kind === 'footnote' && oldNode && isSectionNode(oldNode)) {
+    const oldIdentifier = typeof oldNode.heading?.identifier === 'string' ? oldNode.heading.identifier : ''
+    const newIdentifier = typeof newNode.heading?.identifier === 'string' ? newNode.heading.identifier : ''
+    if (newIdentifier && oldIdentifier !== newIdentifier) fields.push(newIdentifier)
+  }
+
+  return uniqueStrings(fields)
+}
+
+function extractMetadataKey(path: string): string | undefined {
+  const parts = path.match(/([^[.\]]+)/g)
+  if (!parts?.length) return undefined
+  const last = parts[parts.length - 1]
+  return last === '$' ? undefined : last
+}
+
+function buildSegmentsFromRanges(
+  text: string,
+  ranges: Array<{ start: number; end: number; tone: Tone }>,
+): ProjectionSegment[] | undefined {
+  const sorted = [...ranges]
+    .filter((range) => range.end > range.start)
+    .sort((left, right) => left.start - right.start || left.end - right.end)
+
+  if (!sorted.length) return undefined
+
+  const mergedRanges: Array<{ start: number; end: number; tone: Tone }> = []
+  for (const range of sorted) {
+    const previous = mergedRanges[mergedRanges.length - 1]
+    if (previous && range.start <= previous.end) {
+      previous.end = Math.max(previous.end, range.end)
+      continue
+    }
+    mergedRanges.push({ ...range })
+  }
+
+  const segments: ProjectionSegment[] = []
+  let cursor = 0
+
+  for (const range of mergedRanges) {
+    if (range.start > cursor) {
+      segments.push({
+        text: text.slice(cursor, range.start),
+        tone: 'plain',
+      })
+    }
+
+    segments.push({
+      text: text.slice(range.start, range.end),
+      tone: range.tone,
+    })
+    cursor = range.end
+  }
+
+  if (cursor < text.length) {
+    segments.push({
+      text: text.slice(cursor),
+      tone: 'plain',
+    })
+  }
+
+  return mergeAdjacentSegments(segments.filter((segment) => segment.text.length > 0))
+}
+
+function shouldHighlightMetadataBlock(change: MetadataChange): boolean {
+  const parts = parseMetadataPath(change.path)
+  return parts.some((part) => /^\d+$/.test(part)) || isStructuredValue(change.newValue) || isStructuredValue(change.oldValue)
+}
+
+function findMetadataBlockLineIndexes(lines: string[], path: string): number[] {
+  const parts = parseMetadataPath(path)
+  const anchorKey = [...parts].reverse().find((part) => !/^\d+$/.test(part))
+  if (!anchorKey) return []
+
+  const anchorIndex = lines.findIndex((line) => {
+    const trimmed = line.trimStart()
+    return trimmed.startsWith(`${anchorKey}:`)
+  })
+  if (anchorIndex < 0) return []
+
+  const indexes = [anchorIndex]
+  const anchorIndent = countLeadingSpaces(lines[anchorIndex] ?? '')
+
+  for (let lineIndex = anchorIndex + 1; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex] ?? ''
+    const trimmed = line.trim()
+    if (!trimmed) {
+      indexes.push(lineIndex)
+      continue
+    }
+
+    const indent = countLeadingSpaces(line)
+    if (indent <= anchorIndent) break
+    indexes.push(lineIndex)
+  }
+
+  return indexes
+}
+
+function parseMetadataPath(path: string): string[] {
+  return (path.match(/([^[.\]]+)/g) ?? []).filter((part) => part !== '$')
+}
+
+function isStructuredValue(value: unknown): boolean {
+  return Array.isArray(value) || (!!value && typeof value === 'object')
+}
+
+function countLeadingSpaces(value: string): number {
+  const match = value.match(/^ */)
+  return match?.[0]?.length ?? 0
 }
 
 function entityLabel(change: DiffChange): string {
