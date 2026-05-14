@@ -76,6 +76,9 @@ export interface DetailPanelModel {
   pairKind?: PairKind
   oldContent?: string
   newContent?: string
+  oldTitle?: string
+  newTitle?: string
+  newTitleSegments?: ProjectionSegment[]
   newInlineSegments?: ProjectionSegment[]
   highlightTone: Tone
   newHighlightedLines?: DetailRenderedLine[]
@@ -210,13 +213,20 @@ export function buildDetailPanel(
 
   const highlightTone = tonesForChange(change)[0] ?? 'replace'
 
+  const isHeadingRename = change.status.renamed && change.kind === 'heading'
+  const oldSection = isHeadingRename && change.oldNode && isSectionNode(change.oldNode) ? change.oldNode : undefined
+  const newSection = isHeadingRename && change.newNode && isSectionNode(change.newNode) ? change.newNode : undefined
+
   return {
     heading: `${entityLabel(change)} · ${operationLabel(change)}`,
     operation: operationLabel(change),
     pairKind: change.pairKind,
     oldContent: buildOldContent(change),
     newContent: buildNewContent(change),
-    newInlineSegments: buildSideInlineSegments(change, 'new'),
+    oldTitle: oldSection?.title,
+    newTitle: newSection?.title,
+    newTitleSegments: isHeadingRename ? buildSideInlineSegments(change, 'new') : undefined,
+    newInlineSegments: isHeadingRename ? undefined : buildSideInlineSegments(change, 'new'),
     highlightTone,
     newHighlightedLines: buildHighlightedNewLines(change, highlightTone),
     codeLines: buildCodeLineDetails(change.codeSpans),

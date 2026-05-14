@@ -45,8 +45,10 @@ describe('diff workbench view-model', () => {
 
     expect(lines[0]?.baseTone).toBe('rename')
     expect(lines[0]?.matchedTones).toContain('rename')
-    expect(detail?.newInlineSegments?.[0]).toEqual({ text: '# ', tone: 'plain' })
-    expect(detail?.newInlineSegments?.some((segment) => segment.tone === 'rename')).toBe(true)
+    expect(detail?.oldTitle).toBe('Old Name')
+    expect(detail?.newTitle).toBe('New Name')
+    expect(detail?.newTitleSegments?.[0]).toEqual({ text: '# ', tone: 'plain' })
+    expect(detail?.newTitleSegments?.some((segment) => segment.tone === 'rename')).toBe(true)
   })
 
   it('projects frontmatter metadata updates back to source lines', async () => {

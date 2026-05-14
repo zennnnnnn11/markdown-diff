@@ -68,6 +68,27 @@ function lineClassName(baseTone: Tone): string {
           </template>
         </p>
 
+        <div v-if="detail.oldTitle !== undefined && detail.newTitle !== undefined" class="title-compare">
+          <div class="title-compare-row">
+            <span class="title-compare-label">旧标题</span>
+            <span class="title-compare-value old-title">{{ detail.oldTitle }}</span>
+          </div>
+          <div class="title-compare-row">
+            <span class="title-compare-label">新标题</span>
+            <span class="title-compare-value new-title">
+              <template v-if="detail.newTitleSegments?.length">
+                <span
+                  v-for="(segment, segmentIndex) in detail.newTitleSegments"
+                  :key="`title:segment:${segmentIndex}`"
+                  class="segment"
+                  :class="lineClassName(segment.tone)"
+                >{{ segment.text }}</span>
+              </template>
+              <template v-else>{{ detail.newTitle }}</template>
+            </span>
+          </div>
+        </div>
+
         <div class="detail-columns">
           <section class="content-card">
             <h3>旧</h3>
@@ -174,6 +195,43 @@ function lineClassName(baseTone: Tone): string {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.title-compare {
+  border: 1px solid #fffde0;
+  background: #fffef5;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.title-compare-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+}
+
+.title-compare-row + .title-compare-row {
+  border-top: 1px solid #f0ecd8;
+}
+
+.title-compare-label {
+  min-width: 56px;
+  color: #57606a;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.title-compare-value {
+  font-family: ui-monospace, monospace;
+  font-size: 14px;
+  white-space: pre-wrap;
+}
+
+.title-compare-value.old-title {
+  color: #cf222e;
+  text-decoration: line-through;
 }
 
 .detail-columns {
