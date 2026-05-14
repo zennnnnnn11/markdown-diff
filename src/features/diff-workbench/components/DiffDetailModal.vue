@@ -54,6 +54,8 @@ function lineClassName(baseTone: Tone): string {
 
         <p v-if="detail.pairKind" class="pair-info">
           配对方式：<strong>{{ detail.pairKind === 'match' ? '确认匹配（实线）' : '对齐匹配（虚线）' }}</strong>
+          <template v-if="detail.matchKindLabel"> · 证据：<strong>{{ detail.matchKindLabel }}</strong></template>
+          <template v-if="detail.score !== undefined"> · 相似度：<strong>{{ (detail.score * 100).toFixed(0) }}%</strong></template>
         </p>
 
         <p v-if="detail.moveInfo" class="move-info">

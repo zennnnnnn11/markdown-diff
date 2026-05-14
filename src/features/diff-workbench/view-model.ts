@@ -74,6 +74,9 @@ export interface DetailPanelModel {
   heading: string
   operation: string
   pairKind?: PairKind
+  matchKind?: MatchKind
+  matchKindLabel?: string
+  score?: number
   oldContent?: string
   newContent?: string
   oldTitle?: string
@@ -128,6 +131,27 @@ const TONE_PRIORITY: Record<Tone, number> = {
   meta: 4,
   rename: 5,
   plain: 6,
+}
+
+export const matchKindLabels: Record<MatchKind, string> = {
+  'forced-root': '根节点强制对应',
+  'exact-subtree': '完整子树完全一致',
+  'exact-self': '节点自身完全一致',
+  'exact-self-with-context': '上下文确认匹配',
+  'exact-direct': '直接子节点确认匹配',
+  'frontmatter-anchor': '前置元数据锚点',
+  'footnote-identity': '脚注正文完全一致',
+  'footnote-identifier': '脚注标识符一致',
+  'definition-identity': '引用定义内容一致',
+  'definition-identifier': '引用定义标识符一致',
+  'local-heading-slug': '局部标题标识匹配',
+  'local-heading-body': '局部标题正文匹配',
+  'local-similarity': '内容高度相似',
+  'local-identity': '局部身份匹配',
+  'move-exact': '移动：内容完全一致',
+  'move-direct': '移动：结构直接匹配',
+  'move-heading': '移动：标题匹配',
+  'move-code': '移动：代码内容匹配',
 }
 
 export const toneLabels: Record<Tone, string> = {
@@ -221,6 +245,9 @@ export function buildDetailPanel(
     heading: `${entityLabel(change)} · ${operationLabel(change)}`,
     operation: operationLabel(change),
     pairKind: change.pairKind,
+    matchKind: change.matchKind,
+    matchKindLabel: change.matchKind ? matchKindLabels[change.matchKind] : undefined,
+    score: change.score,
     oldContent: buildOldContent(change),
     newContent: buildNewContent(change),
     oldTitle: oldSection?.title,
