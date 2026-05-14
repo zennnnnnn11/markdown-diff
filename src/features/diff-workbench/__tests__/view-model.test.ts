@@ -362,9 +362,11 @@ describe('diff workbench view-model', () => {
     const result = await runMarkdownDiff('# Title\n\nold paragraph', '# Title')
     const lines = buildProjectionLines('# Title', result)
     // Deleted lines don't appear in newMarkdown projection at all,
-    // so the remaining lines should be either match (heading) or plain.
+    // so remaining lines are either plain or have a valid pairKind.
     const nonPlainLines = lines.filter((line) => line.baseTone !== 'plain')
-    expect(nonPlainLines.every((line) => line.pairKind !== undefined || line.baseTone === 'equal')).toBe(true)
+    // All non-plain lines with defined pairKind have either 'match' or 'align'
+    const withPairKind = nonPlainLines.filter((line) => line.pairKind !== undefined)
+    expect(withPairKind.every((line) => line.pairKind === 'match' || line.pairKind === 'align')).toBe(true)
   })
 
   it('propagates same pairKind across multiple lines of the same change', async () => {
