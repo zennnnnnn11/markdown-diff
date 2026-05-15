@@ -94,6 +94,11 @@ function segmentClass(segment: ProjectionSegment): string {
               <span v-if="row.oldLine.hasDescendantChange && row.oldLine.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
               <span v-if="row.oldLine.changeKeys.length > 1" class="overlap-flag" :title="`旧侧命中 ${row.oldLine.changeKeys.length} 个变更`">+{{ row.oldLine.changeKeys.length - 1 }}</span>
               <span v-if="row.oldLine.warnings.length" class="warning-flag" title="存在告警">⚠</span>
+              <span
+                v-if="row.oldLine.baseTone === 'move' && row.oldLine.movePeerLineNumber"
+                class="move-peer-flag"
+                :title="`移动目标：第 ${row.oldLine.movePeerLineNumber} 行`"
+              >↓{{ row.oldLine.movePeerLineNumber }}</span>
             </span>
           </template>
         </div>
@@ -157,6 +162,11 @@ function segmentClass(segment: ProjectionSegment): string {
               <span v-if="row.newLine.hasDescendantChange && row.newLine.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
               <span v-if="row.newLine.changeKeys.length > 1" class="overlap-flag" :title="`新侧命中 ${row.newLine.changeKeys.length} 个变更`">+{{ row.newLine.changeKeys.length - 1 }}</span>
               <span v-if="row.newLine.warnings.length" class="warning-flag" title="存在告警">⚠</span>
+              <span
+                v-if="row.newLine.baseTone === 'move' && row.newLine.movePeerLineNumber"
+                class="move-peer-flag"
+                :title="`移动来源：第 ${row.newLine.movePeerLineNumber} 行`"
+              >↑{{ row.newLine.movePeerLineNumber }}</span>
             </span>
           </template>
         </div>
@@ -346,6 +356,12 @@ function segmentClass(segment: ProjectionSegment): string {
 .warning-flag {
   color: #9a6700;
   font-size: 12px;
+}
+
+.move-peer-flag {
+  color: #1f3f8f;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 /* Cells */

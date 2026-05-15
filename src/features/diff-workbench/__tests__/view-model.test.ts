@@ -1172,6 +1172,42 @@ describe('diff workbench view-model', () => {
     expect(rows.every((row) => row.oldLine !== null || row.newLine !== null)).toBe(true)
   })
 
+  // ─── movePeerLineNumber ───
+
+  it('populates movePeerLineNumber on move-target lines in new projection', async () => {
+    const oldMd = '# A\n\n## Moved\n\ncontent\n\n# B'
+    const newMd = '# A\n\n# B\n\n## Moved\n\ncontent'
+    const result = await runMarkdownDiff(oldMd, newMd)
+    const lines = buildProjectionLines(newMd, result)
+    const moveTargetLine = lines.find((line) => line.baseTone === 'move')
+
+    expect(moveTargetLine).toBeDefined()
+    expect(moveTargetLine?.movePeerLineNumber).toBeDefined()
+    expect(typeof moveTargetLine?.movePeerLineNumber).toBe('number')
+    expect(moveTargetLine?.movePeerLineNumber).toBeGreaterThan(0)
+  })
+
+  it('populates movePeerLineNumber on move-source lines in old projection', async () => {
+    const oldMd = '# A\n\n## Moved\n\ncontent\n\n# B'
+    const newMd = '# A\n\n# B\n\n## Moved\n\ncontent'
+    const result = await runMarkdownDiff(oldMd, newMd)
+    const oldLines = buildOldProjectionLines(oldMd, result)
+    const moveSourceLine = oldLines.find((line) => line.baseTone === 'move')
+
+    expect(moveSourceLine).toBeDefined()
+    expect(moveSourceLine?.movePeerLineNumber).toBeDefined()
+    expect(typeof moveSourceLine?.movePeerLineNumber).toBe('number')
+    expect(moveSourceLine?.movePeerLineNumber).toBeGreaterThan(0)
+  })
+
+  it('leaves movePeerLineNumber undefined for non-move lines', async () => {
+    const result = await runMarkdownDiff('# Title\n\nold', '# Title\n\nnew')
+    const lines = buildProjectionLines('# Title\n\nnew', result)
+    const replacedLine = lines.find((line) => line.baseTone === 'replace')
+
+    expect(replacedLine?.movePeerLineNumber).toBeUndefined()
+  })
+
   it('populates changeTooltip with the dominant change summary', async () => {
     const result = await runMarkdownDiff('# Title\n\nold paragraph', '# Title\n\nnew paragraph')
     const lines = buildProjectionLines('# Title\n\nnew paragraph', result)

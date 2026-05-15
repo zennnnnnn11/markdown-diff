@@ -83,6 +83,11 @@ function segmentClass(segment: ProjectionSegment): string {
               +{{ line.changeKeys.length - 1 }}
             </span>
             <span v-if="line.warnings.length" class="warning-flag" title="存在告警">⚠</span>
+            <span
+              v-if="line.baseTone === 'move' && line.movePeerLineNumber"
+              class="move-peer-flag"
+              :title="side === 'old' ? `移动目标：第 ${line.movePeerLineNumber} 行` : `移动来源：第 ${line.movePeerLineNumber} 行`"
+            >{{ side === 'old' ? '↓' : '↑' }}{{ line.movePeerLineNumber }}</span>
           </span>
         </div>
 
@@ -195,6 +200,12 @@ function segmentClass(segment: ProjectionSegment): string {
 
 .warning-flag {
   color: #9a6700;
+}
+
+.move-peer-flag {
+  color: #1f3f8f;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .overlap-flag {

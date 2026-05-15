@@ -45,6 +45,7 @@ export interface ProjectionLine {
   annotations: ProjectionAnnotation[]
   lineMatches: ProjectionLineMatch[]
   changeTooltip?: string
+  movePeerLineNumber?: number
 }
 
 export interface ProjectionAnnotation {
@@ -312,6 +313,9 @@ function buildProjectionLinesFromMarkdown(
       lineMatches,
       changeTooltip: dominant && dominant.tones[0] !== 'plain'
         ? dominant.change.summary
+        : undefined,
+      movePeerLineNumber: dominant?.change.primaryOp === 'move'
+        ? resolvePeerLineNumber(dominant.change, result)
         : undefined,
     }
   })
@@ -1626,4 +1630,29 @@ function uniqueTones(tones: Tone[]): Tone[] {
 
 function uniqueStrings(values: string[]): string[] {
   return [...new Set(values)]
+}
+
+function resolvePeerLineNumber(
+  change: DiffChange,
+  result: DiffResult,
+): number | undefined {
+  if (change.primaryOp !== 'move' || !change.moveRole || !change.logicalMoveId) return undefined
+
+  if (change.moveRole === 'source') {
+    // Peer is the target (lives in new doc); find via byNewId
+    const targetChange = [...result.changeIndex.byNewId.values()].find(
+      (c) => c.logicalMoveId === change.logicalMoveId && c.moveRole === 'target',
+    )
+    const peerId = targetChange?.newId
+    if (!peerId) return undefined
+    return result.newIndex.byId.get(peerId)?.sourceRange?.start?.line
+  } else {
+    // Peer is the source (lives in old doc); find via byOldId
+    const sourceChange = [...result.changeIndex.byOldId.values()].find(
+      (c) => c.logicalMoveId === change.logicalMoveId && c.moveRole === 'source',
+    )
+    const peerId = sourceChange?.oldId
+    if (!peerId) return undefined
+    return result.oldIndex.byId.get(peerId)?.sourceRange?.start?.line
+  }
 }
