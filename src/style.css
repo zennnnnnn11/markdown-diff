@@ -36,6 +36,7 @@
   --tone-move-text:    #2B4A8D;
   --tone-meta-text:    #5B3A9B;
   --tone-rename-text:  #786A10;
+  --tone-reorder-text: #4A5568;
 
   /* Diff tone borders (annotation chips) */
   --tone-insert-border:  #7DC99A;
@@ -44,6 +45,7 @@
   --tone-move-border:    #95B0E8;
   --tone-meta-border:    #BBA8E8;
   --tone-rename-border:  #CCC090;
+  --tone-reorder-border: #B8C2D4;
 
   /* Warnings */
   --warning-bg:     #FFFBF0;
@@ -119,16 +121,24 @@ body {
   color: var(--tone-replace-text);
 }
 
-.annotation-move,
-.annotation-reorder {
+.annotation-move {
   border-color: var(--tone-move-border);
   color: var(--tone-move-text);
 }
 
-.annotation-meta,
-.annotation-rename {
+.annotation-reorder {
+  border-color: var(--tone-reorder-border);
+  color: var(--tone-reorder-text);
+}
+
+.annotation-meta {
   border-color: var(--tone-meta-border);
   color: var(--tone-meta-text);
+}
+
+.annotation-rename {
+  border-color: var(--tone-rename-border);
+  color: var(--tone-rename-text);
 }
 
 .annotation-warning {
