@@ -59,6 +59,7 @@ function segmentClass(segment: ProjectionSegment): string {
         :key="line.key"
         :data-change-key="line.changeKey"
         :data-side="side"
+        :title="line.changeTooltip"
         class="projection-row"
         :class="[
           lineClassName(line.baseTone),

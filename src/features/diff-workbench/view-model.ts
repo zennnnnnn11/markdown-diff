@@ -44,6 +44,7 @@ export interface ProjectionLine {
   warnings: string[]
   annotations: ProjectionAnnotation[]
   lineMatches: ProjectionLineMatch[]
+  changeTooltip?: string
 }
 
 export interface ProjectionAnnotation {
@@ -309,6 +310,9 @@ function buildProjectionLinesFromMarkdown(
       warnings,
       annotations: buildProjectionAnnotations(matchedTones, warnings, changeKeys.length),
       lineMatches,
+      changeTooltip: dominant && dominant.change.primaryOp !== 'equal'
+        ? dominant.change.summary
+        : undefined,
     }
   })
 }

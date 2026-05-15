@@ -1172,6 +1172,24 @@ describe('diff workbench view-model', () => {
     expect(rows.every((row) => row.oldLine !== null || row.newLine !== null)).toBe(true)
   })
 
+  it('populates changeTooltip with the dominant change summary', async () => {
+    const result = await runMarkdownDiff('# Title\n\nold paragraph', '# Title\n\nnew paragraph')
+    const lines = buildProjectionLines('# Title\n\nnew paragraph', result)
+    const replacedLine = lines.find((line) => line.baseTone === 'replace')
+
+    expect(replacedLine?.changeTooltip).toBeDefined()
+    expect(typeof replacedLine?.changeTooltip).toBe('string')
+    expect(replacedLine!.changeTooltip!.length).toBeGreaterThan(0)
+  })
+
+  it('leaves changeTooltip undefined for plain lines', async () => {
+    const result = await runMarkdownDiff('# Title\n\nsame', '# Title\n\nsame')
+    const lines = buildProjectionLines('# Title\n\nsame', result)
+    const plainLine = lines.find((line) => line.baseTone === 'plain' && !line.hasDescendantChange)
+
+    expect(plainLine?.changeTooltip).toBeUndefined()
+  })
+
   it('includes quality, global warnings, and fallback markers in debug snapshots', async () => {
     const result = await runMarkdownDiff('# Alpha\n\nBody text', '# Beta\n\nBody text')
     result.warnings.push('invalid-equal-state:test')

@@ -111,6 +111,7 @@ function segmentClass(segment: ProjectionSegment): string {
             },
           ]"
           :data-change-key="row.oldLine?.changeKey"
+          :title="row.oldLine?.changeTooltip"
           data-side="old"
           role="cell"
           @click="onClick(row.oldLine, 'old')"
@@ -173,6 +174,7 @@ function segmentClass(segment: ProjectionSegment): string {
             },
           ]"
           :data-change-key="row.newLine?.changeKey"
+          :title="row.newLine?.changeTooltip"
           data-side="new"
           role="cell"
           @click="onClick(row.newLine, 'new')"
