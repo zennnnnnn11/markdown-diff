@@ -19,7 +19,7 @@ const emit = defineEmits<{
   <section class="panel">
     <div class="panel-header">
       <h2>输入区</h2>
-      <button type="button" :disabled="!canRun" @click="emit('run')">
+      <button type="button" class="primary-button" :disabled="!canRun" @click="emit('run')">
         {{ isRunning ? '比对中...' : '运行比对' }}
       </button>
     </div>
@@ -120,7 +120,7 @@ const emit = defineEmits<{
   background: var(--bg-surface);
 }
 
-button {
+.primary-button {
   border: none;
   border-radius: var(--radius-md);
   background: var(--accent);
@@ -132,19 +132,25 @@ button {
   transition: opacity 150ms;
 }
 
-button:disabled {
+.primary-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
-button:not(:disabled):hover {
+.primary-button:not(:disabled):hover {
   opacity: 0.88;
 }
 
 .secondary-button {
-  background: var(--bg-subtle);
   border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
   color: var(--text-secondary);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms;
 }
 
 .secondary-button:hover {
