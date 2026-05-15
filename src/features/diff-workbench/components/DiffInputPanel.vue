@@ -124,7 +124,7 @@ button {
   border: none;
   border-radius: var(--radius-md);
   background: var(--accent);
-  color: #fff;
+  color: var(--bg-surface);
   padding: 8px 16px;
   font-size: 13px;
   font-weight: 500;
