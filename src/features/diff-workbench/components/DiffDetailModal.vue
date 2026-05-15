@@ -60,13 +60,12 @@ function lineClassName(baseTone: Tone): string {
 
         <p v-if="detail.moveInfo" class="move-info">
           <template v-if="detail.moveInfo.role === 'source'">
-            已移出 →
-            目标：第 {{ detail.moveInfo.peerLineNumber ?? '?' }} 行
+            已移出到第 {{ detail.moveInfo.peerLineNumber ?? '?' }} 行
             <template v-if="detail.moveInfo.peerHeading">（{{ detail.moveInfo.peerHeading }}）</template>
           </template>
           <template v-else>
-            移入自
-            <template v-if="detail.moveInfo.peerHeading">{{ detail.moveInfo.peerHeading }}</template>
+            移入自第 {{ detail.moveInfo.peerLineNumber ?? '?' }} 行
+            <template v-if="detail.moveInfo.peerHeading">（{{ detail.moveInfo.peerHeading }}）</template>
           </template>
         </p>
 
@@ -109,7 +108,70 @@ function lineClassName(baseTone: Tone): string {
         <div class="detail-columns">
           <section class="content-card">
             <h3>旧</h3>
-            <pre>{{ detail.oldContent ?? '无对应旧内容' }}</pre>
+
+            <p v-if="detail.oldInlineSegments?.length" class="inline-preview">
+              <span
+                v-for="(segment, segmentIndex) in detail.oldInlineSegments"
+                :key="`detail:old-inline:${segmentIndex}`"
+                class="segment"
+                :class="lineClassName(segment.tone)"
+              >
+                {{ segment.text }}
+              </span>
+            </p>
+
+            <div v-else-if="detail.oldCodeLines?.length" class="code-lines">
+              <pre
+                v-for="line in detail.oldCodeLines"
+                :key="line.key"
+                class="code-line"
+                :class="lineClassName(line.op === 'equal' ? 'plain' : 'delete')"
+              >
+<template v-if="line.segments?.length"><span
+                  v-for="(segment, segmentIndex) in line.segments"
+                  :key="`${line.key}:old-segment:${segmentIndex}`"
+                  class="segment"
+                  :class="lineClassName(segment.tone)"
+                >{{ segment.text }}</span></template><template v-else>{{ line.oldLine ?? '' }}</template></pre>
+            </div>
+
+            <div v-else-if="detail.oldTableRows?.length" class="table-preview">
+              <table>
+                <tbody>
+                  <tr v-for="row in detail.oldTableRows" :key="row.key">
+                    <td v-for="cell in row.cells" :key="cell.key" :class="lineClassName(cell.tone)">
+                      <template v-if="cell.segments?.length">
+                        <span
+                          v-for="(segment, segmentIndex) in cell.segments"
+                          :key="`${cell.key}:old-segment:${segmentIndex}`"
+                          class="segment"
+                          :class="lineClassName(segment.tone)"
+                        >
+                          {{ segment.text }}
+                        </span>
+                      </template>
+                      <template v-else>{{ cell.text }}</template>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div v-else-if="detail.oldHighlightedLines?.length" class="line-preview">
+              <pre
+                v-for="line in detail.oldHighlightedLines"
+                :key="line.key"
+                class="detail-line"
+                :class="lineClassName(line.tone)"
+              ><template v-if="line.segments?.length"><span
+                    v-for="(segment, segmentIndex) in line.segments"
+                    :key="`${line.key}:old-segment:${segmentIndex}`"
+                    class="segment"
+                    :class="lineClassName(segment.tone)"
+                  >{{ segment.text }}</span></template><template v-else>{{ line.text }}</template></pre>
+            </div>
+
+            <pre v-else>{{ detail.oldContent ?? '无对应旧内容' }}</pre>
           </section>
 
           <section class="content-card">
@@ -180,6 +242,28 @@ function lineClassName(baseTone: Tone): string {
             <pre v-else :class="lineClassName(detail.highlightTone)">{{ detail.newContent ?? '无对应新内容' }}</pre>
           </section>
         </div>
+
+        <section v-if="detail.metadataChanges?.length" class="content-card metadata-card">
+          <h3>元数据变更</h3>
+          <table class="metadata-table">
+            <thead>
+              <tr>
+                <th>路径</th>
+                <th>操作</th>
+                <th>旧值</th>
+                <th>新值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in detail.metadataChanges" :key="item.path">
+                <td><code>{{ item.path }}</code></td>
+                <td>{{ item.op }}</td>
+                <td><pre>{{ item.oldValueText ?? '—' }}</pre></td>
+                <td><pre>{{ item.newValueText ?? '—' }}</pre></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
       </section>
     </div>
   </Teleport>
@@ -288,6 +372,10 @@ function lineClassName(baseTone: Tone): string {
   padding: 12px;
 }
 
+.metadata-card {
+  margin-top: 16px;
+}
+
 pre {
   margin: 0;
   white-space: pre-wrap;
@@ -334,6 +422,24 @@ pre {
   border: 1px solid #d0d7de;
   padding: 8px;
   vertical-align: top;
+}
+
+.metadata-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.metadata-table th,
+.metadata-table td {
+  border: 1px solid #d0d7de;
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.metadata-table th {
+  background: #f6f8fa;
+  font-size: 13px;
 }
 
 .segment {

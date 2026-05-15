@@ -33,6 +33,7 @@ const emit = defineEmits<{
         :key="card.key"
         type="button"
         class="stat-card"
+        :title="card.description"
         @mouseenter="emit('highlight', card.filter)"
         @mouseleave="emit('highlight', null)"
         @focus="emit('highlight', card.filter)"
@@ -40,6 +41,7 @@ const emit = defineEmits<{
       >
         <strong>{{ card.value }}</strong>
         <span>{{ card.label }}</span>
+        <small>{{ card.description }}</small>
       </button>
     </div>
   </section>
@@ -75,5 +77,10 @@ const emit = defineEmits<{
   background: #fff;
   padding: 8px 12px;
   cursor: pointer;
+}
+
+.stat-card small {
+  color: #57606a;
+  font-size: 12px;
 }
 </style>

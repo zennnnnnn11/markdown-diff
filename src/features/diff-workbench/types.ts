@@ -5,4 +5,5 @@ export interface StatCardModel {
   label: string
   value: number
   filter: HighlightFilter
+  description: string
 }

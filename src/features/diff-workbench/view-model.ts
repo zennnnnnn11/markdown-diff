@@ -38,9 +38,25 @@ export interface ProjectionLine {
   changeKeys: string[]
   segments?: ProjectionSegment[]
   changeKey?: string
+  alignmentKey?: string
   pairKind?: PairKind
   hasDescendantChange?: boolean
   warnings: string[]
+  annotations: ProjectionAnnotation[]
+  lineMatches: ProjectionLineMatch[]
+}
+
+export interface ProjectionAnnotation {
+  kind: 'tone' | 'warning' | 'overlap'
+  label: string
+  tone?: Tone
+}
+
+export interface ProjectionLineMatch {
+  changeKey: string
+  tone: Tone
+  pairKind?: PairKind
+  summary: string
 }
 
 export interface DetailMetadataItem {
@@ -93,10 +109,19 @@ export interface DetailPanelModel {
   newContent?: string
   oldTitle?: string
   newTitle?: string
+  oldInlineSegments?: ProjectionSegment[]
   newTitleSegments?: ProjectionSegment[]
   newInlineSegments?: ProjectionSegment[]
   highlightTone: Tone
+  oldHighlightedLines?: DetailRenderedLine[]
   newHighlightedLines?: DetailRenderedLine[]
+  oldCodeLines?: Array<{
+    key: string
+    oldLine?: string
+    newLine?: string
+    op: LineDiffSpan['op']
+    segments?: ProjectionSegment[]
+  }>
   codeLines?: Array<{
     key: string
     oldLine?: string
@@ -104,6 +129,7 @@ export interface DetailPanelModel {
     op: LineDiffSpan['op']
     segments?: ProjectionSegment[]
   }>
+  oldTableRows?: DetailTableRowModel[]
   newTableRows?: DetailTableRowModel[]
   metadataChanges?: DetailMetadataItem[]
   moveInfo?: MoveInfo
@@ -179,6 +205,14 @@ export const toneLabels: Record<Tone, string> = {
   reorder: '重排',
 }
 
+const WARNING_LABELS: Record<string, string> = {
+  'inline-deferred': '内容过长，已降级为区域级高亮。',
+  'subtree-budget-exceeded': '结构过大，已使用简化对齐。',
+  'local-window-exceeded': '局部区域过大，已使用简化对齐。',
+  'enhanced-local-recovery-budget-exceeded': '局部恢复预算不足，已跳过增强恢复。',
+  'enhanced-local-recovery-no-candidates': '未找到可靠的局部恢复候选。',
+}
+
 export async function runMarkdownDiff(oldMarkdown: string, newMarkdown: string): Promise<DiffResult> {
   const [oldAst, newAst] = await Promise.all([parseMarkdown(oldMarkdown), parseMarkdown(newMarkdown)])
   const oldTree = transformMarkdown(oldAst)
@@ -206,12 +240,19 @@ export function getChangeReference(change: DiffChange): string {
   return `summary:${change.summary}`
 }
 
+export function getAlignmentReference(change: DiffChange): string {
+  if (change.primaryOp === 'move') {
+    return change.logicalMoveId ?? change.movePeerKey ?? getChangeReference(change)
+  }
+  return getChangeReference(change)
+}
+
 export function buildProjectionLines(newMarkdown: string, result: DiffResult): ProjectionLine[] {
-  return buildProjectionLinesFromMarkdown(newMarkdown, result, getProjectionRange)
+  return buildProjectionLinesFromMarkdown(newMarkdown, result, getProjectionRange, 'new')
 }
 
 export function buildOldProjectionLines(oldMarkdown: string, result: DiffResult): ProjectionLine[] {
-  return buildProjectionLinesFromMarkdown(oldMarkdown, result, getOldProjectionRange)
+  return buildProjectionLinesFromMarkdown(oldMarkdown, result, getOldProjectionRange, 'old')
 }
 
 type RangeLookup = (change: DiffChange, result: DiffResult) => SourceRange | undefined
@@ -220,6 +261,7 @@ function buildProjectionLinesFromMarkdown(
   markdown: string,
   result: DiffResult,
   getRange: RangeLookup,
+  side: 'old' | 'new',
 ): ProjectionLine[] {
   const lines = markdown.split(/\r?\n/)
   const changes = flattenChanges(result.root)
@@ -244,6 +286,12 @@ function buildProjectionLinesFromMarkdown(
     const baseTone = dominant?.tones[0] ?? 'plain'
     const changeKeys = uniqueStrings(matched.map((entry) => getChangeReference(entry.change)))
     const warnings = uniqueStrings(matched.flatMap((entry) => entry.change.warnings))
+    const lineMatches = matched.map(({ change, tones }) => ({
+      changeKey: getChangeReference(change),
+      tone: tones[0] ?? 'plain',
+      pairKind: change.pairKind,
+      summary: `${entityLabel(change)} · ${operationLabel(change)}`,
+    }))
 
     return {
       key: `line:${lineNumber}`,
@@ -252,12 +300,15 @@ function buildProjectionLinesFromMarkdown(
       baseTone,
       matchedTones,
       changeKeys,
-      segments: dominant ? buildProjectionSegments(text, dominant.change, baseTone) : undefined,
+      segments: dominant ? buildProjectionSegments(text, dominant.change, side) : undefined,
       changeKey: dominant ? getChangeReference(dominant.change) : undefined,
+      alignmentKey: dominant ? getAlignmentReference(dominant.change) : undefined,
       pairKind: dominant?.change.pairKind,
       hasDescendantChange:
         dominant?.change.status.descendantChanged && !dominant?.change.status.selfChanged,
       warnings,
+      annotations: buildProjectionAnnotations(matchedTones, warnings, changeKeys.length),
+      lineMatches,
     }
   })
 }
@@ -269,54 +320,237 @@ export function buildMergedRows(
 ): MergedRow[] {
   const oldLines = buildOldProjectionLines(oldMarkdown, result)
   const newLines = buildProjectionLines(newMarkdown, result)
+  const oldBlocks = buildProjectionBlocks(oldLines, 'old')
+  const newBlocks = buildProjectionBlocks(newLines, 'new')
+  const consumedOld = new Set<number>()
+  const mergedBlocks: Array<{ oldBlock?: ProjectionBlock; newBlock?: ProjectionBlock }> = []
 
-  const oldTokens = oldLines.map((line) => line.changeKey ?? line.key)
-  const newTokens = newLines.map((line) => line.changeKey ?? line.key)
+  for (const newBlock of newBlocks) {
+    if (newBlock.mode === 'pair' && newBlock.anchorKey) {
+      const oldIndex = oldBlocks.findIndex(
+        (candidate, index) =>
+          !consumedOld.has(index) &&
+          candidate.mode === 'pair' &&
+          candidate.anchorKey === newBlock.anchorKey,
+      )
+      if (oldIndex >= 0) {
+        consumedOld.add(oldIndex)
+        mergedBlocks.push({ oldBlock: oldBlocks[oldIndex], newBlock })
+        continue
+      }
+    } else if (newBlock.mode === 'plain') {
+      const oldIndex = oldBlocks.findIndex(
+        (candidate, index) => !consumedOld.has(index) && candidate.mode === 'plain',
+      )
+      if (oldIndex >= 0) {
+        consumedOld.add(oldIndex)
+        mergedBlocks.push({ oldBlock: oldBlocks[oldIndex], newBlock })
+        continue
+      }
+    }
+    mergedBlocks.push({ newBlock })
+  }
 
+  for (const [oldIndex, oldBlock] of oldBlocks.entries()) {
+    if (consumedOld.has(oldIndex)) continue
+    const insertionIndex = findInsertionIndexForOldBlock(oldBlocks, oldIndex, mergedBlocks)
+    mergedBlocks.splice(insertionIndex, 0, { oldBlock })
+  }
+
+  return mergedBlocks.flatMap(({ oldBlock, newBlock }) => alignBlockRows(oldBlock, newBlock))
+}
+
+interface ProjectionBlock {
+  side: 'old' | 'new'
+  lines: ProjectionLine[]
+  anchorKey?: string
+  mode: 'pair' | 'plain' | 'old-only' | 'new-only'
+  groupKey: string
+}
+
+function buildProjectionBlocks(
+  lines: ProjectionLine[],
+  side: 'old' | 'new',
+): ProjectionBlock[] {
+  const blocks: ProjectionBlock[] = []
+
+  for (const line of lines) {
+    const mode = blockMode(line, side)
+    const anchorKey = blockAnchorKey(line)
+    const groupKey = anchorKey
+      ? `${mode}:anchor:${anchorKey}:${line.baseTone}:${line.pairKind ?? 'none'}`
+      : `${mode}:plain:${line.baseTone}:${line.warnings.join('|')}:${line.hasDescendantChange ? 'desc' : 'self'}`
+    const previous = blocks[blocks.length - 1]
+
+    if (previous && previous.groupKey === groupKey) {
+      previous.lines.push(line)
+      continue
+    }
+
+    blocks.push({
+      side,
+      lines: [line],
+      anchorKey,
+      mode,
+      groupKey,
+    })
+  }
+
+  return blocks
+}
+
+function blockAnchorKey(line: ProjectionLine): string | undefined {
+  if (!line.alignmentKey || line.alignmentKey === 'match:root:root') return undefined
+  if (line.baseTone === 'move' || line.baseTone === 'reorder') return undefined
+  if (line.baseTone === 'plain' && !line.pairKind && !line.hasDescendantChange && line.warnings.length === 0) {
+    return undefined
+  }
+  return line.alignmentKey
+}
+
+function blockMode(line: ProjectionLine, side: 'old' | 'new'): ProjectionBlock['mode'] {
+  if (side === 'old' && (line.baseTone === 'delete' || line.baseTone === 'move' || line.baseTone === 'reorder')) {
+    return 'old-only'
+  }
+  if (side === 'new' && (line.baseTone === 'insert' || line.baseTone === 'move' || line.baseTone === 'reorder')) {
+    return 'new-only'
+  }
+  if (blockAnchorKey(line)) return 'pair'
+  return 'plain'
+}
+
+function findInsertionIndexForOldBlock(
+  oldBlocks: ProjectionBlock[],
+  oldIndex: number,
+  mergedBlocks: Array<{ oldBlock?: ProjectionBlock; newBlock?: ProjectionBlock }>,
+): number {
+  for (let index = oldIndex + 1; index < oldBlocks.length; index++) {
+    const nextAnchorKey = oldBlocks[index]?.anchorKey
+    if (!nextAnchorKey) continue
+    const mergedIndex = mergedBlocks.findIndex((entry) => entry.oldBlock?.anchorKey === nextAnchorKey)
+    if (mergedIndex >= 0) return mergedIndex
+  }
+  return mergedBlocks.length
+}
+
+function alignBlockRows(
+  oldBlock?: ProjectionBlock,
+  newBlock?: ProjectionBlock,
+): MergedRow[] {
+  if (!oldBlock) return newBlock?.lines.map((line) => ({ oldLine: null, newLine: line })) ?? []
+  if (!newBlock) return oldBlock.lines.map((line) => ({ oldLine: line, newLine: null }))
+
+  const oldLines = oldBlock.lines
+  const newLines = newBlock.lines
+  if (oldLines.length === newLines.length) {
+    return oldLines.map((oldLine, index) => ({ oldLine, newLine: newLines[index] ?? null }))
+  }
+
+  const matches = computeLineMatches(oldLines, newLines)
+  if (matches.length === 0) {
+    return zipWithResiduals(oldLines, newLines)
+  }
+
+  const merged: MergedRow[] = []
   let oldIndex = 0
   let newIndex = 0
-  const merged: MergedRow[] = []
 
-  while (oldIndex < oldLines.length || newIndex < newLines.length) {
-    if (oldIndex >= oldLines.length) {
-      merged.push({ oldLine: null, newLine: newLines[newIndex]! })
-      newIndex++
-      continue
+  for (const [matchedOldIndex, matchedNewIndex] of matches) {
+    while (oldIndex < matchedOldIndex && newIndex < matchedNewIndex) {
+      merged.push({ oldLine: oldLines[oldIndex] ?? null, newLine: newLines[newIndex] ?? null })
+      oldIndex += 1
+      newIndex += 1
     }
-    if (newIndex >= newLines.length) {
-      merged.push({ oldLine: oldLines[oldIndex]!, newLine: null })
-      oldIndex++
-      continue
+    while (oldIndex < matchedOldIndex) {
+      merged.push({ oldLine: oldLines[oldIndex] ?? null, newLine: null })
+      oldIndex += 1
     }
+    while (newIndex < matchedNewIndex) {
+      merged.push({ oldLine: null, newLine: newLines[newIndex] ?? null })
+      newIndex += 1
+    }
+    merged.push({ oldLine: oldLines[matchedOldIndex] ?? null, newLine: newLines[matchedNewIndex] ?? null })
+    oldIndex = matchedOldIndex + 1
+    newIndex = matchedNewIndex + 1
+  }
 
-    const oldKey = oldTokens[oldIndex]!
-    const newKey = newTokens[newIndex]!
-
-    if (oldKey === newKey) {
-      merged.push({ oldLine: oldLines[oldIndex]!, newLine: newLines[newIndex]! })
-      oldIndex++
-      newIndex++
-    } else if (hasFutureMatch(newKey, oldTokens, oldIndex)) {
-      merged.push({ oldLine: oldLines[oldIndex]!, newLine: null })
-      oldIndex++
-    } else if (hasFutureMatch(oldKey, newTokens, newIndex)) {
-      merged.push({ oldLine: null, newLine: newLines[newIndex]! })
-      newIndex++
-    } else {
-      merged.push({ oldLine: oldLines[oldIndex]!, newLine: newLines[newIndex]! })
-      oldIndex++
-      newIndex++
-    }
+  while (oldIndex < oldLines.length && newIndex < newLines.length) {
+    merged.push({ oldLine: oldLines[oldIndex] ?? null, newLine: newLines[newIndex] ?? null })
+    oldIndex += 1
+    newIndex += 1
+  }
+  while (oldIndex < oldLines.length) {
+    merged.push({ oldLine: oldLines[oldIndex] ?? null, newLine: null })
+    oldIndex += 1
+  }
+  while (newIndex < newLines.length) {
+    merged.push({ oldLine: null, newLine: newLines[newIndex] ?? null })
+    newIndex += 1
   }
 
   return merged
 }
 
-function hasFutureMatch(key: string, tokens: readonly string[], start: number): boolean {
-  for (let index = start + 1; index < tokens.length; index++) {
-    if (tokens[index] === key) return true
+function zipWithResiduals(oldLines: ProjectionLine[], newLines: ProjectionLine[]): MergedRow[] {
+  const rows: MergedRow[] = []
+  const length = Math.max(oldLines.length, newLines.length)
+  for (let index = 0; index < length; index++) {
+    rows.push({
+      oldLine: oldLines[index] ?? null,
+      newLine: newLines[index] ?? null,
+    })
   }
-  return false
+  return rows
+}
+
+function computeLineMatches(
+  oldLines: ProjectionLine[],
+  newLines: ProjectionLine[],
+): Array<[number, number]> {
+  const signaturesOld = oldLines.map(lineAlignmentSignature)
+  const signaturesNew = newLines.map(lineAlignmentSignature)
+  const dp = Array.from({ length: oldLines.length + 1 }, () =>
+    Array.from({ length: newLines.length + 1 }, () => 0),
+  )
+
+  for (let oldIndex = oldLines.length - 1; oldIndex >= 0; oldIndex -= 1) {
+    for (let newIndex = newLines.length - 1; newIndex >= 0; newIndex -= 1) {
+      if (signaturesOld[oldIndex] === signaturesNew[newIndex]) {
+        dp[oldIndex]![newIndex] = (dp[oldIndex + 1]?.[newIndex + 1] ?? 0) + 1
+      } else {
+        dp[oldIndex]![newIndex] = Math.max(
+          dp[oldIndex + 1]?.[newIndex] ?? 0,
+          dp[oldIndex]?.[newIndex + 1] ?? 0,
+        )
+      }
+    }
+  }
+
+  const matches: Array<[number, number]> = []
+  let oldIndex = 0
+  let newIndex = 0
+  while (oldIndex < oldLines.length && newIndex < newLines.length) {
+    if (signaturesOld[oldIndex] === signaturesNew[newIndex]) {
+      matches.push([oldIndex, newIndex])
+      oldIndex += 1
+      newIndex += 1
+      continue
+    }
+
+    if ((dp[oldIndex + 1]?.[newIndex] ?? 0) >= (dp[oldIndex]?.[newIndex + 1] ?? 0)) {
+      oldIndex += 1
+    } else {
+      newIndex += 1
+    }
+  }
+
+  return matches
+}
+
+function lineAlignmentSignature(line: ProjectionLine): string {
+  const normalizedText = line.text.trim().replace(/\s+/g, ' ')
+  const blankFlag = line.text.trim().length === 0 ? 'blank' : 'content'
+  return `${blankFlag}:${line.baseTone}:${normalizedText}`
 }
 
 export function buildDetailPanel(
@@ -345,19 +579,23 @@ export function buildDetailPanel(
     newContent: buildNewContent(change),
     oldTitle: oldSection?.title,
     newTitle: newSection?.title,
+    oldInlineSegments: buildSideInlineSegments(change, 'old'),
     newTitleSegments: stripHeadingPrefix(rawTitleSegments),
     newInlineSegments: isHeadingRename ? undefined : buildSideInlineSegments(change, 'new'),
     highlightTone,
+    oldHighlightedLines: buildHighlightedLines(change, highlightTone, 'old'),
     newHighlightedLines: buildHighlightedNewLines(change, highlightTone),
-    codeLines: buildCodeLineDetails(change.codeSpans),
-    newTableRows: buildTableRows(change, highlightTone),
+    oldCodeLines: buildCodeLineDetails(change.codeSpans, 'old', highlightTone),
+    codeLines: buildCodeLineDetails(change.codeSpans, 'new', highlightTone),
+    oldTableRows: buildTableRows(change, highlightTone, 'old'),
+    newTableRows: buildTableRows(change, highlightTone, 'new'),
     metadataChanges: change.metadataChanges?.map((entry) => ({
       path: entry.path,
       op: entry.op,
       oldValueText: formatMetadataValue(entry.oldValue),
       newValueText: formatMetadataValue(entry.newValue),
     })),
-    moveInfo: buildMoveInfo(change, changeIndex, newIndex),
+    moveInfo: buildMoveInfo(change, changeIndex, newIndex, oldIndex),
     backlinkInfo: buildBacklinkInfo(change, oldIndex, newIndex),
   }
 }
@@ -397,6 +635,12 @@ export function lineMatchesFilter(line: ProjectionLine, filter: HighlightFilter 
   return line.matchedTones.includes(filter) || line.baseTone === filter
 }
 
+export function formatWarningLabel(code: string): string {
+  if (WARNING_LABELS[code]) return WARNING_LABELS[code]
+  if (code.startsWith('invalid-')) return `检测到内部一致性异常：${code}`
+  return `存在差异质量提示：${code}`
+}
+
 function buildIndexSummary(index: SemanticIndex): Record<string, number> {
   return {
     nodes: index.byId.size,
@@ -423,18 +667,24 @@ function pickDominantMatch(
   })[0]
 }
 
-function buildProjectionSegments(text: string, change: DiffChange, tone: Tone): ProjectionSegment[] | undefined {
+function buildProjectionSegments(
+  text: string,
+  change: DiffChange,
+  side: 'old' | 'new',
+): ProjectionSegment[] | undefined {
+  const tone = tonesForChange(change)[0] ?? 'replace'
+
   if (change.blockType === 'paragraph' && change.inlineSpans) {
-    const segments = spansToSegments(change.inlineSpans, tone)
-    const rendered = segments.map((segment) => segment.text).join('')
-    if (rendered === text) return segments
+    const segments = buildSideSegmentsFromSpans(change.inlineSpans, side, tone)
+    const rendered = segments?.map((segment) => segment.text).join('')
+    if (segments && rendered === text) return segments
   }
 
   if (change.kind === 'heading' && change.titleInlineSpans) {
-    const title = spansToSegments(change.titleInlineSpans, tone)
+    const title = buildSideSegmentsFromSpans(change.titleInlineSpans, side, 'rename')
     const prefix = headingPrefix(change)
-    const rendered = `${prefix}${title.map((segment) => segment.text).join('')}`
-    if (rendered === text) {
+    const rendered = `${prefix}${title?.map((segment) => segment.text).join('') ?? ''}`
+    if (title?.length && rendered === text) {
       return prefix
         ? [{ text: prefix, tone: 'plain' }, ...title]
         : title
@@ -442,6 +692,36 @@ function buildProjectionSegments(text: string, change: DiffChange, tone: Tone): 
   }
 
   return undefined
+}
+
+function buildProjectionAnnotations(
+  matchedTones: Tone[],
+  warnings: string[],
+  changeCount: number,
+): ProjectionAnnotation[] {
+  const annotations: ProjectionAnnotation[] = matchedTones
+    .filter((tone) => tone !== 'plain')
+    .map((tone) => ({
+      kind: 'tone',
+      label: toneLabels[tone],
+      tone,
+    }))
+
+  if (changeCount > 1) {
+    annotations.push({
+      kind: 'overlap',
+      label: `命中 ${changeCount} 个变更`,
+    })
+  }
+
+  for (const warning of warnings) {
+    annotations.push({
+      kind: 'warning',
+      label: formatWarningLabel(warning),
+    })
+  }
+
+  return annotations
 }
 
 function buildSideInlineSegments(
@@ -483,22 +763,31 @@ function stripHeadingPrefix(
   return segments
 }
 
-function buildCodeLineDetails(codeSpans?: LineDiffSpan[]): DetailPanelModel['codeLines'] {
+function buildCodeLineDetails(
+  codeSpans: LineDiffSpan[] | undefined,
+  side: 'old' | 'new',
+  highlightTone: Tone,
+): DetailPanelModel['codeLines'] {
   if (!codeSpans?.length) return undefined
 
   const lines: NonNullable<DetailPanelModel['codeLines']> = []
   for (const [index, line] of codeSpans.entries()) {
     const segments = line.charSpans
-      ?.map((span) => buildNewCodeSegment(span))
+      ?.map((span) => buildCodeSegment(span, side, highlightTone))
       .filter((segment): segment is ProjectionSegment => !!segment)
 
-    const newLine = line.newLine ?? segments?.map((segment) => segment.text).join('')
-    if (line.op === 'delete' && !newLine) continue
+    const renderedText =
+      side === 'old'
+        ? (line.oldLine ?? segments?.map((segment) => segment.text).join(''))
+        : (line.newLine ?? segments?.map((segment) => segment.text).join(''))
+    if ((side === 'old' && line.op === 'insert') || (side === 'new' && line.op === 'delete')) {
+      if (!renderedText) continue
+    }
 
     lines.push({
       key: `code:${index}`,
       oldLine: line.oldLine,
-      newLine,
+      newLine: line.newLine,
       op: line.op,
       segments: segments?.length ? mergeAdjacentSegments(segments) : undefined,
     })
@@ -507,23 +796,35 @@ function buildCodeLineDetails(codeSpans?: LineDiffSpan[]): DetailPanelModel['cod
   return lines.length ? lines : undefined
 }
 
-function buildHighlightedNewLines(change: DiffChange, highlightTone: Tone): DetailRenderedLine[] | undefined {
+function buildHighlightedLines(
+  change: DiffChange,
+  highlightTone: Tone,
+  side: 'old' | 'new',
+): DetailRenderedLine[] | undefined {
   if (change.kind === 'frontmatter' && change.metadataChanges?.length) {
-    return buildMetadataHighlightedLines(change, highlightTone)
+    return buildMetadataHighlightedLines(change, highlightTone, side)
   }
 
   if (change.primaryOp === 'meta-update' || change.status.metaChanged || change.status.renamed) {
-    return buildFieldHighlightedLines(change, highlightTone)
+    return buildFieldHighlightedLines(change, highlightTone, side)
   }
 
   return undefined
 }
 
-function buildMetadataHighlightedLines(change: DiffChange, highlightTone: Tone): DetailRenderedLine[] | undefined {
-  const newContent = buildNewContent(change)
-  if (!newContent || !change.metadataChanges?.length) return undefined
+function buildHighlightedNewLines(change: DiffChange, highlightTone: Tone): DetailRenderedLine[] | undefined {
+  return buildHighlightedLines(change, highlightTone, 'new')
+}
 
-  const lines = newContent.split('\n')
+function buildMetadataHighlightedLines(
+  change: DiffChange,
+  highlightTone: Tone,
+  side: 'old' | 'new',
+): DetailRenderedLine[] | undefined {
+  const content = side === 'old' ? buildOldContent(change) : buildNewContent(change)
+  if (!content || !change.metadataChanges?.length) return undefined
+
+  const lines = content.split('\n')
   const lineRanges = lines.map(() => [] as Array<{ start: number; end: number; tone: Tone }>)
   const fullLineIndexes = new Set<number>()
 
@@ -536,7 +837,9 @@ function buildMetadataHighlightedLines(change: DiffChange, highlightTone: Tone):
     }
 
     for (const [lineIndex, line] of lines.entries()) {
-      lineRanges[lineIndex]!.push(...collectMetadataLineRanges(line, metadataChange, highlightTone))
+      lineRanges[lineIndex]!.push(
+        ...collectMetadataLineRanges(line, metadataChange, highlightTone, side),
+      )
     }
   }
 
@@ -556,14 +859,18 @@ function buildMetadataHighlightedLines(change: DiffChange, highlightTone: Tone):
   return highlighted.some((line) => line.segments?.length) ? highlighted : undefined
 }
 
-function buildFieldHighlightedLines(change: DiffChange, highlightTone: Tone): DetailRenderedLine[] | undefined {
-  const newContent = buildNewContent(change)
-  if (!newContent) return undefined
+function buildFieldHighlightedLines(
+  change: DiffChange,
+  highlightTone: Tone,
+  side: 'old' | 'new',
+): DetailRenderedLine[] | undefined {
+  const content = side === 'old' ? buildOldContent(change) : buildNewContent(change)
+  if (!content) return undefined
 
-  const fields = collectChangedFields(change)
+  const fields = collectChangedFields(change, side)
   if (!fields.length) return undefined
 
-  const highlighted = newContent.split('\n').map((line, index) => {
+  const highlighted = content.split('\n').map((line, index) => {
     const segments = buildFieldLineSegments(line, fields, highlightTone)
     return {
       key: `field:${index}`,
@@ -576,9 +883,14 @@ function buildFieldHighlightedLines(change: DiffChange, highlightTone: Tone): De
   return highlighted.some((line) => line.segments?.length) ? highlighted : undefined
 }
 
-function buildTableRows(change: DiffChange, highlightTone: Tone): DetailTableRowModel[] | undefined {
-  if (change.blockType !== 'table' || !change.newNode || isSectionNode(change.newNode)) return undefined
-  const rows = Array.isArray(change.newNode.children) ? change.newNode.children : []
+function buildTableRows(
+  change: DiffChange,
+  highlightTone: Tone,
+  side: 'old' | 'new',
+): DetailTableRowModel[] | undefined {
+  const node = side === 'old' ? change.oldNode : change.newNode
+  if (change.blockType !== 'table' || !node || isSectionNode(node)) return undefined
+  const rows = Array.isArray(node.children) ? node.children : []
   if (!rows.length) return undefined
 
   const diffCells = new Map(
@@ -592,7 +904,7 @@ function buildTableRows(change: DiffChange, highlightTone: Tone): DetailTableRow
       cells: cells.map((cell, cellIndex) => {
         const diffCell = diffCells.get(`${rowIndex}:${cellIndex}`)
         const segments = diffCell
-          ? buildSideSegmentsFromSpans(diffCell.spans, 'new', highlightTone)
+          ? buildSideSegmentsFromSpans(diffCell.spans, side, highlightTone)
           : undefined
         const text = collectInlineText(cell.children)
         const tone = diffCell || change.tableDiff?.structureChanged ? highlightTone : 'plain'
@@ -803,20 +1115,27 @@ function buildListItemPreview(section: Section): string {
   return `${prefix}${checkbox}${section.title}`.trim()
 }
 
-function buildNewCodeSegment(
+function buildCodeSegment(
   span: NonNullable<LineDiffSpan['charSpans']>[number],
+  side: 'old' | 'new',
+  replaceTone: Tone,
 ): ProjectionSegment | undefined {
   if (span.op === 'equal') {
-    const text = span.newText ?? span.oldText ?? ''
+    const text = side === 'old' ? (span.oldText ?? span.newText ?? '') : (span.newText ?? span.oldText ?? '')
     return text ? { text, tone: 'plain' } : undefined
   }
   if (span.op === 'insert') {
+    if (side === 'old') return undefined
     return span.newText ? { text: span.newText, tone: 'insert' } : undefined
   }
   if (span.op === 'delete') {
-    return undefined
+    if (side === 'new') return undefined
+    return span.oldText ? { text: span.oldText, tone: 'delete' } : undefined
   }
-  return span.newText ? { text: span.newText, tone: 'replace' } : undefined
+  if (side === 'old') {
+    return span.oldText ? { text: span.oldText, tone: 'delete' } : undefined
+  }
+  return span.newText ? { text: span.newText, tone: replaceTone } : undefined
 }
 
 function buildSideWordSegment(
@@ -962,10 +1281,11 @@ function collectMetadataLineRanges(
   line: string,
   metadataChange: MetadataChange,
   tone: Tone,
+  side: 'old' | 'new',
 ): Array<{ start: number; end: number; tone: Tone }> {
   const ranges: Array<{ start: number; end: number; tone: Tone }> = []
   const key = extractMetadataKey(metadataChange.path)
-  if (!key || !lineIncludesMetadata(line, key, metadataChange)) return ranges
+  if (!key || !lineIncludesMetadata(line, key, metadataChange, side)) return ranges
 
   const keyIndex = line.indexOf(key)
   if (keyIndex >= 0) {
@@ -976,13 +1296,13 @@ function collectMetadataLineRanges(
     })
   }
 
-  const newValueText = formatMetadataValue(metadataChange.newValue)
-  if (newValueText && !newValueText.includes('\n')) {
-    const valueIndex = line.indexOf(newValueText)
+  const valueText = formatMetadataValue(side === 'old' ? metadataChange.oldValue : metadataChange.newValue)
+  if (valueText && !valueText.includes('\n')) {
+    const valueIndex = line.indexOf(valueText)
     if (valueIndex >= 0) {
       ranges.push({
         start: valueIndex,
-        end: valueIndex + newValueText.length,
+        end: valueIndex + valueText.length,
         tone,
       })
     }
@@ -991,10 +1311,15 @@ function collectMetadataLineRanges(
   return ranges
 }
 
-function lineIncludesMetadata(line: string, key: string, change: MetadataChange): boolean {
+function lineIncludesMetadata(
+  line: string,
+  key: string,
+  change: MetadataChange,
+  side: 'old' | 'new',
+): boolean {
   if (line.includes(key)) return true
-  const newValueText = formatMetadataValue(change.newValue)
-  return !!(newValueText && !newValueText.includes('\n') && line.includes(newValueText))
+  const valueText = formatMetadataValue(side === 'old' ? change.oldValue : change.newValue)
+  return !!(valueText && !valueText.includes('\n') && line.includes(valueText))
 }
 
 function buildFieldLineSegments(
@@ -1018,7 +1343,7 @@ function buildFieldLineSegments(
   return buildSegmentsFromRanges(line, ranges)
 }
 
-function collectChangedFields(change: DiffChange): string[] {
+function collectChangedFields(change: DiffChange, side: 'old' | 'new'): string[] {
   const fields: string[] = []
   const oldNode = change.oldNode
   const newNode = change.newNode
@@ -1031,9 +1356,9 @@ function collectChangedFields(change: DiffChange): string[] {
     const oldTitle = typeof oldNode.title === 'string' ? oldNode.title : ''
     const newTitle = typeof newNode.title === 'string' ? newNode.title : ''
 
-    if (newIdentifier && oldIdentifier !== newIdentifier) fields.push(newIdentifier)
-    if (newUrl && oldUrl !== newUrl) fields.push(newUrl)
-    if (newTitle && oldTitle !== newTitle) fields.push(newTitle)
+    if (oldIdentifier !== newIdentifier) fields.push(side === 'old' ? oldIdentifier : newIdentifier)
+    if (oldUrl !== newUrl) fields.push(side === 'old' ? oldUrl : newUrl)
+    if (oldTitle !== newTitle) fields.push(side === 'old' ? oldTitle : newTitle)
   }
 
   if (newNode && !isSectionNode(newNode) && change.blockType === 'code' && oldNode && !isSectionNode(oldNode)) {
@@ -1042,17 +1367,17 @@ function collectChangedFields(change: DiffChange): string[] {
     const oldMeta = typeof oldNode.meta === 'string' ? oldNode.meta : ''
     const newMeta = typeof newNode.meta === 'string' ? newNode.meta : ''
 
-    if (newLang && oldLang !== newLang) fields.push(newLang)
-    if (newMeta && oldMeta !== newMeta) fields.push(newMeta)
+    if (oldLang !== newLang) fields.push(side === 'old' ? oldLang : newLang)
+    if (oldMeta !== newMeta) fields.push(side === 'old' ? oldMeta : newMeta)
   }
 
   if (newNode && isSectionNode(newNode) && change.kind === 'footnote' && oldNode && isSectionNode(oldNode)) {
     const oldIdentifier = typeof oldNode.heading?.identifier === 'string' ? oldNode.heading.identifier : ''
     const newIdentifier = typeof newNode.heading?.identifier === 'string' ? newNode.heading.identifier : ''
-    if (newIdentifier && oldIdentifier !== newIdentifier) fields.push(newIdentifier)
+    if (oldIdentifier !== newIdentifier) fields.push(side === 'old' ? oldIdentifier : newIdentifier)
   }
 
-  return uniqueStrings(fields)
+  return uniqueStrings(fields.filter(Boolean))
 }
 
 function extractMetadataKey(path: string): string | undefined {
@@ -1195,6 +1520,7 @@ function buildMoveInfo(
   change: DiffChange,
   changeIndex?: DiffChangeIndex,
   newIndex?: SemanticIndex,
+  oldIndex?: SemanticIndex,
 ): MoveInfo | undefined {
   if (change.primaryOp !== 'move' || !change.moveRole || !change.movePeerKey) return undefined
 
@@ -1202,9 +1528,9 @@ function buildMoveInfo(
   if (!peerChange) return undefined
 
   const peerRange =
-    peerChange.newId && newIndex
-      ? newIndex.byId.get(peerChange.newId)?.sourceRange
-      : undefined
+    change.moveRole === 'source'
+      ? (peerChange.newId && newIndex ? newIndex.byId.get(peerChange.newId)?.sourceRange : undefined)
+      : (peerChange.oldId && oldIndex ? oldIndex.byId.get(peerChange.oldId)?.sourceRange : undefined)
   const peerHeading = extractMoveHeading(peerChange)
 
   return {

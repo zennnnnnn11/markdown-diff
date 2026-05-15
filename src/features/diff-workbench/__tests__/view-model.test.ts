@@ -208,6 +208,8 @@ describe('diff workbench view-model', () => {
       changeKeys: ['change:1'],
       pairKind: undefined as 'match' | 'align' | undefined,
       warnings: ['inline-deferred'],
+      annotations: [],
+      lineMatches: [],
     }
 
     expect(lineMatchesFilter(warningLine, 'meta')).toBe(true)
@@ -1104,6 +1106,63 @@ describe('diff workbench view-model', () => {
     )
 
     expect(replaced.length).toBeGreaterThan(0)
+  })
+
+  it('keeps moved blocks at their old and new document positions with blank opposite sides', async () => {
+    const oldMarkdown = '# A\n\n## Moved\n\ncontent\n\n# B'
+    const newMarkdown = '# A\n\n# B\n\n## Moved\n\ncontent'
+    const result = await runMarkdownDiff(oldMarkdown, newMarkdown)
+    const rows = buildMergedRows(oldMarkdown, newMarkdown, result)
+
+    const movedOutHeading = rows.find(
+      (row) => row.oldLine?.text === '## Moved' && row.oldLine.baseTone === 'move',
+    )
+    const movedInHeading = rows.find(
+      (row) => row.newLine?.text === '## Moved' && row.newLine.baseTone === 'move',
+    )
+
+    expect(movedOutHeading?.newLine).toBeNull()
+    expect(movedInHeading?.oldLine).toBeNull()
+    expect(
+      rows.some(
+        (row) =>
+          row.oldLine?.text === '## Moved' &&
+          row.newLine?.text === '## Moved' &&
+          row.oldLine.baseTone === 'move' &&
+          row.newLine.baseTone === 'move',
+      ),
+    ).toBe(false)
+  })
+
+  it('keeps moved block peer keys selectable while using side-specific row placement', async () => {
+    const oldMarkdown = '# A\n\n## Moved\n\ncontent\n\n# B'
+    const newMarkdown = '# A\n\n# B\n\n## Moved\n\ncontent'
+    const result = await runMarkdownDiff(oldMarkdown, newMarkdown)
+    const rows = buildMergedRows(oldMarkdown, newMarkdown, result)
+    const movedOutHeading = rows.find(
+      (row) => row.oldLine?.text === '## Moved' && row.oldLine.baseTone === 'move',
+    )
+    const movedInHeading = rows.find(
+      (row) => row.newLine?.text === '## Moved' && row.newLine.baseTone === 'move',
+    )
+
+    expect(movedOutHeading?.oldLine?.changeKey).toContain(':source')
+    expect(movedInHeading?.newLine?.changeKey).toContain(':target')
+    expect(movedOutHeading?.oldLine?.alignmentKey).toBe(movedInHeading?.newLine?.alignmentKey)
+  })
+
+  it('does not align old-only move blocks with unrelated new-only insert blocks', async () => {
+    const oldMarkdown = '# A\n\n## Moved\n\ncontent\n\n# B'
+    const newMarkdown = '# A\n\n# B\n\nbrand new\n\n## Moved\n\ncontent'
+    const result = await runMarkdownDiff(oldMarkdown, newMarkdown)
+    const rows = buildMergedRows(oldMarkdown, newMarkdown, result)
+
+    const movedOutHeading = rows.find((row) => row.oldLine?.text === '## Moved')
+    const insertedLine = rows.find((row) => row.newLine?.text === 'brand new')
+
+    expect(movedOutHeading?.newLine).toBeNull()
+    expect(insertedLine?.oldLine).toBeNull()
+    expect(insertedLine?.newLine?.baseTone).toBe('insert')
   })
 
   it('produces no row with both sides null', async () => {

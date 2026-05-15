@@ -42,6 +42,18 @@ function makeEmptyIndex(): any {
 }
 
 describe('useDiffWorkbench', () => {
+  it('defaults to the aligned unified view', () => {
+    const workbench = useDiffWorkbench('old', 'new')
+
+    expect(workbench.viewMode.value).toBe('unified')
+  })
+
+  it('keeps empty documents runnable', () => {
+    const workbench = useDiffWorkbench('', '')
+
+    expect(workbench.canRun.value).toBe(true)
+  })
+
   it('uses the diff quality warning count for stats cards', () => {
     const workbench = useDiffWorkbench('old', 'new')
 

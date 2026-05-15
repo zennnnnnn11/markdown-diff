@@ -13,7 +13,7 @@ async function waitFor(assertion: () => boolean, timeoutMs = 5000): Promise<void
 }
 
 describe('App', () => {
-  it('mounts the diff workspace, keeps projection as coarse regions, and opens detail modal for exact highlights', async () => {
+  it('mounts the diff workspace, defaults to the aligned split view, and opens detail modal for exact highlights', async () => {
     const wrapper = mount(App, { attachTo: document.body })
 
     try {
@@ -23,6 +23,9 @@ describe('App', () => {
       expect(wrapper.find('#old-markdown').element).toBeTruthy()
       expect(wrapper.find('#new-markdown').element).toBeTruthy()
       expect(wrapper.text()).toContain('统计条')
+      expect(wrapper.text()).toContain('左右对齐视图')
+      expect(wrapper.text()).toContain('旧文档')
+      expect(wrapper.text()).toContain('新文档')
 
       const targetRow = wrapper
         .findAll('.cell.interactive')

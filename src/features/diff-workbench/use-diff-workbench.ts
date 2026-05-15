@@ -19,7 +19,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
   const newMarkdown = ref(initialNewMarkdown)
   const isRunning = ref(false)
   const errorMessage = ref('')
-  const showDebug = ref(false)
+  const viewMode = ref<'unified' | 'source' | 'debug'>('unified')
   const activeFilter = ref<HighlightFilter | null>(null)
   const selectedChangeKey = ref<string | null>(null)
   const result = shallowRef<DiffResult | null>(null)
@@ -58,23 +58,21 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     if (!result.value) return 0
     return result.value.quality.warningCount
   })
-  const canRun = computed(
-    () => oldMarkdown.value.trim().length > 0 && newMarkdown.value.trim().length > 0 && !isRunning.value,
-  )
+  const canRun = computed(() => !isRunning.value)
   const statsCards = computed<StatCardModel[]>(() => {
     if (!result.value) return []
     const q = result.value.quality
     const cards: StatCardModel[] = [
-      { key: 'insert', label: '新增', value: result.value.stats.inserts, filter: 'insert' },
-      { key: 'delete', label: '删除', value: result.value.stats.deletes, filter: 'delete' },
-      { key: 'replace', label: '替换', value: result.value.stats.replaces, filter: 'replace' },
-      { key: 'move', label: '移动', value: result.value.stats.moves, filter: 'move' },
-      { key: 'meta', label: '元数据', value: result.value.stats.metaUpdates, filter: 'meta' },
-      { key: 'rename', label: '改名', value: result.value.stats.renames, filter: 'rename' },
-      { key: 'warning', label: '警告', value: warningCount.value, filter: 'warning' },
+      { key: 'insert', label: '新增', value: result.value.stats.inserts, filter: 'insert', description: '仅新文档存在的内容。' },
+      { key: 'delete', label: '删除', value: result.value.stats.deletes, filter: 'delete', description: '仅旧文档存在的内容。' },
+      { key: 'replace', label: '替换', value: result.value.stats.replaces, filter: 'replace', description: '已配对但内容发生变化的区域。' },
+      { key: 'move', label: '移动', value: result.value.stats.moves, filter: 'move', description: '内容被识别为移动，而不是删后新增。' },
+      { key: 'meta', label: '元数据', value: result.value.stats.metaUpdates, filter: 'meta', description: '结构、frontmatter 或代码围栏元数据变化。' },
+      { key: 'rename', label: '改名', value: result.value.stats.renames, filter: 'rename', description: '标题或引用标识符发生重命名。' },
+      { key: 'warning', label: '提示', value: warningCount.value, filter: 'warning', description: '存在降级、预算或一致性提示。' },
     ]
-    if (q.degradedCount > 0) cards.push({ key: 'degraded', label: '降级', value: q.degradedCount, filter: 'warning' })
-    if (q.inlineDeferredCount > 0) cards.push({ key: 'deferred', label: '延后', value: q.inlineDeferredCount, filter: 'warning' })
+    if (q.degradedCount > 0) cards.push({ key: 'degraded', label: '降级', value: q.degradedCount, filter: 'warning', description: '部分区域使用了简化对齐。' })
+    if (q.inlineDeferredCount > 0) cards.push({ key: 'deferred', label: '延后', value: q.inlineDeferredCount, filter: 'warning', description: '片段级高亮因内容过长而退化。' })
     return cards
   })
 
@@ -119,7 +117,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     newMarkdown,
     isRunning,
     errorMessage,
-    showDebug,
+    viewMode,
     activeFilter,
     selectedChangeKey,
     result,
@@ -146,8 +144,11 @@ function buildEmptyLines(markdown: string): ProjectionLine[] {
     baseTone: 'plain',
     matchedTones: [],
     changeKeys: [],
+    alignmentKey: undefined,
     pairKind: undefined,
     hasDescendantChange: false,
     warnings: [],
+    annotations: [],
+    lineMatches: [],
   }))
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { HighlightFilter, ProjectionLine, Tone } from '../view-model'
+import type { HighlightFilter, ProjectionAnnotation, ProjectionLine, ProjectionSegment, Tone } from '../view-model'
 import { lineMatchesFilter } from '../view-model'
 
 const scrollBody = ref<HTMLElement | null>(null)
@@ -32,6 +32,16 @@ function lineClassName(baseTone: Tone): string {
 function rowId(line: ProjectionLine): string {
   return `${props.side}:${line.key}`
 }
+
+function annotationClass(annotation: ProjectionAnnotation): string {
+  if (annotation.kind === 'warning') return 'annotation-warning'
+  if (annotation.kind === 'overlap') return 'annotation-overlap'
+  return annotation.tone ? `annotation-${annotation.tone}` : 'annotation-tone'
+}
+
+function segmentClass(segment: ProjectionSegment): string {
+  return lineClassName(segment.tone)
+}
 </script>
 
 <template>
@@ -47,6 +57,8 @@ function rowId(line: ProjectionLine): string {
         v-for="line in projectionLines"
         :id="rowId(line)"
         :key="line.key"
+        :data-change-key="line.changeKey"
+        :data-side="side"
         class="projection-row"
         :class="[
           lineClassName(line.baseTone),
@@ -74,8 +86,29 @@ function rowId(line: ProjectionLine): string {
         </div>
 
         <div class="code-cell" role="cell">
-          <span class="line-text">{{ line.text || ' ' }}</span>
-          <span v-if="line.changeKey" class="line-hint">点击查看具体变更</span>
+          <span class="line-content">
+            <template v-if="line.segments?.length">
+              <span
+                v-for="(segment, segmentIndex) in line.segments"
+                :key="`${line.key}:segment:${segmentIndex}`"
+                class="segment"
+                :class="segmentClass(segment)"
+              >{{ segment.text || ' ' }}</span>
+            </template>
+            <template v-else>{{ line.text || ' ' }}</template>
+          </span>
+          <span class="line-meta">
+            <span
+              v-for="(annotation, annotationIndex) in line.annotations"
+              :key="`${line.key}:annotation:${annotationIndex}`"
+              class="annotation-chip"
+              :class="annotationClass(annotation)"
+              :title="annotation.label"
+            >
+              {{ annotation.label }}
+            </span>
+            <span v-if="line.changeKey" class="line-hint">点击查看具体变更</span>
+          </span>
         </div>
       </component>
     </div>
@@ -135,7 +168,7 @@ function rowId(line: ProjectionLine): string {
 
 .code-cell {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
@@ -172,15 +205,74 @@ function rowId(line: ProjectionLine): string {
   white-space: pre-wrap;
 }
 
-.line-text {
+.line-content {
   min-width: 0;
   flex: 1;
+}
+
+.line-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
 .line-hint {
   color: #57606a;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.annotation-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #c4cbd3;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: #fff;
+}
+
+.annotation-insert {
+  border-color: #6fba82;
+  color: #0f5132;
+}
+
+.annotation-delete {
+  border-color: #e58ca1;
+  color: #842029;
+}
+
+.annotation-replace {
+  border-color: #d8a354;
+  color: #7c4d12;
+}
+
+.annotation-move,
+.annotation-reorder {
+  border-color: #90a8e7;
+  color: #1f3f8f;
+}
+
+.annotation-meta,
+.annotation-rename {
+  border-color: #b7a0e5;
+  color: #5a3e9c;
+}
+
+.annotation-warning {
+  border-color: #d0a44d;
+  background: #fffcf0;
+  color: #9a6700;
+}
+
+.annotation-overlap {
+  border-color: #c4cbd3;
+  background: #f6f8fa;
+  color: #57606a;
 }
 
 .tone-plain {
