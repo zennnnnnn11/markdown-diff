@@ -115,13 +115,12 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
 
   function scrollToFirstMatch(filter: HighlightFilter): void {
     if (!result.value) return
-    const allLines = projectionLines.value
-    const first = allLines.find((line) => lineMatchesFilter(line, filter))
+    const first =
+      projectionLines.value.find((line) => lineMatchesFilter(line, filter))
+      ?? oldProjectionLines.value.find((line) => lineMatchesFilter(line, filter))
     if (!first?.changeKey) return
-    const el = document.querySelector<HTMLElement>(
-      `[data-change-key="${first.changeKey}"]`,
-    )
-    el?.scrollIntoView({ block: 'center' })
+    document.querySelector<HTMLElement>(`[data-change-key="${first.changeKey}"]`)
+      ?.scrollIntoView({ block: 'center' })
   }
 
   return {

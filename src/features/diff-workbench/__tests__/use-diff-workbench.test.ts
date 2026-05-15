@@ -391,4 +391,20 @@ describe('useDiffWorkbench', () => {
 
     expect(() => workbench.scrollToFirstMatch('insert')).not.toThrow()
   })
+
+  it('scrollToFirstMatch with delete filter finds lines in old projection', async () => {
+    const scrollIntoView = vi.fn()
+    const mockElement = { scrollIntoView } as unknown as HTMLElement
+    vi.spyOn(document, 'querySelector').mockReturnValue(mockElement)
+
+    const workbench = useDiffWorkbench('# Title\n\ndeleted paragraph', '# Title')
+    await workbench.executeDiff()
+
+    workbench.scrollToFirstMatch('delete')
+
+    expect(document.querySelector).toHaveBeenCalled()
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+
+    vi.restoreAllMocks()
+  })
 })
