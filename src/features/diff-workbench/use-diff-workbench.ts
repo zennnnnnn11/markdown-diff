@@ -11,6 +11,7 @@ import {
   buildProjectionLines,
   flattenChanges,
   getChangeReference,
+  lineMatchesFilter,
   runMarkdownDiff,
 } from './view-model'
 
@@ -63,16 +64,16 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     if (!result.value) return []
     const q = result.value.quality
     const cards: StatCardModel[] = [
-      { key: 'insert', label: '新增', value: result.value.stats.inserts, filter: 'insert', description: '仅新文档存在的内容。' },
-      { key: 'delete', label: '删除', value: result.value.stats.deletes, filter: 'delete', description: '仅旧文档存在的内容。' },
-      { key: 'replace', label: '替换', value: result.value.stats.replaces, filter: 'replace', description: '已配对但内容发生变化的区域。' },
-      { key: 'move', label: '移动', value: result.value.stats.moves, filter: 'move', description: '内容被识别为移动，而不是删后新增。' },
-      { key: 'meta', label: '元数据', value: result.value.stats.metaUpdates, filter: 'meta', description: '结构、frontmatter 或代码围栏元数据变化。' },
-      { key: 'rename', label: '改名', value: result.value.stats.renames, filter: 'rename', description: '标题或引用标识符发生重命名。' },
-      { key: 'warning', label: '提示', value: warningCount.value, filter: 'warning', description: '存在降级、预算或一致性提示。' },
+      { key: 'insert', label: '新增', value: result.value.stats.inserts, filter: 'insert', description: '仅新文档存在的内容。', onClick: () => scrollToFirstMatch('insert') },
+      { key: 'delete', label: '删除', value: result.value.stats.deletes, filter: 'delete', description: '仅旧文档存在的内容。', onClick: () => scrollToFirstMatch('delete') },
+      { key: 'replace', label: '替换', value: result.value.stats.replaces, filter: 'replace', description: '已配对但内容发生变化的区域。', onClick: () => scrollToFirstMatch('replace') },
+      { key: 'move', label: '移动', value: result.value.stats.moves, filter: 'move', description: '内容被识别为移动，而不是删后新增。', onClick: () => scrollToFirstMatch('move') },
+      { key: 'meta', label: '元数据', value: result.value.stats.metaUpdates, filter: 'meta', description: '结构、frontmatter 或代码围栏元数据变化。', onClick: () => scrollToFirstMatch('meta') },
+      { key: 'rename', label: '改名', value: result.value.stats.renames, filter: 'rename', description: '标题或引用标识符发生重命名。', onClick: () => scrollToFirstMatch('rename') },
+      { key: 'warning', label: '提示', value: warningCount.value, filter: 'warning', description: '存在降级、预算或一致性提示。', onClick: () => scrollToFirstMatch('warning') },
     ]
-    if (q.degradedCount > 0) cards.push({ key: 'degraded', label: '降级', value: q.degradedCount, filter: 'warning', description: '部分区域使用了简化对齐。' })
-    if (q.inlineDeferredCount > 0) cards.push({ key: 'deferred', label: '延后', value: q.inlineDeferredCount, filter: 'warning', description: '片段级高亮因内容过长而退化。' })
+    if (q.degradedCount > 0) cards.push({ key: 'degraded', label: '降级', value: q.degradedCount, filter: 'warning', description: '部分区域使用了简化对齐。', onClick: () => scrollToFirstMatch('warning') })
+    if (q.inlineDeferredCount > 0) cards.push({ key: 'deferred', label: '延后', value: q.inlineDeferredCount, filter: 'warning', description: '片段级高亮因内容过长而退化。', onClick: () => scrollToFirstMatch('warning') })
     return cards
   })
 
@@ -112,6 +113,17 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     selectedChangeKey.value = null
   }
 
+  function scrollToFirstMatch(filter: HighlightFilter): void {
+    if (!result.value) return
+    const allLines = projectionLines.value
+    const first = allLines.find((line) => lineMatchesFilter(line, filter))
+    if (!first?.changeKey) return
+    const el = document.querySelector<HTMLElement>(
+      `[data-change-key="${first.changeKey}"]`,
+    )
+    el?.scrollIntoView({ block: 'center' })
+  }
+
   return {
     oldMarkdown,
     newMarkdown,
@@ -133,6 +145,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     clearEditor,
     selectLine,
     closeDetail,
+    scrollToFirstMatch,
   }
 }
 

@@ -34,6 +34,7 @@ const emit = defineEmits<{
         type="button"
         class="stat-card"
         :title="card.description"
+        @click="card.onClick?.()"
         @mouseenter="emit('highlight', card.filter)"
         @mouseleave="emit('highlight', null)"
         @focus="emit('highlight', card.filter)"

@@ -6,4 +6,5 @@ export interface StatCardModel {
   value: number
   filter: HighlightFilter
   description: string
+  onClick?: () => void
 }

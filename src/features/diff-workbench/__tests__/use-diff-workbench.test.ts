@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { useDiffWorkbench } from '../use-diff-workbench'
 
@@ -367,5 +367,28 @@ describe('useDiffWorkbench', () => {
     workbench.selectLine('match:e1:e2')
 
     expect(workbench.peerHighlightKey.value).toBeUndefined()
+  })
+
+  it('scrollToFirstMatch calls scrollIntoView on the first matching cell', async () => {
+    const scrollIntoView = vi.fn()
+    const mockElement = { scrollIntoView } as unknown as HTMLElement
+    vi.spyOn(document, 'querySelector').mockReturnValue(mockElement)
+
+    const workbench = useDiffWorkbench('# Title\n\nold paragraph', '# Title\n\nnew paragraph')
+    await workbench.executeDiff()
+
+    workbench.scrollToFirstMatch('replace')
+
+    expect(document.querySelector).toHaveBeenCalled()
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+
+    vi.restoreAllMocks()
+  })
+
+  it('scrollToFirstMatch does nothing when no result exists', () => {
+    const workbench = useDiffWorkbench('', '')
+    // no executeDiff called — result is null
+
+    expect(() => workbench.scrollToFirstMatch('insert')).not.toThrow()
   })
 })
