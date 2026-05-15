@@ -292,7 +292,7 @@ export function metadataDiff(oldValue: unknown, newValue: unknown, basePath = ''
 }
 
 export function isSection(value: Section | Block | InlineContent): value is Section {
-  return 'kind' in value
+  return 'kind' in value && 'depth' in value
 }
 
 function sortCanonical(value: unknown): unknown {
@@ -365,24 +365,21 @@ function cjkFallbackTokens(value: string): string[] {
 }
 
 function levenshtein(left: readonly string[], right: readonly string[]): number {
-  const rows = left.length + 1
-  const cols = right.length + 1
-  const matrix = Array.from({ length: rows }, () => Array.from<number>({ length: cols }).fill(0))
-
-  for (let row = 0; row < rows; row++) matrix[row]![0] = row
-  for (let col = 0; col < cols; col++) matrix[0]![col] = col
-
-  for (let row = 1; row < rows; row++) {
-    for (let col = 1; col < cols; col++) {
-      const cost = left[row - 1] === right[col - 1] ? 0 : 1
-      const deletion = matrix[row - 1]?.[col] ?? Number.POSITIVE_INFINITY
-      const insertion = matrix[row]?.[col - 1] ?? Number.POSITIVE_INFINITY
-      const substitution = matrix[row - 1]?.[col - 1] ?? Number.POSITIVE_INFINITY
-      matrix[row]![col] = Math.min(deletion + 1, insertion + 1, substitution + cost)
+  const m = left.length
+  const n = right.length
+  if (m === 0) return n
+  if (n === 0) return m
+  let prev = Array.from({ length: n + 1 }, (_, i) => i)
+  let curr = new Array<number>(n + 1)
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i
+    for (let j = 1; j <= n; j++) {
+      const cost = left[i - 1] === right[j - 1] ? 0 : 1
+      curr[j] = Math.min(prev[j]! + 1, curr[j - 1]! + 1, prev[j - 1]! + cost)
     }
+    ;[prev, curr] = [curr, prev]
   }
-
-  return matrix[rows - 1]?.[cols - 1] ?? 0
+  return prev[n]!
 }
 
 function deepEqual(left: unknown, right: unknown): boolean {

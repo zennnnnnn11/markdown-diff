@@ -268,20 +268,26 @@ function buildProjectionLinesFromMarkdown(
   const lines = markdown.split(/\r?\n/)
   const changes = flattenChanges(result.root)
 
+  const changeEntries = changes
+    .map((change) => {
+      const range = getRange(change, result)
+      if (!range?.start?.line || !range?.end?.line) return undefined
+      return { change, range, tones: tonesForChange(change) }
+    })
+    .filter((e): e is { change: DiffChange; range: SourceRange; tones: Tone[] } => !!e)
+
+  const changesByLine = new Map<number, typeof changeEntries>()
+  for (const entry of changeEntries) {
+    for (let ln = entry.range.start.line; ln <= entry.range.end.line; ln++) {
+      let arr = changesByLine.get(ln)
+      if (!arr) { arr = []; changesByLine.set(ln, arr) }
+      arr.push(entry)
+    }
+  }
+
   return lines.map((text, index) => {
     const lineNumber = index + 1
-    const matched = changes
-      .map((change) => {
-        const range = getRange(change, result)
-        if (!range?.start?.line || !range?.end?.line) return undefined
-        if (lineNumber < range.start.line || lineNumber > range.end.line) return undefined
-        return {
-          change,
-          range,
-          tones: tonesForChange(change),
-        }
-      })
-      .filter((entry): entry is { change: DiffChange; range: SourceRange; tones: Tone[] } => !!entry)
+    const matched = changesByLine.get(lineNumber) ?? []
 
     const matchedTones = uniqueTones(matched.flatMap((entry) => entry.tones))
     const dominant = pickDominantMatch(matched)
@@ -521,6 +527,26 @@ function computeLineMatches(
 ): Array<[number, number]> {
   const signaturesOld = oldLines.map(lineTextSignature)
   const signaturesNew = newLines.map(lineTextSignature)
+
+  const MAX_LCS = 500
+  if (oldLines.length > MAX_LCS || newLines.length > MAX_LCS) {
+    const sigMap = new Map<string, number[]>()
+    signaturesOld.forEach((sig, i) => {
+      let arr = sigMap.get(sig)
+      if (!arr) { arr = []; sigMap.set(sig, arr) }
+      arr.push(i)
+    })
+    const matches: Array<[number, number]> = []
+    const usedOld = new Set<number>()
+    for (let j = 0; j < newLines.length; j++) {
+      const candidates = sigMap.get(signaturesNew[j]!)
+      if (!candidates) continue
+      const idx = candidates.find((i) => !usedOld.has(i))
+      if (idx !== undefined) { usedOld.add(idx); matches.push([idx, j]) }
+    }
+    return matches.sort((a, b) => a[0] - b[0])
+  }
+
   const dp = Array.from({ length: oldLines.length + 1 }, () =>
     Array.from({ length: newLines.length + 1 }, () => 0),
   )
@@ -600,6 +626,10 @@ function computeLineMatches(
   return matches
 }
 
+export function tokenizeForSimilarity(text: string): string[] {
+  return text.match(/[一-鿿㐀-䶿豈-﫿]|[^\s一-鿿㐀-䶿豈-﫿]+/g) ?? []
+}
+
 function plainBlockSimilarity(a: ProjectionBlock, b: ProjectionBlock): number {
   const normalize = (block: ProjectionBlock) =>
     block.lines.map((l) => l.text).join(' ').trim().replace(/\s+/g, ' ')
@@ -607,18 +637,12 @@ function plainBlockSimilarity(a: ProjectionBlock, b: ProjectionBlock): number {
   const textB = normalize(b)
   if (textA === '' && textB === '') return 1
   if (textA === '' || textB === '') return 0
-  const setA = new Set(textA.split(' '))
-  const setB = new Set(textB.split(' '))
+  const setA = new Set(tokenizeForSimilarity(textA))
+  const setB = new Set(tokenizeForSimilarity(textB))
   let intersection = 0
   for (const token of setA) if (setB.has(token)) intersection++
   const union = setA.size + setB.size - intersection
   return union === 0 ? 1 : intersection / union
-}
-
-function lineAlignmentSignature(line: ProjectionLine): string {
-  const normalizedText = line.text.trim().replace(/\s+/g, ' ')
-  const blankFlag = line.text.trim().length === 0 ? 'blank' : 'content'
-  return `${blankFlag}:${line.baseTone}:${normalizedText}`
 }
 
 function lineTextSignature(line: ProjectionLine): string {
@@ -628,21 +652,24 @@ function lineTextSignature(line: ProjectionLine): string {
 }
 
 function charLevenshtein(a: string, b: string): number {
-  if (a === b) return 0
-  if (a.length === 0) return b.length
-  if (b.length === 0) return a.length
-  let prev = Array.from({ length: b.length + 1 }, (_, i) => i)
-  let curr = new Array<number>(b.length + 1)
-  for (let i = 1; i <= a.length; i++) {
+  const MAX_LEN = 2000
+  const sa = a.length > MAX_LEN ? a.slice(0, MAX_LEN) : a
+  const sb = b.length > MAX_LEN ? b.slice(0, MAX_LEN) : b
+  if (sa === sb) return 0
+  if (sa.length === 0) return sb.length
+  if (sb.length === 0) return sa.length
+  let prev = Array.from({ length: sb.length + 1 }, (_, i) => i)
+  let curr = new Array<number>(sb.length + 1)
+  for (let i = 1; i <= sa.length; i++) {
     curr[0] = i
-    for (let j = 1; j <= b.length; j++) {
-      curr[j] = a[i - 1] === b[j - 1]
+    for (let j = 1; j <= sb.length; j++) {
+      curr[j] = sa[i - 1] === sb[j - 1]
         ? prev[j - 1]!
         : Math.min(prev[j - 1]!, prev[j]!, curr[j - 1]!) + 1
     }
     ;[prev, curr] = [curr, prev]
   }
-  return prev[b.length]!
+  return prev[sb.length]!
 }
 
 function lineSimilarity(a: ProjectionLine, b: ProjectionLine): number {
@@ -1646,15 +1673,10 @@ function findPeerChange(
   changeIndex?: DiffChangeIndex,
 ): DiffChange | undefined {
   if (!changeIndex || !change.logicalMoveId) return undefined
-
-  if (change.moveRole === 'source') {
-    return [...changeIndex.byNewId.values()].find(
-      (c) => c.logicalMoveId === change.logicalMoveId && c.moveRole === 'target',
-    )
-  }
-  return [...changeIndex.byOldId.values()].find(
-    (c) => c.logicalMoveId === change.logicalMoveId && c.moveRole === 'source',
-  )
+  const peers = changeIndex.byLogicalMoveId.get(change.logicalMoveId)
+  if (!peers) return undefined
+  const targetRole = change.moveRole === 'source' ? 'target' : 'source'
+  return peers.find((c) => c.moveRole === targetRole)
 }
 
 function extractMoveHeading(change: DiffChange): string | undefined {

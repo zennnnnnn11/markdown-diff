@@ -495,7 +495,7 @@ function makeResult(
     oldIndex: makeIndex(oldRanges, 'old'),
     newIndex: makeIndex(newRanges, 'new'),
     matches: [],
-    changeIndex: { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map() },
+    changeIndex: { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map(), byLogicalMoveId: new Map() },
     stats: { inserts: 0, deletes: 0, replaces: 0, moves: 0, metaUpdates: 0, renames: 0 },
     quality: { degradedCount: 0, inlineDeferredCount: 0, warningCount: 0 },
     warnings: [],

@@ -65,13 +65,16 @@ class AnchorRegistry {
   private globalAnchors: Array<{ oldPreorder: number; newPreorder: number }> = []
 
   register(oldPreorder: number, newPreorder: number): void {
-    const existing = this.globalAnchors.find(
-      (anchor) => anchor.oldPreorder === oldPreorder && anchor.newPreorder === newPreorder,
-    )
-    if (existing) return
-
-    this.globalAnchors.push({ oldPreorder, newPreorder })
-    this.globalAnchors.sort((left, right) => left.oldPreorder - right.oldPreorder)
+    const arr = this.globalAnchors
+    let lo = 0
+    let hi = arr.length
+    while (lo < hi) {
+      const mid = (lo + hi) >>> 1
+      if (arr[mid]!.oldPreorder < oldPreorder) lo = mid + 1
+      else hi = mid
+    }
+    if (lo < arr.length && arr[lo]!.oldPreorder === oldPreorder && arr[lo]!.newPreorder === newPreorder) return
+    arr.splice(lo, 0, { oldPreorder, newPreorder })
   }
 
   getGlobalInterval(
@@ -521,9 +524,6 @@ async function flushGap(
     changes.push(buildInsertChange(context, newId))
   }
 
-  for (const pair of pairs) {
-    if (!pairedOld.has(pair.oldId)) continue
-  }
 }
 
 function collectGapMatches(
@@ -1057,13 +1057,27 @@ async function recoverMoves(context: DiffContext, root: DiffChange): Promise<voi
   const coveredOld = new Set<string>()
   const coveredNew = new Set<string>()
 
-  const candidates = deletes.flatMap((deleted) =>
-    inserts
-      .map((inserted) => ({ deleted, inserted }))
-      .filter(({ deleted: oldChange, inserted: newChange }) =>
-        moveCandidateAllowed(context, oldChange, newChange),
-      ),
-  )
+  const deleteBuckets = new Map<string, DiffChange[]>()
+  for (const d of deletes) {
+    const node = d.oldId ? context.oldIndex.byId.get(d.oldId) : undefined
+    const key = node?.section ? `section:${node.section.kind}` : (node?.block?.type ?? 'unknown')
+    let bucket = deleteBuckets.get(key)
+    if (!bucket) { bucket = []; deleteBuckets.set(key, bucket) }
+    bucket.push(d)
+  }
+
+  const candidates: Array<{ deleted: DiffChange; inserted: DiffChange }> = []
+  for (const inserted of inserts) {
+    const node = inserted.newId ? context.newIndex.byId.get(inserted.newId) : undefined
+    const key = node?.section ? `section:${node.section.kind}` : (node?.block?.type ?? 'unknown')
+    const bucket = deleteBuckets.get(key)
+    if (!bucket) continue
+    for (const deleted of bucket) {
+      if (moveCandidateAllowed(context, deleted, inserted)) {
+        candidates.push({ deleted, inserted })
+      }
+    }
+  }
 
   candidates.sort(
     (left, right) =>
@@ -1435,10 +1449,12 @@ async function computeTableMetadataChange(
   newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
   options: DiffOptions,
 ): Promise<TableDiff> {
-  const oldRows = readTableCells(oldNode.block)
-  const newRows = readTableCells(newNode.block)
-  const oldStructuredRows = readStructuredTableCells(oldNode.block)
-  const newStructuredRows = readStructuredTableCells(newNode.block)
+  const oldData = readTableData(oldNode.block)
+  const newData = readTableData(newNode.block)
+  const oldRows = oldData.cells
+  const newRows = newData.cells
+  const oldStructuredRows = oldData.structured
+  const newStructuredRows = newData.structured
   const oldAlign = Array.isArray(oldNode.block?.align) ? (oldNode.block.align as string[]) : []
   const newAlign = Array.isArray(newNode.block?.align) ? (newNode.block.align as string[]) : []
   const shapeChanged =
@@ -1691,9 +1707,9 @@ function isStructuralOnlyTableChange(
   tableDiff: TableDiff,
 ): boolean {
   if (!tableDiff.structureChanged || tableDiff.cellDiffs.length > 0) return false
-  return (
-    JSON.stringify(readTableCells(oldNode.block)) === JSON.stringify(readTableCells(newNode.block))
-  )
+  const oldCells = readTableData(oldNode.block).cells
+  const newCells = readTableData(newNode.block).cells
+  return JSON.stringify(oldCells) === JSON.stringify(newCells)
 }
 
 function foldLongCodeSpans(spans: LineDiffSpan[], contextLines: number): LineDiffSpan[] {
@@ -2793,14 +2809,20 @@ function buildChangeIndex(root: DiffChange): DiffChangeIndex {
   const byOldId = new Map<string, DiffChange>()
   const byNewId = new Map<string, DiffChange>()
   const byPairKey = new Map<string, DiffChange>()
+  const byLogicalMoveId = new Map<string, DiffChange[]>()
 
   forEachChange(root, (change) => {
     if (change.oldId && !byOldId.has(change.oldId)) byOldId.set(change.oldId, change)
     if (change.newId && !byNewId.has(change.newId)) byNewId.set(change.newId, change)
     if (change.pairKey && !byPairKey.has(change.pairKey)) byPairKey.set(change.pairKey, change)
+    if (change.logicalMoveId) {
+      let arr = byLogicalMoveId.get(change.logicalMoveId)
+      if (!arr) { arr = []; byLogicalMoveId.set(change.logicalMoveId, arr) }
+      arr.push(change)
+    }
   })
 
-  return { byOldId, byNewId, byPairKey }
+  return { byOldId, byNewId, byPairKey, byLogicalMoveId }
 }
 
 function indexOfMaxScore(scores: readonly number[]): number {
@@ -2916,22 +2938,24 @@ function extractInlineText(nodes: InlineContent[]): string {
   return nodes.map((node) => extractNodeText(node)).join('')
 }
 
-function readTableCells(block: any): string[][] {
-  if (!block || !Array.isArray(block.children)) return []
-  return block.children.map((row: any) =>
-    Array.isArray(row.children) ? row.children.map((cell: any) => extractNodeText(cell)) : [],
-  )
-}
-
-function readStructuredTableCells(block: any): InlineContent[][][] {
-  if (!block || !Array.isArray(block.children)) return []
-  return block.children.map((row: any) =>
-    Array.isArray(row.children)
-      ? row.children.map((cell: any) =>
-          Array.isArray(cell.children) ? (cell.children as InlineContent[]) : [],
-        )
-      : [],
-  )
+function readTableData(block: any): { cells: string[][]; structured: InlineContent[][][] } {
+  if (!block || !Array.isArray(block.children)) return { cells: [], structured: [] }
+  const cells: string[][] = []
+  const structured: InlineContent[][][] = []
+  for (const row of block.children) {
+    if (!Array.isArray(row.children)) {
+      cells.push([])
+      structured.push([])
+      continue
+    }
+    cells.push(row.children.map((cell: any) => extractNodeText(cell)))
+    structured.push(
+      row.children.map((cell: any) =>
+        Array.isArray(cell.children) ? (cell.children as InlineContent[]) : [],
+      ),
+    )
+  }
+  return { cells, structured }
 }
 
 function maxColumns(rows: string[][]): number {

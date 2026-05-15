@@ -20,7 +20,7 @@ function makeEmptyResult(): any {
     oldIndex: makeEmptyIndex(),
     newIndex: makeEmptyIndex(),
     matches: [],
-    changeIndex: { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map() },
+    changeIndex: { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map(), byLogicalMoveId: new Map() },
     stats: { inserts: 0, deletes: 0, replaces: 0, moves: 0, metaUpdates: 0, renames: 0 },
     quality: { degradedCount: 0, inlineDeferredCount: 0, warningCount: 0 },
     warnings: [],
@@ -132,6 +132,7 @@ describe('useDiffWorkbench', () => {
         byOldId: new Map([['s1', sourceChange]]),
         byNewId: new Map([['s2', targetChange]]),
         byPairKey: new Map([['match:s1:s2', targetChange]]),
+        byLogicalMoveId: new Map([[sourceChange.logicalMoveId, [sourceChange, targetChange]]]),
       },
       newIndex: {
         ...makeEmptyIndex(),
@@ -187,6 +188,7 @@ describe('useDiffWorkbench', () => {
         byOldId: new Map([['ps1', sourceChange]]),
         byNewId: new Map([['ps2', targetChange]]),
         byPairKey: new Map([['match:ps1:ps1', sourceChange]]),
+        byLogicalMoveId: new Map([[sourceChange.logicalMoveId, [sourceChange, targetChange]]]),
       },
       newIndex: {
         ...makeEmptyIndex(),
@@ -230,6 +232,7 @@ describe('useDiffWorkbench', () => {
         byOldId: new Map([['pt1', sourceChange]]),
         byNewId: new Map([['pt2', targetChange]]),
         byPairKey: new Map([['match:pt2:pt2', targetChange]]),
+        byLogicalMoveId: new Map([[sourceChange.logicalMoveId, [sourceChange, targetChange]]]),
       },
       newIndex: {
         ...makeEmptyIndex(),
@@ -299,6 +302,7 @@ describe('useDiffWorkbench', () => {
         byOldId: new Map([['w1', warnedChange]]),
         byNewId: new Map(),
         byPairKey: new Map(),
+        byLogicalMoveId: new Map(),
       },
       warnings: ['global-warning'],
     }

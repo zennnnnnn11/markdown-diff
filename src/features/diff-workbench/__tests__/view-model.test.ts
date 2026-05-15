@@ -10,6 +10,7 @@ import {
   lineMatchesFilter,
   matchKindLabels,
   runMarkdownDiff,
+  tokenizeForSimilarity,
   toneLabels,
 } from '../view-model'
 
@@ -292,6 +293,7 @@ describe('diff workbench view-model', () => {
       byOldId: new Map([['b1', sourceChange]]),
       byNewId: new Map([['b3', targetChange]]),
       byPairKey: new Map([['match:b1:b3', targetChange]]),
+      byLogicalMoveId: new Map([[sourceChange.logicalMoveId, [sourceChange, targetChange]]]),
     }
 
     const newIndex = {
@@ -443,6 +445,7 @@ describe('diff workbench view-model', () => {
       byOldId: new Map([['t1', sourceChange]]),
       byNewId: new Map([['t3', targetChange]]),
       byPairKey: new Map([['match:t1:t3', targetChange]]),
+      byLogicalMoveId: new Map([[sourceChange.logicalMoveId, [sourceChange, targetChange]]]),
     }
     const newIndex = {
       byId: new Map([['t3', { sourceRange: { start: { line: 8 }, end: { line: 10 } } }]]),
@@ -482,7 +485,7 @@ describe('diff workbench view-model', () => {
       status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
       summary: 's', children: [], warnings: [],
     }
-    const emptyIndex = { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map() }
+    const emptyIndex = { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map(), byLogicalMoveId: new Map() }
 
     const detail = buildDetailPanel(change, emptyIndex as any, undefined)
 
@@ -513,6 +516,7 @@ describe('diff workbench view-model', () => {
       byOldId: new Map([['nr1', sourceChange]]),
       byNewId: new Map([['nr3', targetChange]]),
       byPairKey: new Map([['match:nr1:nr3', targetChange]]),
+      byLogicalMoveId: new Map([[sourceChange.logicalMoveId, [sourceChange, targetChange]]]),
     }
     // newIndex has no sourceRange for nr3
     const newIndex = { byId: new Map([['nr3', {}]]) } as any
@@ -1489,5 +1493,34 @@ describe('diff workbench view-model', () => {
         row.newLine !== null,
     )
     expect(blankRow).toBeDefined()
+  })
+})
+
+describe('tokenizeForSimilarity', () => {
+  it('tokenizes ASCII text by whitespace', () => {
+    expect(tokenizeForSimilarity('hello world')).toEqual(['hello', 'world'])
+  })
+
+  it('tokenizes pure CJK text into individual characters', () => {
+    expect(tokenizeForSimilarity('你好世界')).toEqual(['你', '好', '世', '界'])
+  })
+
+  it('handles mixed CJK and ASCII text', () => {
+    expect(tokenizeForSimilarity('hello 世界')).toEqual(['hello', '世', '界'])
+  })
+
+  it('returns empty array for empty string', () => {
+    expect(tokenizeForSimilarity('')).toEqual([])
+  })
+
+  it('returns empty array for whitespace-only string', () => {
+    expect(tokenizeForSimilarity('   ')).toEqual([])
+  })
+
+  it('handles CJK with punctuation and ASCII mixed', () => {
+    const tokens = tokenizeForSimilarity('文档version2.0')
+    expect(tokens).toContain('文')
+    expect(tokens).toContain('档')
+    expect(tokens.some(t => t.includes('version'))).toBe(true)
   })
 })

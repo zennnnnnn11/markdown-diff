@@ -203,10 +203,13 @@ function codeSimilarity(
   if (oldNode.contentOnlyHash === newNode.contentOnlyHash) return 1
   const oldLines = splitLines(oldNode.block?.value)
   const newLines = splitLines(newNode.block?.value)
-  const charSimilarity = sequenceSimilarity(
-    [...String(oldNode.block?.value ?? '')],
-    [...String(newNode.block?.value ?? '')],
-  )
+  const oldVal = String(oldNode.block?.value ?? '')
+  const newVal = String(newNode.block?.value ?? '')
+  const MAX_CHAR_DIFF_LEN = 5000
+  const charSimilarity =
+    oldVal.length > MAX_CHAR_DIFF_LEN || newVal.length > MAX_CHAR_DIFF_LEN
+      ? sequenceSimilarity(oldLines, newLines)
+      : sequenceSimilarity([...oldVal], [...newVal])
   const lineSimilarity = Math.max(
     tokenSimilarity(oldLines, newLines, options),
     sequenceSimilarity(oldLines, newLines),

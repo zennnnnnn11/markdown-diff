@@ -5,6 +5,7 @@ import {
   charikarSimHash,
   extractInlineStructure,
   extractNodeText,
+  isSection,
   jaccardSimilarity,
   makeMoveId,
   makePairKey,
@@ -88,6 +89,7 @@ describe('diff utilities', () => {
   it('extracts structured tokens and plain text from mixed inline and section nodes', () => {
     const section = {
       kind: 'heading',
+      depth: 1,
       title: 'Docs Overview',
       heading: undefined,
       items: [
@@ -127,12 +129,14 @@ describe('diff utilities', () => {
   it('extracts frontmatter, image, math, and non-heading section text consistently', () => {
     const frontmatter = {
       kind: 'frontmatter',
+      depth: 0,
       frontmatterValue: 'title: Test',
       items: [],
       children: [],
     } as any
     const blockquote = {
       kind: 'blockquote',
+      depth: 0,
       items: [
         { type: 'paragraph', children: [{ type: 'text', value: 'Quoted' }] },
         { type: 'math', value: 'x^2' },
@@ -272,5 +276,66 @@ describe('diff utilities', () => {
     expect(metadataDiff({ tags: ['a'] }, 'disabled', '$')).toEqual([
       { path: '$', oldValue: { tags: ['a'] }, newValue: 'disabled', op: 'replace' },
     ])
+  })
+})
+
+describe('isSection', () => {
+  it('returns true for a Section object with kind and depth', () => {
+    const section = { id: 's1', kind: 'heading', depth: 1, treeDepth: 1, title: 'Test', titleKind: 'explicit', children: [], items: [] }
+    expect(isSection(section as any)).toBe(true)
+  })
+
+  it('returns false for a Block object without kind or depth', () => {
+    const block = { id: 'b1', type: 'paragraph' }
+    expect(isSection(block as any)).toBe(false)
+  })
+
+  it('returns false for an object with kind but no depth', () => {
+    const obj = { id: 'b1', type: 'paragraph', kind: 'heading' }
+    expect(isSection(obj as any)).toBe(false)
+  })
+
+  it('returns false for an object with depth but no kind', () => {
+    const obj = { id: 'b1', type: 'paragraph', depth: 1 }
+    expect(isSection(obj as any)).toBe(false)
+  })
+
+  it('returns true for a minimal Section-like object', () => {
+    const section = { kind: 'root', depth: 0, children: [], items: [] }
+    expect(isSection(section as any)).toBe(true)
+  })
+})
+
+describe('levenshtein via sequenceSimilarity', () => {
+  it('returns 1 for identical sequences', () => {
+    expect(sequenceSimilarity(['a', 'b', 'c'], ['a', 'b', 'c'])).toBe(1)
+  })
+
+  it('returns 1 for both empty', () => {
+    expect(sequenceSimilarity([], [])).toBe(1)
+  })
+
+  it('returns 0 for one empty vs non-empty', () => {
+    expect(sequenceSimilarity([], ['a', 'b'])).toBe(0)
+    expect(sequenceSimilarity(['a'], [])).toBe(0)
+  })
+
+  it('handles single substitution', () => {
+    const sim = sequenceSimilarity(['a', 'b', 'c'], ['a', 'x', 'c'])
+    expect(sim).toBeCloseTo(1 - 1 / 3, 5)
+  })
+
+  it('handles single insertion', () => {
+    const sim = sequenceSimilarity(['a', 'b'], ['a', 'x', 'b'])
+    expect(sim).toBeCloseTo(1 - 1 / 3, 5)
+  })
+
+  it('returns consistent results for longer sequences', () => {
+    const a = 'the quick brown fox'.split(' ')
+    const b = 'the slow brown cat'.split(' ')
+    const sim = sequenceSimilarity(a, b)
+    expect(sim).toBeGreaterThan(0)
+    expect(sim).toBeLessThan(1)
+    expect(sim).toBeCloseTo(0.5, 5)
   })
 })

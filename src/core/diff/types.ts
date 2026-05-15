@@ -252,6 +252,7 @@ export interface DiffChangeIndex {
   byOldId: Map<string, DiffChange>
   byNewId: Map<string, DiffChange>
   byPairKey: Map<string, DiffChange>
+  byLogicalMoveId: Map<string, DiffChange[]>
 }
 
 export interface DiffQualitySummary {

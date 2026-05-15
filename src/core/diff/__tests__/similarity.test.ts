@@ -549,3 +549,148 @@ describe('node similarity', () => {
     expect(uniquenessMargin([0.95, 0.7, 0.4])).toBeCloseTo(0.25)
   })
 })
+
+describe('codeSimilarity size guard', () => {
+  function makeCodeNode(value: string, hash?: string): DiffNode {
+    return makeNode({
+      entity: 'block',
+      blockType: 'code',
+      block: { type: 'code', value, lang: 'js' } as any,
+      contentOnlyHash: hash ?? `hash-${value.length}`,
+      textTokens: value.split(/\s+/).filter(Boolean),
+    })
+  }
+
+  it('returns 1 for identical code via hash shortcut', () => {
+    const node = makeCodeNode('const x = 1', 'same')
+    const other = makeCodeNode('const x = 1', 'same')
+    expect(computeNodeSimilarity(node, other, OPTIONS)).toBe(1)
+  })
+
+  it('returns high similarity for small similar code blocks', () => {
+    const old = makeCodeNode('function add(a, b) {\n  return a + b\n}')
+    const newNode = makeCodeNode('function multiply(a, b) {\n  return a * b\n}')
+    const score = computeNodeSimilarity(old, newNode, OPTIONS)
+    expect(score).toBeGreaterThan(0.3)
+    expect(score).toBeLessThanOrEqual(1)
+  })
+
+  it('handles large code blocks without OOM', () => {
+    const largeCode = 'x'.repeat(6000)
+    const old = makeCodeNode(largeCode)
+    const newNode = makeCodeNode(largeCode + 'y')
+    const score = computeNodeSimilarity(old, newNode, OPTIONS)
+    expect(score).toBeGreaterThan(0)
+    expect(Number.isFinite(score)).toBe(true)
+  })
+})
+
+describe('type-specific similarity via computeNodeSimilarity', () => {
+  it('headingSimilarity: same heading returns 1', () => {
+    const a = makeNode({
+      entity: 'section', kind: 'heading',
+      section: { kind: 'heading', title: 'Introduction', headingDepth: 2, items: [], children: [] } as any,
+      block: { type: 'heading', depth: 2, children: [{ type: 'text', value: 'Introduction' }] } as any,
+      titleTokens: ['introduction'], textTokens: ['introduction'],
+      contentOnlyHash: 'h1',
+    })
+    const b = makeNode({
+      entity: 'section', kind: 'heading',
+      section: { kind: 'heading', title: 'Introduction', headingDepth: 2, items: [], children: [] } as any,
+      block: { type: 'heading', depth: 2, children: [{ type: 'text', value: 'Introduction' }] } as any,
+      titleTokens: ['introduction'], textTokens: ['introduction'],
+      contentOnlyHash: 'h1',
+    })
+    expect(computeNodeSimilarity(a, b, OPTIONS)).toBe(1)
+  })
+
+  it('headingSimilarity: different depth reduces score', () => {
+    const a = makeNode({
+      entity: 'section', kind: 'heading',
+      section: { kind: 'heading', title: 'Test', headingDepth: 1, items: [], children: [] } as any,
+      block: { type: 'heading', depth: 1, children: [{ type: 'text', value: 'Test' }] } as any,
+      titleTokens: ['test'], textTokens: ['test'],
+      selfHash: 'sha', contentOnlyHash: 'ha',
+    })
+    const b = makeNode({
+      entity: 'section', kind: 'heading',
+      section: { kind: 'heading', title: 'Test', headingDepth: 3, items: [], children: [] } as any,
+      block: { type: 'heading', depth: 3, children: [{ type: 'text', value: 'Test' }] } as any,
+      titleTokens: ['test'], textTokens: ['test'],
+      selfHash: 'shb', contentOnlyHash: 'hb',
+    })
+    const score = computeNodeSimilarity(a, b, OPTIONS)
+    expect(score).toBeGreaterThan(0)
+    expect(score).toBeLessThan(1)
+  })
+
+  it('paragraphSimilarity: identical text returns 1', () => {
+    const text = 'This is a test paragraph with some content.'
+    const a = makeNode({
+      textTokens: text.split(/\s+/), contentOnlyHash: 'p1',
+      block: { type: 'paragraph', children: [{ type: 'text', value: text }] } as any,
+    })
+    const b = makeNode({
+      textTokens: text.split(/\s+/), contentOnlyHash: 'p1',
+      block: { type: 'paragraph', children: [{ type: 'text', value: text }] } as any,
+    })
+    expect(computeNodeSimilarity(a, b, OPTIONS)).toBe(1)
+  })
+
+  it('paragraphSimilarity: minor edit gives high score', () => {
+    const a = makeNode({
+      textTokens: ['hello', 'world', 'test'], selfHash: 'spa', contentOnlyHash: 'pa',
+      block: { type: 'paragraph', children: [{ type: 'text', value: 'hello world test' }] } as any,
+    })
+    const b = makeNode({
+      textTokens: ['hello', 'earth', 'test'], selfHash: 'spb', contentOnlyHash: 'pb',
+      block: { type: 'paragraph', children: [{ type: 'text', value: 'hello earth test' }] } as any,
+    })
+    const score = computeNodeSimilarity(a, b, OPTIONS)
+    expect(score).toBeGreaterThan(0.5)
+  })
+
+  it('paragraphSimilarity: completely different text and structure gives low score', () => {
+    const a = makeNode({
+      textTokens: ['alpha', 'beta', 'gamma'], selfHash: 'spc', contentOnlyHash: 'pa',
+      block: {
+        type: 'paragraph',
+        children: [
+          { type: 'text', value: 'alpha ' },
+          { type: 'strong', children: [{ type: 'text', value: 'beta' }] },
+          { type: 'text', value: ' gamma' },
+        ],
+      } as any,
+    })
+    const b = makeNode({
+      textTokens: ['one', 'two', 'three', 'four', 'five'], selfHash: 'spd', contentOnlyHash: 'pb',
+      block: {
+        type: 'paragraph',
+        children: [
+          { type: 'link', url: 'https://example.com', children: [{ type: 'text', value: 'one two three four five' }] },
+        ],
+      } as any,
+    })
+    const score = computeNodeSimilarity(a, b, OPTIONS)
+    expect(score).toBeLessThan(1)
+  })
+
+  it('tableSimilarity: identical table returns 1', () => {
+    const tableBlock = {
+      type: 'table',
+      children: [
+        { children: [{ children: [{ type: 'text', value: 'A' }] }, { children: [{ type: 'text', value: 'B' }] }] },
+        { children: [{ children: [{ type: 'text', value: '1' }] }, { children: [{ type: 'text', value: '2' }] }] },
+      ],
+    } as any
+    const a = makeNode({
+      blockType: 'table', block: tableBlock, contentOnlyHash: 't1',
+      textTokens: ['a', 'b', '1', '2'],
+    })
+    const b = makeNode({
+      blockType: 'table', block: tableBlock, contentOnlyHash: 't1',
+      textTokens: ['a', 'b', '1', '2'],
+    })
+    expect(computeNodeSimilarity(a, b, OPTIONS)).toBe(1)
+  })
+})
