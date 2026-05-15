@@ -3,6 +3,7 @@ import type { InlineContent, Section } from '../transformer'
 import { computeAptedMatches, type AptedNode } from './apted'
 import { diffFrontmatter } from './frontmatter'
 import { DIFF_HEURISTICS, sequenceTuning } from './heuristics'
+import { hungarianAssignment } from './hungarian'
 import { buildSemanticIndex } from './indexer'
 import { resolveDiffOptions } from './options'
 import { forEachChange, forEachChangeAsync, summarizeChanges } from './summary'
@@ -637,18 +638,41 @@ async function pairGapNodes(
     })
   }
 
-  candidates.sort(
-    (left, right) =>
-      (right.score ?? 0) - (left.score ?? 0) || left.siblingDistance - right.siblingDistance,
-  )
-  const usedOld = new Set<string>()
-  const usedNew = new Set<string>()
-  const result: AlignedPair[] = []
+  if (candidates.length === 0) return []
 
-  for (const candidate of candidates) {
-    if (usedOld.has(candidate.oldId) || usedNew.has(candidate.newId)) continue
-    usedOld.add(candidate.oldId)
-    usedNew.add(candidate.newId)
+  // Build index maps for unique IDs
+  const uniqueOldIds = [...new Set(candidates.map((c) => c.oldId))]
+  const uniqueNewIds = [...new Set(candidates.map((c) => c.newId))]
+  const oldIdxMap = new Map(uniqueOldIds.map((id, i) => [id, i]))
+  const newIdxMap = new Map(uniqueNewIds.map((id, i) => [id, i]))
+
+  // Build cost matrix (1 - score + sibling distance epsilon for tiebreaking)
+  const INFEASIBLE = Infinity
+  const costMatrix: number[][] = Array.from({ length: uniqueOldIds.length }, () =>
+    Array.from({ length: uniqueNewIds.length }, () => INFEASIBLE),
+  )
+  const candidateLookup = new Map<string, Candidate>()
+  for (const c of candidates) {
+    const key = `${c.oldId}\0${c.newId}`
+    const cost = 1 - (c.score ?? 0) + c.siblingDistance * 1e-6
+    const row = oldIdxMap.get(c.oldId)!
+    const col = newIdxMap.get(c.newId)!
+    costMatrix[row]![col] = cost
+    candidateLookup.set(key, c)
+  }
+
+  // Run Hungarian assignment
+  const assignments = hungarianAssignment(costMatrix)
+
+  // Map back to AlignedPair[], applying threshold
+  const result: AlignedPair[] = []
+  for (const [row, col] of assignments) {
+    const oldId = uniqueOldIds[row]!
+    const newId = uniqueNewIds[col]!
+    const key = `${oldId}\0${newId}`
+    const candidate = candidateLookup.get(key)
+    if (!candidate) continue
+    if (!candidate.shortHeadingFallback && (candidate.score ?? 0) < context.options.minSimilarity) continue
     result.push(candidate)
   }
 

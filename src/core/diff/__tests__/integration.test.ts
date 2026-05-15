@@ -824,3 +824,221 @@ limits:
     expect(result.stats.moves).toBe(1)
   })
 })
+
+describe('hungarian gap matching integration', () => {
+  it('matches gap nodes optimally across similar paragraphs', async () => {
+    const result = await diffMarkdown(
+      [
+        '# Section',
+        '',
+        'alpha one',
+        '',
+        'beta two',
+        '',
+        'gamma three',
+      ].join('\n'),
+      [
+        '# Section',
+        '',
+        'alpha ONE',
+        '',
+        'gamma THREE',
+        '',
+        'beta TWO',
+      ].join('\n'),
+    )
+    const changes = flatten(result.root).filter(
+      (change) => change.blockType === 'paragraph' && change.primaryOp === 'replace',
+    )
+
+    // Each old paragraph should pair with its matching new paragraph
+    const alphaChange = changes.find(
+      (change) => nodeText(change.oldNode).includes('alpha one'),
+    )
+    const betaChange = changes.find(
+      (change) => nodeText(change.oldNode).includes('beta two'),
+    )
+    const gammaChange = changes.find(
+      (change) => nodeText(change.oldNode).includes('gamma three'),
+    )
+
+    expect(alphaChange).toBeDefined()
+    expect(nodeText(alphaChange!.newNode)).toContain('alpha')
+    expect(betaChange).toBeDefined()
+    expect(nodeText(betaChange!.newNode)).toContain('beta')
+    expect(gammaChange).toBeDefined()
+    expect(nodeText(gammaChange!.newNode)).toContain('gamma')
+  })
+
+  it('single candidate per node produces same result as greedy (regression)', async () => {
+    const result = await diffMarkdown(
+      [
+        '# Section',
+        '',
+        'A unique paragraph here',
+        '',
+        '```js',
+        'const x = 1',
+        '```',
+      ].join('\n'),
+      [
+        '# Section',
+        '',
+        'A unique paragraph here modified',
+        '',
+        '```js',
+        'const x = 2',
+        '```',
+      ].join('\n'),
+    )
+    const paragraph = flatten(result.root).find(
+      (change) => change.blockType === 'paragraph' && change.primaryOp === 'replace',
+    )
+    const code = flatten(result.root).find(
+      (change) => change.blockType === 'code' && change.primaryOp === 'replace',
+    )
+
+    expect(paragraph?.oldId).toBeDefined()
+    expect(paragraph?.newId).toBeDefined()
+    expect(code?.oldId).toBeDefined()
+    expect(code?.newId).toBeDefined()
+  })
+
+  it('preserves definition identifier matching through gap', async () => {
+    const result = await diffMarkdown(
+      '[foo]: https://example.com "Foo"',
+      '[foo]: https://example.com/updated "Foo Updated"',
+    )
+    const definition = flatten(result.root).find(
+      (change) => change.blockType === 'definition',
+    )
+
+    expect(definition?.oldId).toBeDefined()
+    expect(definition?.newId).toBeDefined()
+    expect(definition?.primaryOp).not.toBe('insert')
+    expect(definition?.primaryOp).not.toBe('delete')
+  })
+
+  it('preserves short heading fallback', async () => {
+    const result = await diffMarkdown(
+      [
+        '# Parent',
+        '',
+        '## AB',
+        '',
+        'stable body content for matching',
+      ].join('\n'),
+      [
+        '# Parent',
+        '',
+        '## XY',
+        '',
+        'stable body content for matching',
+      ].join('\n'),
+    )
+    const heading = flatten(result.root).find(
+      (change) => change.kind === 'heading' && sectionTitle(change.newNode) === 'XY',
+    )
+
+    // The heading should be paired (match or align), not split into insert+delete
+    expect(heading?.oldId).toBeDefined()
+    expect(heading?.newId).toBeDefined()
+    expect(heading?.primaryOp).not.toBe('insert')
+    expect(heading?.primaryOp).not.toBe('delete')
+  })
+
+  it('rejects pairs below minSimilarity threshold', async () => {
+    // Use two paragraphs on each side so gap matching applies,
+    // with one pair being dissimilar content and a high threshold
+    const result = await diffMarkdown(
+      [
+        '# Section',
+        '',
+        'stable paragraph that stays the same',
+        '',
+        'The quick brown fox jumps over the lazy dog on a sunny day',
+      ].join('\n'),
+      [
+        '# Section',
+        '',
+        'stable paragraph that stays the same',
+        '',
+        '!@#$%^&*()_+',
+      ].join('\n'),
+      { minSimilarity: 0.9 },
+    )
+    const changes = flatten(result.root)
+    const dissimilarChanges = changes.filter(
+      (change) =>
+        change.blockType === 'paragraph' &&
+        (change.primaryOp === 'insert' || change.primaryOp === 'delete'),
+    )
+
+    // The dissimilar paragraphs should produce insert+delete, not a replace pair
+    expect(dissimilarChanges.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('handles empty gap gracefully', async () => {
+    const result = await diffMarkdown(
+      '# Title\n\nBody text here',
+      '# Title\n\nBody text here',
+    )
+    const changes = flatten(result.root)
+
+    // All nodes are equal — no aligns needed
+    expect(changes.every((change) => change.primaryOp === 'equal')).toBe(true)
+    expect(result.stats.inserts).toBe(0)
+    expect(result.stats.deletes).toBe(0)
+    expect(result.stats.replaces).toBe(0)
+  })
+
+  it('never cross-pairs different shapes in gap', async () => {
+    const result = await diffMarkdown(
+      [
+        '# Section',
+        '',
+        'old paragraph text',
+        '',
+        '```',
+        'old code block',
+        '```',
+      ].join('\n'),
+      [
+        '# Section',
+        '',
+        'new paragraph text',
+        '',
+        '```',
+        'new code block',
+        '```',
+      ].join('\n'),
+    )
+    const changes = flatten(result.root)
+    const paragraph = changes.find(
+      (change) => change.blockType === 'paragraph' && change.primaryOp === 'replace',
+    )
+    const code = changes.find(
+      (change) => change.blockType === 'code' && change.primaryOp === 'replace',
+    )
+
+    // Paragraph must pair with paragraph, code with code
+    expect(paragraph?.oldId).toBeDefined()
+    expect(paragraph?.newId).toBeDefined()
+    expect(code?.oldId).toBeDefined()
+    expect(code?.newId).toBeDefined()
+
+    // No node should have a cross-shape pairing
+    const crossPaired = changes.find(
+      (change) =>
+        change.oldId &&
+        change.newId &&
+        change.primaryOp === 'replace' &&
+        // Check if a paragraph paired with code or vice versa
+        ((nodeText(change.oldNode).includes('paragraph') &&
+          nodeText(change.newNode).includes('code block')) ||
+          (nodeText(change.oldNode).includes('code block') &&
+            nodeText(change.newNode).includes('paragraph'))),
+    )
+    expect(crossPaired).toBeUndefined()
+  })
+})
