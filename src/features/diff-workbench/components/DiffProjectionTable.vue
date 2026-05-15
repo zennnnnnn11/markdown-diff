@@ -87,7 +87,7 @@ function segmentClass(segment: ProjectionSegment): string {
               v-if="line.baseTone === 'move' && line.movePeerLineNumber"
               class="move-peer-flag"
               :title="side === 'old' ? `移动目标：第 ${line.movePeerLineNumber} 行` : `移动来源：第 ${line.movePeerLineNumber} 行`"
-            >{{ side === 'old' ? '↓' : '↑' }}{{ line.movePeerLineNumber }}</span>
+            >{{ line.movePeerLineNumber > line.lineNumber ? '↓' : '↑' }}{{ line.movePeerLineNumber }}</span>
           </span>
         </div>
 

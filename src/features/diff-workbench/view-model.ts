@@ -1636,23 +1636,25 @@ function resolvePeerLineNumber(
   change: DiffChange,
   result: DiffResult,
 ): number | undefined {
-  if (change.primaryOp !== 'move' || !change.moveRole || !change.logicalMoveId) return undefined
+  const pairKey = change.pairKey
+  if (!pairKey) return undefined
+
+  // pairKey format is "match:oldId:newId"; extract both IDs directly (O(1))
+  const colonAfterKind = pairKey.indexOf(':')
+  if (colonAfterKind < 0) return undefined
+  const rest = pairKey.slice(colonAfterKind + 1)
+  const colonBetween = rest.indexOf(':')
+  if (colonBetween < 0) return undefined
+  const oldId = rest.slice(0, colonBetween)
+  const newId = rest.slice(colonBetween + 1)
 
   if (change.moveRole === 'source') {
-    // Peer is the target (lives in new doc); find via byNewId
-    const targetChange = [...result.changeIndex.byNewId.values()].find(
-      (c) => c.logicalMoveId === change.logicalMoveId && c.moveRole === 'target',
-    )
-    const peerId = targetChange?.newId
-    if (!peerId) return undefined
-    return result.newIndex.byId.get(peerId)?.sourceRange?.start?.line
+    // Peer lives in the new document
+    if (!newId) return undefined
+    return result.newIndex.byId.get(newId)?.sourceRange?.start?.line
   } else {
-    // Peer is the source (lives in old doc); find via byOldId
-    const sourceChange = [...result.changeIndex.byOldId.values()].find(
-      (c) => c.logicalMoveId === change.logicalMoveId && c.moveRole === 'source',
-    )
-    const peerId = sourceChange?.oldId
-    if (!peerId) return undefined
-    return result.oldIndex.byId.get(peerId)?.sourceRange?.start?.line
+    // Peer lives in the old document
+    if (!oldId) return undefined
+    return result.oldIndex.byId.get(oldId)?.sourceRange?.start?.line
   }
 }

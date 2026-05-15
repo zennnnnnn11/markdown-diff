@@ -1183,8 +1183,7 @@ describe('diff workbench view-model', () => {
 
     expect(moveTargetLine).toBeDefined()
     expect(moveTargetLine?.movePeerLineNumber).toBeDefined()
-    expect(typeof moveTargetLine?.movePeerLineNumber).toBe('number')
-    expect(moveTargetLine?.movePeerLineNumber).toBeGreaterThan(0)
+    expect(moveTargetLine?.movePeerLineNumber).toBe(3)
   })
 
   it('populates movePeerLineNumber on move-source lines in old projection', async () => {
@@ -1196,8 +1195,7 @@ describe('diff workbench view-model', () => {
 
     expect(moveSourceLine).toBeDefined()
     expect(moveSourceLine?.movePeerLineNumber).toBeDefined()
-    expect(typeof moveSourceLine?.movePeerLineNumber).toBe('number')
-    expect(moveSourceLine?.movePeerLineNumber).toBeGreaterThan(0)
+    expect(moveSourceLine?.movePeerLineNumber).toBe(5)
   })
 
   it('leaves movePeerLineNumber undefined for non-move lines', async () => {
