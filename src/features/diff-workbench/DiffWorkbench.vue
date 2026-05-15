@@ -230,19 +230,12 @@ function getScrollBody(
 </template>
 
 <style scoped>
-:global(body) {
-  margin: 0;
-  font-family: ui-sans-serif, system-ui, sans-serif;
-}
-
-:global(*) {
-  box-sizing: border-box;
-}
-
 .app-shell {
   display: grid;
   gap: 16px;
-  padding: 20px;
+  padding: 24px;
+  max-width: 1600px;
+  margin: 0 auto;
 }
 
 .page-header {
@@ -252,10 +245,46 @@ function getScrollBody(
   gap: 12px;
 }
 
+.page-header h1 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.page-header p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 2px 0 0;
+}
+
 .view-tabs {
   display: inline-flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
+}
+
+.secondary-button {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+
+.secondary-button:hover {
+  background: var(--bg-subtle);
+  border-color: var(--border);
+}
+
+.secondary-button.active {
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+  color: var(--accent);
 }
 
 .projection-layout {
@@ -265,9 +294,9 @@ function getScrollBody(
 }
 
 .warnings-banner {
-  border: 1px solid #d0a44d;
-  border-radius: 8px;
-  background: #fffcf0;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
   padding: 10px 14px;
   font-size: 14px;
 }
@@ -275,37 +304,26 @@ function getScrollBody(
 .warnings-banner summary {
   cursor: pointer;
   font-weight: 600;
-  color: #9a6700;
+  color: var(--warning-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .warnings-list {
   margin: 8px 0 0 0;
   padding-left: 20px;
-  color: #57606a;
+  color: var(--text-secondary);
 }
 
 .warnings-list li {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   word-break: break-all;
 }
 
-.secondary-button {
-  border: 1px solid #c4cbd3;
-  border-radius: 6px;
-  background: #f6f8fa;
-  padding: 8px 12px;
-  cursor: pointer;
-}
-
-.secondary-button.active {
-  border-color: #0969da;
-  background: #e5edff;
-  color: #1f3f8f;
-}
-
 .locate-button {
-  margin-left: 12px;
+  margin-left: 4px;
   font-size: 12px;
   padding: 2px 8px;
 }

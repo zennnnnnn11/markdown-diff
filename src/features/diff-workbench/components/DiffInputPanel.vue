@@ -62,9 +62,10 @@ const emit = defineEmits<{
 
 <style scoped>
 .panel {
-  border: 1px solid #d0d7de;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 16px;
+  background: var(--bg-surface);
 }
 
 .panel-header,
@@ -75,53 +76,108 @@ const emit = defineEmits<{
   gap: 12px;
 }
 
+.panel-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.editor-toolbar label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 .editor-grid {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 12px;
 }
 
 .editor-pane textarea {
   width: 100%;
   min-height: 280px;
   resize: vertical;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 150ms, box-shadow 150ms;
+  margin-top: 6px;
 }
 
-button,
-.secondary-button {
-  border: 1px solid #c4cbd3;
-  border-radius: 6px;
-  background: #fff;
-  padding: 8px 12px;
+.editor-pane textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(217 119 87 / 12%);
+  background: var(--bg-surface);
+}
+
+button {
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: #fff;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
+  transition: opacity 150ms;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+button:not(:disabled):hover {
+  opacity: 0.88;
 }
 
 .secondary-button {
-  background: #f6f8fa;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.secondary-button:hover {
+  background: var(--bg-muted);
 }
 
 .loading-state {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-top: 12px;
 }
 
 .spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid #d0d7de;
-  border-top-color: #1f2328;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
 }
 
 .hint {
-  color: #57606a;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
 }
 
 .error-text {
-  color: #cf222e;
+  color: var(--tone-delete-text);
+  font-size: 13px;
+  margin-top: 8px;
 }
 
 @media (max-width: 960px) {
@@ -131,8 +187,6 @@ button,
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+  to { transform: rotate(360deg); }
 }
 </style>

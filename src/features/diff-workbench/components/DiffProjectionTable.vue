@@ -123,9 +123,10 @@ function segmentClass(segment: ProjectionSegment): string {
 
 <style scoped>
 .panel {
-  border: 1px solid #d0d7de;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 16px;
+  background: var(--bg-surface);
 }
 
 .panel-header {
@@ -133,14 +134,31 @@ function segmentClass(segment: ProjectionSegment): string {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 8px;
+}
+
+.panel-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.panel-header p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
 }
 
 .projection-table {
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   overflow-y: auto;
   max-height: 70vh;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
+  font-size: 13px;
 }
 
 .projection-row {
@@ -148,7 +166,7 @@ function segmentClass(segment: ProjectionSegment): string {
   width: 100%;
   grid-template-columns: 72px minmax(0, 1fr);
   border: 0;
-  border-top: 1px solid #eef2f6;
+  border-top: 1px solid var(--border-subtle);
   text-align: left;
   padding: 0;
 }
@@ -162,8 +180,22 @@ function segmentClass(segment: ProjectionSegment): string {
 }
 
 .projection-row.active {
-  outline: 2px solid #1f2328;
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
+}
+
+.projection-row.pair-match {
+  border-left: 2px solid var(--text-primary);
+}
+
+.projection-row.pair-align {
+  border-left: 2px dashed var(--text-muted);
+}
+
+.projection-row.peer-highlight {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  opacity: 0.85;
 }
 
 .gutter,
@@ -184,7 +216,10 @@ function segmentClass(segment: ProjectionSegment): string {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border-right: 1px solid #eef2f6;
+  border-right: 1px solid var(--border-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  user-select: none;
 }
 
 .gutter-badges {
@@ -194,22 +229,22 @@ function segmentClass(segment: ProjectionSegment): string {
 }
 
 .descendant-flag {
-  color: #656d76;
+  color: var(--text-muted);
   font-size: 12px;
 }
 
 .warning-flag {
-  color: #9a6700;
+  color: var(--warning-text);
 }
 
 .move-peer-flag {
-  color: #1f3f8f;
+  color: var(--tone-move-text);
   font-size: 10px;
   font-weight: 600;
 }
 
 .overlap-flag {
-  color: #57606a;
+  color: var(--text-secondary);
   font-size: 12px;
 }
 
@@ -231,104 +266,8 @@ function segmentClass(segment: ProjectionSegment): string {
 }
 
 .line-hint {
-  color: #57606a;
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.annotation-chip {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid #c4cbd3;
-  border-radius: 999px;
-  padding: 1px 8px;
+  color: var(--text-muted);
   font-size: 11px;
-  line-height: 1.5;
   white-space: nowrap;
-  background: #fff;
-}
-
-.annotation-insert {
-  border-color: #6fba82;
-  color: #0f5132;
-}
-
-.annotation-delete {
-  border-color: #e58ca1;
-  color: #842029;
-}
-
-.annotation-replace {
-  border-color: #d8a354;
-  color: #7c4d12;
-}
-
-.annotation-move,
-.annotation-reorder {
-  border-color: #90a8e7;
-  color: #1f3f8f;
-}
-
-.annotation-meta,
-.annotation-rename {
-  border-color: #b7a0e5;
-  color: #5a3e9c;
-}
-
-.annotation-warning {
-  border-color: #d0a44d;
-  background: #fffcf0;
-  color: #9a6700;
-}
-
-.annotation-overlap {
-  border-color: #c4cbd3;
-  background: #f6f8fa;
-  color: #57606a;
-}
-
-.tone-plain {
-  background: transparent;
-}
-
-.tone-insert {
-  background: #def7e8;
-}
-
-.tone-delete {
-  background: #ffe4ea;
-}
-
-.tone-replace {
-  background: #fff0d8;
-}
-
-.tone-move {
-  background: #e5edff;
-}
-
-.tone-meta {
-  background: #f3e8ff;
-}
-
-.tone-rename {
-  background: #fffde0;
-}
-
-.tone-reorder {
-  background: #f0f4f8;
-}
-
-.projection-row.pair-match {
-  border-left: 2px solid #1f2328;
-}
-
-.projection-row.pair-align {
-  border-left: 2px dashed #8b949e;
-}
-
-.projection-row.peer-highlight {
-  outline: 2px solid #0969da;
-  outline-offset: -2px;
 }
 </style>

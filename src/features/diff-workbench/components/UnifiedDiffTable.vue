@@ -221,9 +221,10 @@ function segmentClass(segment: ProjectionSegment): string {
 
 <style scoped>
 .panel {
-  border: 1px solid #d0d7de;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 16px;
+  background: var(--bg-surface);
 }
 
 .panel-header {
@@ -234,12 +235,22 @@ function segmentClass(segment: ProjectionSegment): string {
   margin-bottom: 8px;
 }
 
+.panel-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 .unified-table {
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   overflow-y: auto;
   max-height: 70vh;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
+  font-size: 13px;
 }
 
 .unified-header-row,
@@ -252,12 +263,13 @@ function segmentClass(segment: ProjectionSegment): string {
   position: sticky;
   top: 0;
   z-index: 1;
-  border-bottom: 1px solid #d0d7de;
-  background: #f6f8fa;
-  color: #57606a;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .unified-header-row > * {
@@ -266,7 +278,7 @@ function segmentClass(segment: ProjectionSegment): string {
 
 .side-heading-old {
   grid-column: 2 / 4;
-  border-right: 1px solid #eef2f6;
+  border-right: 1px solid var(--border-subtle);
 }
 
 .side-heading-new {
@@ -278,10 +290,10 @@ function segmentClass(segment: ProjectionSegment): string {
   align-items: center;
   justify-content: flex-end;
   padding: 4px 8px;
-  border-right: 1px solid #d0d7de;
-  background: #f6f8fa;
-  color: #656d76;
-  font-size: 12px;
+  border-right: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 11px;
   user-select: none;
 }
 
@@ -291,8 +303,8 @@ function segmentClass(segment: ProjectionSegment): string {
 
 .center-gap {
   background:
-    linear-gradient(90deg, #eef2f6 0 1px, transparent 1px),
-    linear-gradient(90deg, transparent calc(100% - 1px), #d0d7de calc(100% - 1px));
+    linear-gradient(90deg, var(--border-subtle) 0 1px, transparent 1px),
+    linear-gradient(90deg, transparent calc(100% - 1px), var(--border) calc(100% - 1px));
 }
 
 .center-gap-header {
@@ -300,7 +312,7 @@ function segmentClass(segment: ProjectionSegment): string {
 }
 
 .unified-row {
-  border-top: 1px solid #eef2f6;
+  border-top: 1px solid var(--border-subtle);
   min-height: 28px;
 }
 
@@ -308,24 +320,19 @@ function segmentClass(segment: ProjectionSegment): string {
   border-top: 0;
 }
 
-/* Gutters */
 .gutter {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 4px;
   padding: 4px 8px;
-  font-size: 12px;
-  color: #656d76;
+  font-size: 11px;
+  color: var(--text-muted);
   user-select: none;
 }
 
 .gutter-old {
-  border-right: 1px solid #eef2f6;
-}
-
-.gutter-new {
-  border-left: 0;
+  border-right: 1px solid var(--border-subtle);
 }
 
 .gutter.interactive {
@@ -344,27 +351,26 @@ function segmentClass(segment: ProjectionSegment): string {
 }
 
 .descendant-flag {
-  color: #656d76;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
 .overlap-flag {
-  color: #57606a;
+  color: var(--text-secondary);
   font-size: 10px;
 }
 
 .warning-flag {
-  color: #9a6700;
+  color: var(--warning-text);
   font-size: 12px;
 }
 
 .move-peer-flag {
-  color: #1f3f8f;
+  color: var(--tone-move-text);
   font-size: 10px;
   font-weight: 600;
 }
 
-/* Cells */
 .cell {
   padding: 4px 10px;
   white-space: pre-wrap;
@@ -376,7 +382,7 @@ function segmentClass(segment: ProjectionSegment): string {
 }
 
 .cell-old {
-  border-right: 1px solid #eef2f6;
+  border-right: 1px solid var(--border-subtle);
 }
 
 .cell.interactive {
@@ -384,36 +390,24 @@ function segmentClass(segment: ProjectionSegment): string {
 }
 
 .cell.active {
-  outline: 2px solid #1f2328;
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
 .cell.peer-highlight {
-  outline: 2px solid #0969da;
+  outline: 2px solid var(--accent);
   outline-offset: -2px;
+  opacity: 0.85;
 }
 
-/* Pair borders */
 .cell.pair-match {
-  border-left: 2px solid #1f2328;
+  border-left: 2px solid var(--text-primary);
 }
 
 .cell.pair-align {
-  border-left: 2px dashed #8b949e;
+  border-left: 2px dashed var(--text-muted);
 }
 
-/* Tone backgrounds */
-.tone-plain { background: transparent; }
-.tone-insert { background: #def7e8; }
-.tone-delete { background: #ffe4ea; }
-.tone-replace { background: #fff0d8; }
-.tone-move { background: #e5edff; }
-.tone-meta { background: #f3e8ff; }
-.tone-rename { background: #fffde0; }
-.tone-reorder { background: #f0f4f8; }
-.tone-blank { background: #f6f8fa; }
-
-/* Placeholder for height matching */
 .placeholder-text {
   visibility: hidden;
 }
@@ -432,57 +426,6 @@ function segmentClass(segment: ProjectionSegment): string {
   justify-content: flex-end;
   gap: 6px;
   flex-wrap: wrap;
-}
-
-.annotation-chip {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid #c4cbd3;
-  border-radius: 999px;
-  padding: 1px 8px;
-  font-size: 11px;
-  line-height: 1.5;
-  white-space: nowrap;
-  background: #fff;
-}
-
-.annotation-insert {
-  border-color: #6fba82;
-  color: #0f5132;
-}
-
-.annotation-delete {
-  border-color: #e58ca1;
-  color: #842029;
-}
-
-.annotation-replace {
-  border-color: #d8a354;
-  color: #7c4d12;
-}
-
-.annotation-move,
-.annotation-reorder {
-  border-color: #90a8e7;
-  color: #1f3f8f;
-}
-
-.annotation-meta,
-.annotation-rename {
-  border-color: #b7a0e5;
-  color: #5a3e9c;
-}
-
-.annotation-warning {
-  border-color: #d0a44d;
-  background: #fffcf0;
-  color: #9a6700;
-}
-
-.annotation-overlap {
-  border-color: #c4cbd3;
-  background: #f6f8fa;
-  color: #57606a;
 }
 
 @media (max-width: 960px) {

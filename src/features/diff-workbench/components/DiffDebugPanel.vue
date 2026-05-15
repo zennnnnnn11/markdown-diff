@@ -45,9 +45,10 @@ defineProps<{
 
 <style scoped>
 .panel {
-  border: 1px solid #d0d7de;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 16px;
+  background: var(--bg-surface);
 }
 
 .panel-header {
@@ -55,6 +56,22 @@ defineProps<{
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 12px;
+}
+
+.panel-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.panel-header p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
 }
 
 .debug-grid {
@@ -63,10 +80,24 @@ defineProps<{
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.debug-grid h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0 0 8px;
+}
+
 pre {
   margin: 0;
   white-space: pre-wrap;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--text-primary);
+  overflow-x: auto;
 }
 
 @media (max-width: 960px) {

@@ -50,9 +50,10 @@ const emit = defineEmits<{
 
 <style scoped>
 .panel {
-  border: 1px solid #d0d7de;
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
   padding: 16px;
+  background: var(--bg-surface);
 }
 
 .panel-header {
@@ -60,28 +61,66 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  margin-bottom: 12px;
+}
+
+.panel-header h2 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.panel-header details summary {
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
 }
 
 .stats-grid {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
 }
 
 .stat-card {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
-  border: 1px solid #c4cbd3;
-  border-radius: 6px;
-  background: #fff;
-  padding: 8px 12px;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  padding: 10px 14px;
   cursor: pointer;
+  text-align: left;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 150ms, transform 150ms;
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.stat-card strong {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+}
+
+.stat-card span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 
 .stat-card small {
-  color: #57606a;
-  font-size: 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
 }
 </style>
