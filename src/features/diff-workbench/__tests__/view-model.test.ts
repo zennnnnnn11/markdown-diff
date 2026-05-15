@@ -1190,6 +1190,17 @@ describe('diff workbench view-model', () => {
     expect(plainLine?.changeTooltip).toBeUndefined()
   })
 
+  it('populates changeTooltip for renamed headings', async () => {
+    const result = await runMarkdownDiff('# Old Name\n\nBody', '# New Name\n\nBody')
+    const lines = buildProjectionLines('# New Name\n\nBody', result)
+    const renamedLine = lines.find((line) => line.baseTone === 'rename')
+
+    expect(renamedLine).toBeDefined()
+    expect(renamedLine?.changeTooltip).toBeDefined()
+    expect(typeof renamedLine?.changeTooltip).toBe('string')
+    expect(renamedLine!.changeTooltip!.length).toBeGreaterThan(0)
+  })
+
   it('includes quality, global warnings, and fallback markers in debug snapshots', async () => {
     const result = await runMarkdownDiff('# Alpha\n\nBody text', '# Beta\n\nBody text')
     result.warnings.push('invalid-equal-state:test')

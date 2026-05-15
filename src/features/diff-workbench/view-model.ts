@@ -310,7 +310,7 @@ function buildProjectionLinesFromMarkdown(
       warnings,
       annotations: buildProjectionAnnotations(matchedTones, warnings, changeKeys.length),
       lineMatches,
-      changeTooltip: dominant && dominant.change.primaryOp !== 'equal'
+      changeTooltip: dominant && dominant.tones[0] !== 'plain'
         ? dominant.change.summary
         : undefined,
     }
