@@ -181,6 +181,11 @@ function getScrollBody(
     <details v-if="resultVisible && displayWarnings.length > 0" class="warnings-banner">
       <summary>
         ⚠ {{ displayWarnings.length }} 个提示
+        <button
+          type="button"
+          class="secondary-button locate-button"
+          @click.stop="workbench.scrollToFirstMatch('warning')"
+        >定位第一处</button>
       </summary>
       <ul class="warnings-list">
         <li v-for="(warning, index) in displayWarnings" :key="index">{{ warning }}</li>
@@ -297,6 +302,12 @@ function getScrollBody(
   border-color: #0969da;
   background: #e5edff;
   color: #1f3f8f;
+}
+
+.locate-button {
+  margin-left: 12px;
+  font-size: 12px;
+  padding: 2px 8px;
 }
 
 @media (max-width: 960px) {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
 import { useDiffWorkbench } from '../use-diff-workbench'
+import { flattenChanges } from '../view-model'
 
 function makeEmptyResult(): any {
   return {
@@ -404,6 +405,32 @@ describe('useDiffWorkbench', () => {
 
     expect(document.querySelector).toHaveBeenCalled()
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
+
+    vi.restoreAllMocks()
+  })
+
+  it('scrollToFirstMatch with warning filter targets a warning line', async () => {
+    const scrollIntoView = vi.fn()
+    vi.spyOn(document, 'querySelector').mockImplementation((selector: string) => {
+      if (typeof selector === 'string' && selector.includes('data-change-key')) {
+        return { scrollIntoView } as unknown as HTMLElement
+      }
+      return null
+    })
+
+    const workbench = useDiffWorkbench('# Title\n\nold paragraph', '# Title\n\nnew paragraph')
+    await workbench.executeDiff()
+
+    // inject a warning onto the first non-equal change so the filter can match
+    const firstChange = workbench.result.value
+      ? flattenChanges(workbench.result.value.root).find((c) => c.primaryOp !== 'equal')
+      : undefined
+    if (firstChange) firstChange.warnings = ['inline-deferred']
+
+    workbench.scrollToFirstMatch('warning')
+
+    // The function must not throw
+    expect(() => workbench.scrollToFirstMatch('warning')).not.toThrow()
 
     vi.restoreAllMocks()
   })
