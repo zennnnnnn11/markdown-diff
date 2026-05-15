@@ -347,12 +347,16 @@ export function buildMergedRows(
         continue
       }
     } else if (newBlock.mode === 'plain') {
-      const oldIndex = oldBlocks.findIndex(
-        (candidate, index) => !consumedOld.has(index) && candidate.mode === 'plain',
-      )
-      if (oldIndex >= 0) {
-        consumedOld.add(oldIndex)
-        mergedBlocks.push({ oldBlock: oldBlocks[oldIndex], newBlock })
+      let bestIndex = -1
+      let bestScore = -1
+      for (let i = 0; i < oldBlocks.length; i++) {
+        if (consumedOld.has(i) || oldBlocks[i]!.mode !== 'plain') continue
+        const score = plainBlockSimilarity(oldBlocks[i]!, newBlock)
+        if (score > bestScore) { bestScore = score; bestIndex = i }
+      }
+      if (bestIndex >= 0) {
+        consumedOld.add(bestIndex)
+        mergedBlocks.push({ oldBlock: oldBlocks[bestIndex], newBlock })
         continue
       }
     }
@@ -553,6 +557,21 @@ function computeLineMatches(
   }
 
   return matches
+}
+
+function plainBlockSimilarity(a: ProjectionBlock, b: ProjectionBlock): number {
+  const normalize = (block: ProjectionBlock) =>
+    block.lines.map((l) => l.text).join(' ').trim().replace(/\s+/g, ' ')
+  const textA = normalize(a)
+  const textB = normalize(b)
+  if (textA === '' && textB === '') return 1
+  if (textA === '' || textB === '') return 0
+  const setA = new Set(textA.split(' '))
+  const setB = new Set(textB.split(' '))
+  let intersection = 0
+  for (const token of setA) if (setB.has(token)) intersection++
+  const union = setA.size + setB.size - intersection
+  return union === 0 ? 1 : intersection / union
 }
 
 function lineAlignmentSignature(line: ProjectionLine): string {

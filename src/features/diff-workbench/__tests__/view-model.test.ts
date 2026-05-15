@@ -1172,6 +1172,83 @@ describe('diff workbench view-model', () => {
     expect(rows.every((row) => row.oldLine !== null || row.newLine !== null)).toBe(true)
   })
 
+  // ─── plainBlockSimilarity matching ───
+
+  it('pairs plain blocks by content similarity when interleaved with changes', async () => {
+    const oldMd = '# A\n\nalpha text\n\n# B\n\nbeta text'
+    const newMd = '# A\n\nnew paragraph\n\nalpha text\n\n# B\n\nbeta text'
+    const result = await runMarkdownDiff(oldMd, newMd)
+    const rows = buildMergedRows(oldMd, newMd, result)
+
+    const alphaRow = rows.find(
+      (row) => row.oldLine?.text === 'alpha text' && row.newLine?.text === 'alpha text',
+    )
+    expect(alphaRow).toBeDefined()
+
+    const betaRow = rows.find(
+      (row) => row.oldLine?.text === 'beta text' && row.newLine?.text === 'beta text',
+    )
+    expect(betaRow).toBeDefined()
+  })
+
+  it('pairs identical content correctly in merged rows (regression)', async () => {
+    const md = '# Title\n\nfirst paragraph\n\nsecond paragraph'
+    const result = await runMarkdownDiff(md, md)
+    const rows = buildMergedRows(md, md, result)
+
+    const contentRows = rows.filter((row) => row.oldLine !== null || row.newLine !== null)
+    for (const row of contentRows) {
+      expect(row.oldLine).not.toBeNull()
+      expect(row.newLine).not.toBeNull()
+      expect(row.oldLine?.text).toBe(row.newLine?.text)
+    }
+  })
+
+  it('single plain block candidate degenerates to direct match', async () => {
+    const oldMd = '# H\n\nonly paragraph'
+    const newMd = '# H\n\nonly paragraph'
+    const result = await runMarkdownDiff(oldMd, newMd)
+    const rows = buildMergedRows(oldMd, newMd, result)
+
+    const paraRow = rows.find(
+      (row) => row.oldLine?.text === 'only paragraph' && row.newLine?.text === 'only paragraph',
+    )
+    expect(paraRow).toBeDefined()
+  })
+
+  it('prefers empty plain blocks pairing with each other', async () => {
+    const oldMd = '# A\n\ncontent block\n\n# B'
+    const newMd = '# A\n\ncontent block\n\n# B'
+    const result = await runMarkdownDiff(oldMd, newMd)
+    const rows = buildMergedRows(oldMd, newMd, result)
+
+    const emptyRows = rows.filter(
+      (row) =>
+        row.oldLine?.text.trim() === '' &&
+        row.newLine?.text.trim() === '' &&
+        row.oldLine !== null &&
+        row.newLine !== null,
+    )
+    for (const row of emptyRows) {
+      expect(row.oldLine?.text).toBe(row.newLine?.text)
+    }
+  })
+
+  it('pairs all plain blocks even when content is completely different', async () => {
+    const oldMd = '# H\n\naaa bbb'
+    const newMd = '# H\n\nxxx yyy'
+    const result = await runMarkdownDiff(oldMd, newMd)
+    const rows = buildMergedRows(oldMd, newMd, result)
+
+    const oldParaRow = rows.find((row) => row.oldLine?.text === 'aaa bbb')
+    const newParaRow = rows.find((row) => row.newLine?.text === 'xxx yyy')
+
+    expect(oldParaRow).toBeDefined()
+    expect(newParaRow).toBeDefined()
+    // They should be paired on the same row (no rejection)
+    expect(oldParaRow).toBe(newParaRow)
+  })
+
   // ─── movePeerLineNumber ───
 
   it('populates movePeerLineNumber on move-target lines in new projection', async () => {
