@@ -33,6 +33,7 @@ export function summarizeChanges(
     moves: 0,
     metaUpdates: 0,
     renames: 0,
+    reorders: 0,
   }
   let degradedCount = 0
   let inlineDeferredCount = 0
@@ -44,6 +45,7 @@ export function summarizeChanges(
     if (change.primaryOp === 'replace') stats.replaces++
     if (shouldCountMetaUpdate(change)) stats.metaUpdates++
     if (change.status.renamed) stats.renames++
+    if (change.reordered || change.status.movedWithinParent) stats.reorders++
     if (change.logicalMoveId) logicalMoves.add(change.logicalMoveId)
     if (change.degraded) degradedCount++
     if (change.warnings.includes('inline-deferred')) inlineDeferredCount++

@@ -64,6 +64,7 @@ describe('diff summary', () => {
       moves: 0,
       metaUpdates: 1,
       renames: 0,
+      reorders: 0,
     })
   })
 
@@ -134,5 +135,39 @@ describe('diff summary', () => {
     })
 
     expect(order).toEqual(['root', 'left', 'left-child', 'right'])
+  })
+
+  it('counts reordered changes in stats.reorders', () => {
+    const root = makeChange({
+      children: [
+        makeChange({
+          primaryOp: 'equal',
+          summary: 'reordered section',
+          reordered: true,
+          status: makeStatus({ isMatchPair: true, movedWithinParent: true }),
+        }),
+        makeChange({
+          primaryOp: 'equal',
+          summary: 'normal section',
+          status: makeStatus({ isMatchPair: true }),
+        }),
+      ],
+    })
+
+    expect(collectStats(root).reorders).toBe(1)
+  })
+
+  it('counts movedWithinParent without reordered flag in stats.reorders', () => {
+    const root = makeChange({
+      children: [
+        makeChange({
+          primaryOp: 'equal',
+          summary: 'within-parent move',
+          status: makeStatus({ isMatchPair: true, movedWithinParent: true }),
+        }),
+      ],
+    })
+
+    expect(collectStats(root).reorders).toBe(1)
   })
 })

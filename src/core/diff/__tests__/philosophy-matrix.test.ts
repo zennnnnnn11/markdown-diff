@@ -35,6 +35,7 @@ describe('testing philosophy matrix', () => {
         moves: 0,
         metaUpdates: 0,
         renames: 0,
+        reorders: 0,
       })
       expect(result.quality).toEqual({
         degradedCount: 0,

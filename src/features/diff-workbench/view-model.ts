@@ -20,6 +20,7 @@ export type Tone = 'plain' | 'insert' | 'delete' | 'replace' | 'move' | 'meta' |
 export type HighlightFilter = Tone | 'warning'
 
 export interface MergedRow {
+  key: string
   oldLine: ProjectionLine | null
   newLine: ProjectionLine | null
 }
@@ -46,6 +47,7 @@ export interface ProjectionLine {
   lineMatches: ProjectionLineMatch[]
   changeTooltip?: string
   movePeerLineNumber?: number
+  movePeerRowIndex?: number
 }
 
 export interface ProjectionAnnotation {
@@ -375,7 +377,38 @@ export function buildMergedRows(
     mergedBlocks.splice(insertionIndex, 0, { oldBlock })
   }
 
-  return mergedBlocks.flatMap(({ oldBlock, newBlock }) => alignBlockRows(oldBlock, newBlock))
+  const rawRows = mergedBlocks.flatMap(({ oldBlock, newBlock }) => alignBlockRows(oldBlock, newBlock))
+  resolveMovePeerRowIndices(rawRows)
+  return rawRows.map((row) => ({
+    key: `${row.oldLine?.key ?? '_'}|${row.newLine?.key ?? '_'}`,
+    oldLine: row.oldLine,
+    newLine: row.newLine,
+  }))
+}
+
+function resolveMovePeerRowIndices(rows: Array<{ oldLine: ProjectionLine | null; newLine: ProjectionLine | null }>): void {
+  const byAlignmentKey = new Map<string, { oldIndices: number[]; newIndices: number[] }>()
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!
+    for (const [line, side] of [[row.oldLine, 'old'], [row.newLine, 'new']] as const) {
+      if (!line?.alignmentKey || line.baseTone !== 'move') continue
+      let entry = byAlignmentKey.get(line.alignmentKey)
+      if (!entry) { entry = { oldIndices: [], newIndices: [] }; byAlignmentKey.set(line.alignmentKey, entry) }
+      if (side === 'old') entry.oldIndices.push(i)
+      else entry.newIndices.push(i)
+    }
+  }
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!
+    if (row.oldLine?.baseTone === 'move' && row.oldLine.alignmentKey) {
+      const entry = byAlignmentKey.get(row.oldLine.alignmentKey)
+      if (entry?.newIndices.length) row.oldLine.movePeerRowIndex = entry.newIndices[0]
+    }
+    if (row.newLine?.baseTone === 'move' && row.newLine.alignmentKey) {
+      const entry = byAlignmentKey.get(row.newLine.alignmentKey)
+      if (entry?.oldIndices.length) row.newLine.movePeerRowIndex = entry.oldIndices[0]
+    }
+  }
 }
 
 interface ProjectionBlock {

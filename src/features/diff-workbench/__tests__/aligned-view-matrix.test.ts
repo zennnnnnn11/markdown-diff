@@ -101,6 +101,16 @@ describe('aligned diff view matrix', () => {
     expect(movedInRows.every((row) => row.newLine?.baseTone === 'move' && row.oldLine === null)).toBe(true)
     expect(movedOutRows[0]?.oldLine?.alignmentKey).toBe(movedInRows[0]?.newLine?.alignmentKey)
     expect(rows.some((row) => row.oldLine?.text === row.newLine?.text && row.oldLine?.text.startsWith('stable-'))).toBe(true)
+
+    const outRowIndex = rows.indexOf(movedOutRows[0]!)
+    const inRowIndex = rows.indexOf(movedInRows[0]!)
+    expect(movedOutRows[0]?.oldLine?.movePeerRowIndex).toBe(inRowIndex)
+    expect(movedInRows[0]?.newLine?.movePeerRowIndex).toBe(outRowIndex)
+    if (outRowIndex < inRowIndex) {
+      expect(movedOutRows[0]!.oldLine!.movePeerRowIndex!).toBeGreaterThan(outRowIndex)
+    } else {
+      expect(movedOutRows[0]!.oldLine!.movePeerRowIndex!).toBeLessThan(outRowIndex)
+    }
   })
 
   it.each(overlapCases)('$name', (testCase) => {
@@ -496,7 +506,7 @@ function makeResult(
     newIndex: makeIndex(newRanges, 'new'),
     matches: [],
     changeIndex: { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map(), byLogicalMoveId: new Map() },
-    stats: { inserts: 0, deletes: 0, replaces: 0, moves: 0, metaUpdates: 0, renames: 0 },
+    stats: { inserts: 0, deletes: 0, replaces: 0, moves: 0, metaUpdates: 0, renames: 0, reorders: 0 },
     quality: { degradedCount: 0, inlineDeferredCount: 0, warningCount: 0 },
     warnings: [],
   }
@@ -575,4 +585,10 @@ function toneLabel(tone: Tone): string {
 function expectValidRows(rows: MergedRow[]): void {
   expect(rows.length).toBeGreaterThan(0)
   expect(rows.every((row) => row.oldLine !== null || row.newLine !== null)).toBe(true)
+  const keys = rows.map((row) => row.key)
+  expect(new Set(keys).size).toBe(keys.length)
+  for (const row of rows) {
+    const expectedKey = `${row.oldLine?.key ?? '_'}|${row.newLine?.key ?? '_'}`
+    expect(row.key).toBe(expectedKey)
+  }
 }

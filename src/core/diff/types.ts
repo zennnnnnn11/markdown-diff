@@ -246,6 +246,7 @@ export interface DiffStats {
   moves: number
   metaUpdates: number
   renames: number
+  reorders: number
 }
 
 export interface DiffChangeIndex {

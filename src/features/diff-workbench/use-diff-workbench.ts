@@ -24,6 +24,8 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
   const activeFilter = ref<HighlightFilter | null>(null)
   const selectedChangeKey = ref<string | null>(null)
   const result = shallowRef<DiffResult | null>(null)
+  const lastDiffedOld = ref('')
+  const lastDiffedNew = ref('')
 
   const flatChanges = computed(() => (result.value ? flattenChanges(result.value.root) : []))
   const changeByKey = computed(() => {
@@ -60,6 +62,9 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     return result.value.quality.warningCount
   })
   const canRun = computed(() => !isRunning.value)
+  const isDiffStale = computed(() =>
+    result.value !== null && (oldMarkdown.value !== lastDiffedOld.value || newMarkdown.value !== lastDiffedNew.value),
+  )
   const statsCards = computed<StatCardModel[]>(() => {
     if (!result.value) return []
     const q = result.value.quality
@@ -68,6 +73,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
       { key: 'delete', label: '删除', value: result.value.stats.deletes, filter: 'delete', description: '仅旧文档存在的内容。', onClick: () => scrollToFirstMatch('delete') },
       { key: 'replace', label: '替换', value: result.value.stats.replaces, filter: 'replace', description: '已配对但内容发生变化的区域。', onClick: () => scrollToFirstMatch('replace') },
       { key: 'move', label: '移动', value: result.value.stats.moves, filter: 'move', description: '内容被识别为移动，而不是删后新增。', onClick: () => scrollToFirstMatch('move') },
+      { key: 'reorder', label: '重排', value: result.value.stats.reorders, filter: 'reorder', description: '兄弟节点顺序发生变化。', onClick: () => scrollToFirstMatch('reorder') },
       { key: 'meta', label: '元数据', value: result.value.stats.metaUpdates, filter: 'meta', description: '结构、frontmatter 或代码围栏元数据变化。', onClick: () => scrollToFirstMatch('meta') },
       { key: 'rename', label: '改名', value: result.value.stats.renames, filter: 'rename', description: '标题或引用标识符发生重命名。', onClick: () => scrollToFirstMatch('rename') },
       { key: 'warning', label: '提示', value: warningCount.value, filter: 'warning', description: '存在降级、预算或一致性提示。', onClick: () => scrollToFirstMatch('warning') },
@@ -86,6 +92,8 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     activeFilter.value = null
 
     try {
+      lastDiffedOld.value = oldMarkdown.value
+      lastDiffedNew.value = newMarkdown.value
       result.value = await runMarkdownDiff(oldMarkdown.value, newMarkdown.value)
     } catch (error) {
       result.value = null
@@ -102,6 +110,8 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     result.value = null
     selectedChangeKey.value = null
     errorMessage.value = ''
+    lastDiffedOld.value = ''
+    lastDiffedNew.value = ''
   }
 
   function selectLine(changeKey?: string): void {
@@ -119,7 +129,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
       projectionLines.value.find((line) => lineMatchesFilter(line, filter))
       ?? oldProjectionLines.value.find((line) => lineMatchesFilter(line, filter))
     if (!first?.changeKey) return
-    document.querySelector<HTMLElement>(`[data-change-key="${first.changeKey}"]`)
+    document.querySelector<HTMLElement>(`[data-change-key="${CSS.escape(first.changeKey)}"]`)
       ?.scrollIntoView({ block: 'center' })
   }
 
@@ -137,6 +147,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     detail,
     debugSnapshot,
     canRun,
+    isDiffStale,
     statsCards,
     peerHighlightKey,
     peerSide,

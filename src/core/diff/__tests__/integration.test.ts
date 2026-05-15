@@ -55,6 +55,7 @@ describe('diff integration', () => {
       moves: 0,
       metaUpdates: 0,
       renames: 0,
+      reorders: 0,
     })
     expect(changes.some((change) => change.primaryOp !== 'equal')).toBe(false)
   })

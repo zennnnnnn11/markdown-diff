@@ -24,6 +24,7 @@ const canRun = computed(() => workbench.canRun.value)
 const errorMessage = computed(() => workbench.errorMessage.value)
 const viewMode = computed(() => workbench.viewMode.value)
 const resultVisible = computed(() => !!workbench.result.value)
+const isDiffStale = computed(() => workbench.isDiffStale.value)
 const statsCards = computed(() => workbench.statsCards.value)
 const activeFilter = computed(() => workbench.activeFilter.value)
 const detail = computed(() => workbench.detail.value)
@@ -91,14 +92,14 @@ watch(
     await nextTick()
     if (workbench.viewMode.value === 'source') {
       const row = document.querySelector<HTMLElement>(
-        `.projection-row[data-side="${nextSide}"][data-change-key="${nextKey}"]`,
+        `.projection-row[data-side="${nextSide}"][data-change-key="${CSS.escape(nextKey)}"]`,
       )
       row?.scrollIntoView({ block: 'center' })
       return
     }
     if (workbench.viewMode.value === 'unified') {
       const cell = document.querySelector<HTMLElement>(
-        `.cell[data-side="${nextSide}"][data-change-key="${nextKey}"]`,
+        `.cell[data-side="${nextSide}"][data-change-key="${CSS.escape(nextKey)}"]`,
       )
       cell?.scrollIntoView({ block: 'center' })
     }
@@ -177,6 +178,11 @@ function getScrollBody(
       :stats-cards="statsCards"
       @highlight="setHighlight"
     />
+
+    <div v-if="isDiffStale" class="stale-banner">
+      内容已修改，结果可能不准确
+      <button type="button" class="secondary-button locate-button" @click="workbench.executeDiff">重新比对</button>
+    </div>
 
     <details v-if="resultVisible && displayWarnings.length > 0" class="warnings-banner">
       <summary>
@@ -299,6 +305,19 @@ function getScrollBody(
   background: var(--warning-bg);
   padding: 10px 14px;
   font-size: 14px;
+}
+
+.stale-banner {
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-md);
+  background: var(--warning-bg);
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--warning-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .warnings-banner summary {

@@ -21,7 +21,7 @@ function makeEmptyResult(): any {
     newIndex: makeEmptyIndex(),
     matches: [],
     changeIndex: { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map(), byLogicalMoveId: new Map() },
-    stats: { inserts: 0, deletes: 0, replaces: 0, moves: 0, metaUpdates: 0, renames: 0 },
+    stats: { inserts: 0, deletes: 0, replaces: 0, moves: 0, metaUpdates: 0, renames: 0, reorders: 0 },
     quality: { degradedCount: 0, inlineDeferredCount: 0, warningCount: 0 },
     warnings: [],
   }
@@ -437,5 +437,85 @@ describe('useDiffWorkbench', () => {
     expect(() => workbench.scrollToFirstMatch('warning')).not.toThrow()
 
     vi.restoreAllMocks()
+  })
+
+  it('scrollToFirstMatch escapes CSS metacharacters in changeKey', async () => {
+    const scrollIntoView = vi.fn()
+    const querySpy = vi.spyOn(document, 'querySelector').mockImplementation((selector: string) => {
+      if (typeof selector === 'string' && selector.includes('data-change-key')) {
+        return { scrollIntoView } as unknown as HTMLElement
+      }
+      return null
+    })
+
+    const workbench = useDiffWorkbench('# Title\n\nold paragraph', '# Title\n\nnew paragraph')
+    await workbench.executeDiff()
+
+    const firstChange = workbench.result.value
+      ? flattenChanges(workbench.result.value.root).find((c) => c.primaryOp !== 'equal')
+      : undefined
+    if (firstChange) {
+      firstChange.metadataChanges = [{ op: 'replace', path: '$.tags[0]', oldValue: 'a', newValue: 'b' }]
+      delete (firstChange as any).pairKey
+      delete (firstChange as any).oldId
+      delete (firstChange as any).newId
+    }
+
+    expect(() => workbench.scrollToFirstMatch('replace')).not.toThrow()
+    if (querySpy.mock.calls.length > 0) {
+      const selector = querySpy.mock.calls[0]![0] as string
+      expect(selector).toContain('\\$')
+      expect(selector).toContain('\\[')
+    }
+
+    vi.restoreAllMocks()
+  })
+
+  it('isDiffStale is false when no result exists', () => {
+    const workbench = useDiffWorkbench('hello', 'world')
+    expect(workbench.isDiffStale.value).toBe(false)
+  })
+
+  it('isDiffStale is false immediately after executeDiff', async () => {
+    const workbench = useDiffWorkbench('# A\n\nold', '# A\n\nnew')
+    await workbench.executeDiff()
+    expect(workbench.isDiffStale.value).toBe(false)
+  })
+
+  it('isDiffStale becomes true when markdown changes after diff', async () => {
+    const workbench = useDiffWorkbench('# A\n\nold', '# A\n\nnew')
+    await workbench.executeDiff()
+    workbench.newMarkdown.value = '# A\n\nmodified'
+    expect(workbench.isDiffStale.value).toBe(true)
+  })
+
+  it('isDiffStale resets to false after re-running executeDiff', async () => {
+    const workbench = useDiffWorkbench('# A\n\nold', '# A\n\nnew')
+    await workbench.executeDiff()
+    workbench.newMarkdown.value = '# A\n\nmodified'
+    expect(workbench.isDiffStale.value).toBe(true)
+    await workbench.executeDiff()
+    expect(workbench.isDiffStale.value).toBe(false)
+  })
+
+  it('clearEditor resets isDiffStale to false', async () => {
+    const workbench = useDiffWorkbench('# A\n\nold', '# A\n\nnew')
+    await workbench.executeDiff()
+    workbench.oldMarkdown.value = 'changed'
+    expect(workbench.isDiffStale.value).toBe(true)
+    workbench.clearEditor('old')
+    expect(workbench.isDiffStale.value).toBe(false)
+  })
+
+  it('shows reorder stat card when reorders > 0', () => {
+    const workbench = useDiffWorkbench('', '')
+    const res = makeEmptyResult()
+    res.stats.reorders = 3
+    workbench.result.value = res
+    const card = workbench.statsCards.value.find((c: any) => c.key === 'reorder')
+    expect(card).toBeDefined()
+    expect(card!.label).toBe('重排')
+    expect(card!.value).toBe(3)
+    expect(card!.filter).toBe('reorder')
   })
 })

@@ -76,7 +76,7 @@ function segmentClass(segment: ProjectionSegment): string {
       </div>
       <div
         v-for="(row, index) in mergedRows"
-        :key="index"
+        :key="row.key"
         class="unified-row"
       >
         <div class="row-index" role="cell">{{ index + 1 }}</div>
@@ -98,7 +98,7 @@ function segmentClass(segment: ProjectionSegment): string {
                 v-if="row.oldLine.baseTone === 'move' && row.oldLine.movePeerLineNumber"
                 class="move-peer-flag"
                 :title="`移动目标：第 ${row.oldLine.movePeerLineNumber} 行`"
-              >{{ row.oldLine.movePeerLineNumber > row.oldLine.lineNumber ? '↓' : '↑' }}{{ row.oldLine.movePeerLineNumber }}</span>
+              >{{ (row.oldLine.movePeerRowIndex ?? index) > index ? '↓' : '↑' }}{{ row.oldLine.movePeerLineNumber }}</span>
             </span>
           </template>
         </div>
@@ -166,7 +166,7 @@ function segmentClass(segment: ProjectionSegment): string {
                 v-if="row.newLine.baseTone === 'move' && row.newLine.movePeerLineNumber"
                 class="move-peer-flag"
                 :title="`移动来源：第 ${row.newLine.movePeerLineNumber} 行`"
-              >{{ row.newLine.movePeerLineNumber > row.newLine.lineNumber ? '↓' : '↑' }}{{ row.newLine.movePeerLineNumber }}</span>
+              >{{ (row.newLine.movePeerRowIndex ?? index) > index ? '↓' : '↑' }}{{ row.newLine.movePeerLineNumber }}</span>
             </span>
           </template>
         </div>
