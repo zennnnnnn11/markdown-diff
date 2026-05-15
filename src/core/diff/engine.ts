@@ -73,7 +73,9 @@ class AnchorRegistry {
       if (arr[mid]!.oldPreorder < oldPreorder) lo = mid + 1
       else hi = mid
     }
-    if (lo < arr.length && arr[lo]!.oldPreorder === oldPreorder && arr[lo]!.newPreorder === newPreorder) return
+    for (let i = lo; i < arr.length && arr[i]!.oldPreorder === oldPreorder; i++) {
+      if (arr[i]!.newPreorder === newPreorder) return
+    }
     arr.splice(lo, 0, { oldPreorder, newPreorder })
   }
 
@@ -1060,7 +1062,7 @@ async function recoverMoves(context: DiffContext, root: DiffChange): Promise<voi
   const deleteBuckets = new Map<string, DiffChange[]>()
   for (const d of deletes) {
     const node = d.oldId ? context.oldIndex.byId.get(d.oldId) : undefined
-    const key = node?.section ? `section:${node.section.kind}` : (node?.block?.type ?? 'unknown')
+    const key = node?.entity === 'section' ? `section:${node.kind}` : (node?.blockType ?? 'unknown')
     let bucket = deleteBuckets.get(key)
     if (!bucket) { bucket = []; deleteBuckets.set(key, bucket) }
     bucket.push(d)
@@ -1069,7 +1071,7 @@ async function recoverMoves(context: DiffContext, root: DiffChange): Promise<voi
   const candidates: Array<{ deleted: DiffChange; inserted: DiffChange }> = []
   for (const inserted of inserts) {
     const node = inserted.newId ? context.newIndex.byId.get(inserted.newId) : undefined
-    const key = node?.section ? `section:${node.section.kind}` : (node?.block?.type ?? 'unknown')
+    const key = node?.entity === 'section' ? `section:${node.kind}` : (node?.blockType ?? 'unknown')
     const bucket = deleteBuckets.get(key)
     if (!bucket) continue
     for (const deleted of bucket) {
