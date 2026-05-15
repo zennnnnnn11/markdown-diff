@@ -1,0 +1,144 @@
+/* ─── Design Tokens ─────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --bg-page:    #FAF9F7;
+  --bg-surface: #FFFFFF;
+  --bg-subtle:  #F5F3F0;
+  --bg-muted:   #EDEAE5;
+
+  /* Borders */
+  --border:        #E5E0D8;
+  --border-subtle: #EDE9E3;
+
+  /* Text */
+  --text-primary:   #1A1918;
+  --text-secondary: #6B6560;
+  --text-muted:     #9E9892;
+
+  /* Accent (Claude coral) */
+  --accent:        #D97757;
+  --accent-subtle: #FDF4F0;
+
+  /* Diff tone backgrounds */
+  --tone-insert-bg:  #E4F4EB;
+  --tone-delete-bg:  #FDEEF1;
+  --tone-replace-bg: #FEF3E2;
+  --tone-move-bg:    #EAF0FB;
+  --tone-meta-bg:    #F3EDFB;
+  --tone-rename-bg:  #FDFAE0;
+  --tone-reorder-bg: #F0EDE8;
+  --tone-blank-bg:   #F5F3F0;
+
+  /* Diff tone text */
+  --tone-insert-text:  #1B5E36;
+  --tone-delete-text:  #8E1B27;
+  --tone-replace-text: #7A4B10;
+  --tone-move-text:    #2B4A8D;
+  --tone-meta-text:    #5B3A9B;
+  --tone-rename-text:  #786A10;
+
+  /* Diff tone borders (annotation chips) */
+  --tone-insert-border:  #7DC99A;
+  --tone-delete-border:  #E8A0B2;
+  --tone-replace-border: #DEAF72;
+  --tone-move-border:    #95B0E8;
+  --tone-meta-border:    #BBA8E8;
+  --tone-rename-border:  #CCC090;
+
+  /* Warnings */
+  --warning-bg:     #FFFBF0;
+  --warning-border: #D4A84B;
+  --warning-text:   #8A6000;
+
+  /* Shape */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Shadow */
+  --shadow-sm: 0 1px 3px rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 5%);
+  --shadow-md: 0 4px 16px rgb(0 0 0 / 10%), 0 2px 6px rgb(0 0 0 / 6%);
+  --shadow-lg: 0 12px 40px rgb(0 0 0 / 14%), 0 4px 12px rgb(0 0 0 / 8%);
+
+  /* Typography */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Berkeley Mono", ui-monospace, "Cascadia Code", "Fira Code", monospace;
+}
+
+/* ─── Global Reset ───────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: var(--bg-page);
+  color: var(--text-primary);
+}
+
+/* ─── Tone Row Backgrounds ───────────────────────────────── */
+.tone-plain   { background: transparent; }
+.tone-insert  { background: var(--tone-insert-bg); }
+.tone-delete  { background: var(--tone-delete-bg); }
+.tone-replace { background: var(--tone-replace-bg); }
+.tone-move    { background: var(--tone-move-bg); }
+.tone-meta    { background: var(--tone-meta-bg); }
+.tone-rename  { background: var(--tone-rename-bg); }
+.tone-reorder { background: var(--tone-reorder-bg); }
+.tone-blank   { background: var(--tone-blank-bg); }
+
+/* ─── Annotation Chips ───────────────────────────────────── */
+.annotation-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+.annotation-insert {
+  border-color: var(--tone-insert-border);
+  color: var(--tone-insert-text);
+}
+
+.annotation-delete {
+  border-color: var(--tone-delete-border);
+  color: var(--tone-delete-text);
+}
+
+.annotation-replace {
+  border-color: var(--tone-replace-border);
+  color: var(--tone-replace-text);
+}
+
+.annotation-move,
+.annotation-reorder {
+  border-color: var(--tone-move-border);
+  color: var(--tone-move-text);
+}
+
+.annotation-meta,
+.annotation-rename {
+  border-color: var(--tone-meta-border);
+  color: var(--tone-meta-text);
+}
+
+.annotation-warning {
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.annotation-overlap {
+  border-color: var(--border);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+}
