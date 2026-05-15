@@ -54,7 +54,7 @@ export function addToParent(parent: Section, blockOrSection: Section['items'][nu
 }
 
 export function isSection(item: Section['items'][number]): item is Section {
-  return 'kind' in item
+  return 'kind' in item && 'depth' in item
 }
 
 export function finalize(ctx: TransformContext): Section {

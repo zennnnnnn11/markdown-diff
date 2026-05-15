@@ -1,22 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseMarkdown } from '../../parser'
-import { transformMarkdown } from '../../transformer'
-import { diffMarkdownTrees } from '../index'
-import type { DiffChange, DiffOptions } from '../types'
-
-function flatten(change: DiffChange): DiffChange[] {
-  return [change, ...change.children.flatMap(flatten)]
-}
-
-async function diffMarkdown(
-  oldMarkdown: string,
-  newMarkdown = oldMarkdown,
-  options?: Partial<DiffOptions>,
-) {
-  const oldTree = transformMarkdown(await parseMarkdown(oldMarkdown))
-  const newTree = transformMarkdown(await parseMarkdown(newMarkdown))
-  return diffMarkdownTrees(oldTree, newTree, options)
-}
+import { diffMarkdown, flatten } from './test-helpers'
 
 describe('testing philosophy operations batch', () => {
   function hasAnySemanticChange(result: Awaited<ReturnType<typeof diffMarkdown>>): boolean {

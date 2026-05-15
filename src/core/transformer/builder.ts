@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import type { Root } from 'mdast'
-import type { Node } from 'unist'
+import type { Heading, List, Root } from 'mdast'
+import type { Literal, Node } from 'unist'
 import type { Section, TransformContext } from './types'
 import {
   isHeading,
@@ -43,7 +42,7 @@ export function buildSections(root: Root): Section {
     if (isDefinition(child) || isFootnoteDefinition(child)) {
       continue
     } else if (isFrontmatter(child)) {
-      const fm = child as any
+      const fm = child as Literal
       const section = createFrontmatterSection(child.type as 'yaml' | 'toml', fm.value, 1, fm.position)
       section.id = generateId(ctx)
       addToParent(ctx.root, section)
@@ -70,9 +69,8 @@ export function buildSections(root: Root): Section {
   return finalize(ctx)
 }
 
-function processHeading(ctx: TransformContext, node: Node): void {
-  const h = node as any
-  const depth: number = h.depth
+function processHeading(ctx: TransformContext, node: Heading): void {
+  const depth = node.depth
   const title = extractHeadingText(node)
 
   popToDepth(ctx, depth)
@@ -84,20 +82,19 @@ function processHeading(ctx: TransformContext, node: Node): void {
   pushHeading(ctx, section)
 }
 
-function processTopLevelList(ctx: TransformContext, list: Node): void {
-  const l = list as any
-  if (!l.children) return
+function processTopLevelList(ctx: TransformContext, list: List): void {
+  if (!list.children) return
 
   let idx = 0
   const depth = currentHeadingDepth(ctx)
   const treeDepth = currentTreeDepth(ctx) + 1
-  for (const item of l.children as Node[]) {
+  for (const item of list.children as Node[]) {
     if (!isListItem(item)) continue
 
     const section = listItemToSection(
       ctx,
       item,
-      { ordered: l.ordered, start: l.start, spread: l.spread },
+      { ordered: list.ordered, start: list.start, spread: list.spread },
       idx,
       depth,
       treeDepth,

@@ -1,21 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { collectQuality, collectStats, forEachChange, summarizeChanges } from '../summary'
-import type { DiffChange, DiffStatus } from '../types'
-
-function makeStatus(overrides: Partial<DiffStatus> = {}): DiffStatus {
-  return {
-    isMatchPair: false,
-    isAlignedPair: false,
-    moved: false,
-    movedWithinParent: false,
-    renamed: false,
-    selfChanged: false,
-    descendantChanged: false,
-    metaChanged: false,
-    inlineStructureChanged: false,
-    ...overrides,
-  }
-}
+import type { DiffChange } from '../types'
+import { makeStatus } from './test-helpers'
 
 function makeChange(overrides: Partial<DiffChange> = {}): DiffChange {
   return {

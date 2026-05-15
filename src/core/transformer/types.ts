@@ -8,6 +8,20 @@ export interface Block {
   value?: string
   originalType?: string
   raw?: unknown
+  position?: Node['position']
+  identifier?: string
+  url?: string
+  title?: string | null
+  alt?: string | null
+  lang?: string | null
+  meta?: string | null
+  checked?: boolean | null
+  align?: (string | null)[] | null
+  depth?: number
+  ordered?: boolean | null
+  start?: number | null
+  spread?: boolean | null
+  label?: string
 }
 
 export type InlineContent = Block

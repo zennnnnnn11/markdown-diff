@@ -1,7 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { DiffNode, DiffOptions } from './types'
 import { DIFF_HEURISTICS } from './heuristics'
-import { extractNodeText, jaccardSimilarity, sequenceSimilarity, tokenizeText } from './utils'
+import { extractNodeText, jaccardSimilarity, maxColumns, readTableData, sequenceSimilarity, tokenizeText } from './utils'
 import { estimateMinHashSimilarityWasm } from './simhash-wasm'
 
 export function computeNodeSimilarity(
@@ -225,8 +224,8 @@ function tableSimilarity(
   newNode: DiffNode,
   options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
 ): number {
-  const oldRows = readTableCellTexts(oldNode.block)
-  const newRows = readTableCellTexts(newNode.block)
+  const oldRows = readTableData(oldNode.block).cells
+  const newRows = readTableData(newNode.block).cells
   const oldAlign = Array.isArray(oldNode.block?.align) ? (oldNode.block.align as string[]) : []
   const newAlign = Array.isArray(newNode.block?.align) ? (newNode.block.align as string[]) : []
   const shapeSimilarity = Math.min(ratio(oldRows.length, newRows.length), ratio(maxColumns(oldRows), maxColumns(newRows)))
@@ -262,12 +261,12 @@ function definitionFieldSimilarity(
   newNode: DiffNode,
   options: Pick<DiffOptions, 'minHashTokenCount' | 'minHashNumFunctions'>,
 ): number {
-  const oldUrl = String((oldNode.block as any)?.url ?? '')
-  const newUrl = String((newNode.block as any)?.url ?? '')
-  const oldTitle = String((oldNode.block as any)?.title ?? '')
-  const newTitle = String((newNode.block as any)?.title ?? '')
-  const oldLabel = String((oldNode.block as any)?.label ?? extractNodeText(oldNode.block))
-  const newLabel = String((newNode.block as any)?.label ?? extractNodeText(newNode.block))
+  const oldUrl = String(oldNode.block?.url ?? '')
+  const newUrl = String(newNode.block?.url ?? '')
+  const oldTitle = String(oldNode.block?.title ?? '')
+  const newTitle = String(newNode.block?.title ?? '')
+  const oldLabel = String(oldNode.block?.label ?? extractNodeText(oldNode.block))
+  const newLabel = String(newNode.block?.label ?? extractNodeText(newNode.block))
   const urlSimilarity = textContentSimilarity(oldUrl, newUrl, tokenizeText(oldUrl), tokenizeText(newUrl), options)
   const titleSimilarity = textContentSimilarity(oldTitle, newTitle, tokenizeText(oldTitle), tokenizeText(newTitle), options)
   const labelSimilarity = textContentSimilarity(oldLabel, newLabel, tokenizeText(oldLabel), tokenizeText(newLabel), options)
@@ -356,15 +355,6 @@ function splitLines(value: unknown): string[] {
     .filter(Boolean)
 }
 
-function readTableCellTexts(block: any): string[][] {
-  if (!block || !Array.isArray(block.children)) return []
-  return block.children.map((row: any) =>
-    Array.isArray(row.children)
-      ? row.children.map((cell: any) => extractNodeText(cell))
-      : [],
-  )
-}
-
 function averageTableCellSimilarity(
   oldRows: string[][],
   newRows: string[][],
@@ -435,10 +425,6 @@ function structureFallbackScore(
       config.structureFallbackLengthWeight * ratio(oldTextTokenCount, newTextTokenCount) +
       config.structureFallbackContextWeight * structuralContext,
   )
-}
-
-function maxColumns(rows: string[][]): number {
-  return rows.reduce((max, row) => Math.max(max, row.length), 0)
 }
 
 function ratio(left: number, right: number): number {

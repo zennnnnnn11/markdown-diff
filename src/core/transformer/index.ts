@@ -7,3 +7,4 @@ export function transformMarkdown(root: Root): Section {
 }
 
 export type { Section, Block, InlineContent, TransformContext, FootnoteRef } from './types'
+export { isSection } from './context'

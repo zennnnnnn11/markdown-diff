@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Node } from 'unist'
 import type { Block, Section, TransformContext } from './types'
 import { isDefinition } from './guards'
@@ -6,18 +5,19 @@ import { isDefinition } from './guards'
 export function collectDefinition(ctx: TransformContext, node: Node): void {
   if (isDefinition(node)) {
     ctx.definitions.push(node)
-    const def = node as any
-    ctx.definitionMap.set(def.identifier, node)
+    ctx.definitionMap.set(node.identifier, node)
   }
 }
 
 export function collectFootnoteDefinition(
   ctx: TransformContext,
-  identifier: string,
+  identifier: string | undefined,
   section: Section,
 ): void {
   ctx.footnotes.push(section)
-  ctx.footnoteMap.set(identifier, section)
+  if (identifier) {
+    ctx.footnoteMap.set(identifier, section)
+  }
 }
 
 export function collectFootnoteRefsFromBlock(
@@ -32,10 +32,9 @@ function scanForRefs(
   block: Block,
   parentBlockId: string,
 ): void {
-  if (block.type === 'footnoteReference') {
-    const identifier = block.identifier as string
+  if (block.type === 'footnoteReference' && block.identifier) {
     ctx.footnoteRefs.push({
-      identifier,
+      identifier: block.identifier,
       sectionId: '',
       blockId: parentBlockId,
     })

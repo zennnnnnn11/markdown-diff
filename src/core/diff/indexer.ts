@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Block, Section } from '../transformer'
 import type { BacklinkIndex, DiffNode, SemanticIndex } from './types'
 import {
@@ -11,6 +10,7 @@ import {
   mergeSourceRanges,
   normalizeHeadingTitle,
   normalizeIdentifier,
+  getSectionIdentifier,
   pathHashInput,
   slugifyHeading,
   sourceRangeFromPosition,
@@ -116,10 +116,10 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
 
   function registerBacklinks(block: Block, holderId: string): void {
     if (block.type === 'footnoteReference') {
-      addToMap(backlinks.footnotes, normalizeIdentifier((block as any).identifier), holderId)
+      addToMap(backlinks.footnotes, normalizeIdentifier(block.identifier), holderId)
     }
     if (block.type === 'linkReference' || block.type === 'imageReference' || block.type === 'definition') {
-      addToMap(backlinks.definitions, normalizeIdentifier((block as any).identifier), holderId)
+      addToMap(backlinks.definitions, normalizeIdentifier(block.identifier), holderId)
     }
     if (Array.isArray(block.children)) {
       for (const child of block.children) registerBacklinks(child, holderId)
@@ -257,7 +257,7 @@ async function createDiffNode(
       subtreeSize: 1,
       siblingIndex: current.siblingIndex,
       depth: headingPath.length,
-      sourceRange: sourceRangeFromPosition((block as any).position),
+      sourceRange: sourceRangeFromPosition(block.position),
       selfHash,
       directHash: selfHash,
       subtreeHash: selfHash,
@@ -289,8 +289,8 @@ async function createDiffNode(
   const text = extractNodeText(section)
   const textTokens = tokenizeText(text)
   const sourceRange = mergeSourceRanges([
-    sourceRangeFromPosition((section as any).position),
-    sourceRangeFromPosition((section.heading as any)?.position),
+    sourceRangeFromPosition(section.position),
+    sourceRangeFromPosition(section.heading?.position),
     ...childNodes.map((child) => child.sourceRange),
   ])
 
@@ -376,18 +376,18 @@ async function computeBlockSelfHash(block: Block): Promise<string> {
   return hashCanonical({
     type: block.type,
     value: block.value,
-    lang: (block as any).lang,
-    meta: (block as any).meta,
-    checked: (block as any).checked,
-    identifier: (block as any).identifier,
-    title: (block as any).title,
-    url: (block as any).url,
-    alt: (block as any).alt,
-    align: (block as any).align,
-    depth: (block as any).depth,
-    ordered: (block as any).ordered,
-    start: (block as any).start,
-    spread: (block as any).spread,
+    lang: block.lang,
+    meta: block.meta,
+    checked: block.checked,
+    identifier: block.identifier,
+    title: block.title,
+    url: block.url,
+    alt: block.alt,
+    align: block.align,
+    depth: block.depth,
+    ordered: block.ordered,
+    start: block.start,
+    spread: block.spread,
     children,
     structure: extractInlineStructure(block),
   })
@@ -397,8 +397,8 @@ async function computeBlockIdentityHash(block: Block, selfHash: string): Promise
   if (block.type === 'definition') {
     return hashCanonical({
       type: block.type,
-      url: (block as any).url,
-      title: (block as any).title,
+      url: block.url,
+      title: block.title,
     })
   }
   return selfHash
@@ -406,14 +406,14 @@ async function computeBlockIdentityHash(block: Block, selfHash: string): Promise
 
 function extractSectionIdentifier(section: Section): string | undefined {
   if (section.kind !== 'footnote') return undefined
-  return normalizeIdentifier((section.heading as any)?.identifier)
+  return getSectionIdentifier(section)
 }
 
 function getItemSourceOffset(item: Block | Section): number | undefined {
   if (isSection(item)) {
-    return (item.heading as any)?.position?.start?.offset as number | undefined
+    return item.heading?.position?.start?.offset as number | undefined
   }
-  return (item as any)?.position?.start?.offset as number | undefined
+  return item.position?.start?.offset as number | undefined
 }
 
 function compareSourceOffsets(left?: number, right?: number): number {

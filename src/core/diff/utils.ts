@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { xxhash128 } from 'hash-wasm'
+import { isSection } from '../transformer'
 import type { Block, InlineContent, Section } from '../transformer'
 import type { InlineToken, MetadataChange, SourcePoint, SourceRange } from './types'
 import { charikarSimHashWasm, simHashHammingDistanceBatchWasm } from './simhash-wasm'
@@ -25,6 +25,14 @@ export function normalizeIdentifier(value: unknown): string {
     .trim()
     .replace(/\s+/g, ' ')
     .toLowerCase()
+}
+
+export function getBlockIdentifier(block: Block | undefined): string {
+  return normalizeIdentifier(block?.identifier)
+}
+
+export function getSectionIdentifier(section: { heading?: Block } | undefined): string {
+  return normalizeIdentifier(section?.heading?.identifier)
 }
 
 export function normalizeHeadingTitle(value: string): string {
@@ -62,10 +70,10 @@ export function structuredTextTokens(node: Section | Block | InlineContent | und
   }
 
   const tokens: string[] = []
-  if ((node as any).url) tokens.push(`url:${String((node as any).url).toLowerCase()}`)
-  if ((node as any).title) tokens.push(`title:${String((node as any).title).toLowerCase()}`)
-  if ((node as any).alt) tokens.push(`alt:${String((node as any).alt).toLowerCase()}`)
-  if ((node as any).identifier) tokens.push(`id:${normalizeIdentifier((node as any).identifier)}`)
+  if (node.url) tokens.push(`url:${String(node.url).toLowerCase()}`)
+  if (node.title) tokens.push(`title:${String(node.title).toLowerCase()}`)
+  if (node.alt) tokens.push(`alt:${String(node.alt).toLowerCase()}`)
+  if (node.identifier) tokens.push(`id:${normalizeIdentifier(node.identifier)}`)
   if (node.type) tokens.push(`type:${node.type}`)
   if (Array.isArray(node.children)) {
     tokens.push(...node.children.flatMap((child) => structuredTextTokens(child)))
@@ -87,9 +95,9 @@ export function extractNodeText(node: Section | Block | InlineContent | undefine
   if (node.type === 'inlineCode' || node.type === 'code' || node.type === 'math' || node.type === 'inlineMath') {
     return String(node.value ?? '')
   }
-  if (node.type === 'image') return collapseWhitespace([node.alt, (node as any).url].filter(Boolean).join(' '))
+  if (node.type === 'image') return collapseWhitespace([node.alt, node.url].filter(Boolean).join(' '))
   if (node.type === 'definition') {
-    return collapseWhitespace([node.identifier, (node as any).url, (node as any).title].filter(Boolean).join(' '))
+    return collapseWhitespace([node.identifier, node.url, node.title].filter(Boolean).join(' '))
   }
   if (Array.isArray(node.children)) {
     return collapseWhitespace(node.children.map((child) => extractNodeText(child)).join(' '))
@@ -106,11 +114,11 @@ export async function buildInlineToken(node: InlineContent): Promise<InlineToken
   const tokenData = {
     type: node.type,
     value: node.value,
-    url: (node as any).url,
-    alt: (node as any).alt,
-    title: (node as any).title,
+    url: node.url,
+    alt: node.alt,
+    title: node.title,
     normalizedIdentifier:
-      (node as any).identifier !== undefined ? normalizeIdentifier((node as any).identifier) : undefined,
+      node.identifier !== undefined ? normalizeIdentifier(node.identifier) : undefined,
     children: children?.map((child) => ({ ...child, source: undefined })),
   }
 
@@ -291,8 +299,30 @@ export function metadataDiff(oldValue: unknown, newValue: unknown, basePath = ''
   return result
 }
 
-export function isSection(value: Section | Block | InlineContent): value is Section {
-  return 'kind' in value && 'depth' in value
+export { isSection } from '../transformer'
+
+export function readTableData(block: Block | undefined): { cells: string[][]; structured: InlineContent[][][] } {
+  if (!block || !Array.isArray(block.children)) return { cells: [], structured: [] }
+  const cells: string[][] = []
+  const structured: InlineContent[][][] = []
+  for (const row of block.children) {
+    if (!Array.isArray(row.children)) {
+      cells.push([])
+      structured.push([])
+      continue
+    }
+    cells.push(row.children.map((cell) => extractNodeText(cell)))
+    structured.push(
+      row.children.map((cell) =>
+        Array.isArray(cell.children) ? (cell.children as InlineContent[]) : [],
+      ),
+    )
+  }
+  return { cells, structured }
+}
+
+export function maxColumns(rows: string[][]): number {
+  return rows.reduce((max, row) => Math.max(max, row.length), 0)
 }
 
 function sortCanonical(value: unknown): unknown {

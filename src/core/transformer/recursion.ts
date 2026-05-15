@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+import type { Blockquote, FootnoteDefinition, List, ListItem } from 'mdast'
 import type { Node } from 'unist'
 import type { TransformContext, Section } from './types'
 import {
@@ -25,7 +25,7 @@ import { extractBlockquoteExcerpt } from './text'
 
 export function listItemToSection(
   ctx: TransformContext,
-  listItem: Node,
+  listItem: ListItem | Node,
   listMeta: {
     ordered?: boolean | null
     start?: number | null
@@ -40,9 +40,8 @@ export function listItemToSection(
   const section = createListItemSection(block, listMeta, index, depth, treeDepth, listDepth)
   section.id = generateId(ctx)
 
-  const li = listItem as any
-  if (li.children) {
-    processContainerChildren(ctx, section, li.children as Node[])
+  if ('children' in listItem && Array.isArray(listItem.children)) {
+    processContainerChildren(ctx, section, listItem.children as Node[])
   }
 
   return section
@@ -50,7 +49,7 @@ export function listItemToSection(
 
 export function blockquoteToSection(
   ctx: TransformContext,
-  blockquote: Node,
+  blockquote: Blockquote | Node,
   depth: number,
   treeDepth: number,
   quoteDepth: number,
@@ -59,25 +58,24 @@ export function blockquoteToSection(
   const section = createBlockquoteSection(depth, treeDepth, quoteDepth, title)
   section.id = generateId(ctx)
 
-  const bq = blockquote as any
-  if (bq.children) {
-    processContainerChildren(ctx, section, bq.children as Node[])
+  if ('children' in blockquote && Array.isArray(blockquote.children)) {
+    processContainerChildren(ctx, section, blockquote.children as Node[])
   }
 
   return section
 }
 
-export function transformFootnoteDefinition(ctx: TransformContext, node: Node): void {
-  const fn = node as any
+export function transformFootnoteDefinition(ctx: TransformContext, node: FootnoteDefinition | Node): void {
   const block = createBlock(node, ctx)
   const section = createFootnoteSection(block)
   section.id = generateId(ctx)
 
-  if (fn.children) {
-    processContainerChildren(ctx, section, fn.children as Node[])
+  if ('children' in node && Array.isArray(node.children)) {
+    processContainerChildren(ctx, section, node.children as Node[])
   }
 
-  collectFootnoteDefinition(ctx, fn.identifier, section)
+  const identifier = 'identifier' in node ? (node.identifier as string) : undefined
+  collectFootnoteDefinition(ctx, identifier, section)
 }
 
 // ---- internal ----
@@ -118,19 +116,18 @@ function processContainerChildren(
 function processChildList(
   ctx: TransformContext,
   parent: Section,
-  list: Node,
+  list: List,
 ): void {
-  const l = list as any
-  if (!l.children) return
+  if (!list.children) return
 
   let idx = 0
-  for (const item of l.children as Node[]) {
+  for (const item of list.children as Node[]) {
     if (!isListItem(item)) continue
 
     const cs = listItemToSection(
       ctx,
       item,
-      { ordered: l.ordered, start: l.start, spread: l.spread },
+      { ordered: list.ordered, start: list.start, spread: list.spread },
       idx,
       parent.depth,
       parent.treeDepth + 1,

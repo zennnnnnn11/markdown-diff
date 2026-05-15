@@ -1,6 +1,15 @@
 import type { Node } from 'unist'
+import type {
+  Blockquote,
+  Code,
+  Definition,
+  FootnoteDefinition,
+  Heading,
+  List,
+  ListItem,
+} from 'mdast'
 
-export function isHeading(node: Node): boolean {
+export function isHeading(node: Node): node is Heading {
   return node != null && node.type === 'heading'
 }
 
@@ -8,15 +17,15 @@ export function isParagraph(node: Node): boolean {
   return node.type === 'paragraph'
 }
 
-export function isList(node: Node): boolean {
+export function isList(node: Node): node is List {
   return node.type === 'list'
 }
 
-export function isListItem(node: Node): boolean {
+export function isListItem(node: Node): node is ListItem {
   return node.type === 'listItem'
 }
 
-export function isBlockquote(node: Node): boolean {
+export function isBlockquote(node: Node): node is Blockquote {
   return node.type === 'blockquote'
 }
 
@@ -24,7 +33,7 @@ export function isTable(node: Node): boolean {
   return node.type === 'table'
 }
 
-export function isCode(node: Node): boolean {
+export function isCode(node: Node): node is Code {
   return node.type === 'code'
 }
 
@@ -40,11 +49,11 @@ export function isToml(node: Node): boolean {
   return node.type === 'toml'
 }
 
-export function isDefinition(node: Node): boolean {
+export function isDefinition(node: Node): node is Definition {
   return node.type === 'definition'
 }
 
-export function isFootnoteDefinition(node: Node): boolean {
+export function isFootnoteDefinition(node: Node): node is FootnoteDefinition {
   return node.type === 'footnoteDefinition'
 }
 
