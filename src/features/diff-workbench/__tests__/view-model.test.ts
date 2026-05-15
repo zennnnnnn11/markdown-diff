@@ -1252,4 +1252,55 @@ describe('diff workbench view-model', () => {
     expect(degradedEntry?.degraded).toBe(true)
     expect(degradedEntry?.shortHeadingFallback).toBe(true)
   })
+
+  // ─── inline segment text reconstruction ───
+
+  it('old-side replace segments reconstruct exactly the old text', async () => {
+    const result = await runMarkdownDiff(
+      '# Title\n\nThe quick brown fox',
+      '# Title\n\nThe slow green fox',
+    )
+    const oldLines = buildOldProjectionLines('# Title\n\nThe quick brown fox', result)
+    const replacedOldLine = oldLines.find((line) => line.baseTone === 'replace')
+
+    expect(replacedOldLine).toBeDefined()
+    if (replacedOldLine?.segments?.length) {
+      const reconstructed = replacedOldLine.segments.map((s) => s.text).join('')
+      expect(reconstructed).toBe(replacedOldLine.text)
+    }
+  })
+
+  it('old-side replace segments contain no new-only text', async () => {
+    const result = await runMarkdownDiff(
+      '# Title\n\nremove this word here',
+      '# Title\n\ninsert different word here',
+    )
+    const oldLines = buildOldProjectionLines('# Title\n\nremove this word here', result)
+    const replacedOldLine = oldLines.find((line) => line.baseTone === 'replace')
+
+    expect(replacedOldLine).toBeDefined()
+    if (replacedOldLine?.segments?.length) {
+      const reconstructed = replacedOldLine.segments.map((s) => s.text).join('')
+      // Segments must not contain any text from the new document
+      expect(reconstructed).not.toContain('insert')
+      expect(reconstructed).not.toContain('different')
+      expect(reconstructed).toBe(replacedOldLine.text)
+    }
+  })
+
+  it('new-side replace segments contain no old-only text', async () => {
+    const result = await runMarkdownDiff(
+      '# Title\n\nremove this word here',
+      '# Title\n\ninsert different word here',
+    )
+    const newLines = buildProjectionLines('# Title\n\ninsert different word here', result)
+    const replacedNewLine = newLines.find((line) => line.baseTone === 'replace')
+
+    expect(replacedNewLine).toBeDefined()
+    if (replacedNewLine?.segments?.length) {
+      const reconstructed = replacedNewLine.segments.map((s) => s.text).join('')
+      expect(reconstructed).not.toContain('remove')
+      expect(reconstructed).toBe(replacedNewLine.text)
+    }
+  })
 })
