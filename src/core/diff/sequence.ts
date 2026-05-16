@@ -1,3 +1,4 @@
+import { myersDiffWasm } from './diff-wasm'
 import type { DiffOptions } from './types'
 
 export interface SequenceMatch {
@@ -74,7 +75,21 @@ export function longestCommonSubsequence<T>(oldValues: readonly T[], newValues: 
   return toMatches(myersShortestEditScript(oldValues, newValues))
 }
 
+const WASM_MIN_TOTAL_LENGTH = 30
+let wasmFailed = false
+
 function myersShortestEditScript<T>(oldValues: readonly T[], newValues: readonly T[]): SequenceEdit<T>[] {
+  if (!wasmFailed && oldValues.length + newValues.length >= WASM_MIN_TOTAL_LENGTH) {
+    try {
+      return myersDiffWasm(oldValues, newValues)
+    } catch {
+      wasmFailed = true
+    }
+  }
+  return myersShortestEditScriptJs(oldValues, newValues)
+}
+
+function myersShortestEditScriptJs<T>(oldValues: readonly T[], newValues: readonly T[]): SequenceEdit<T>[] {
   const maxDistance = oldValues.length + newValues.length
   const offset = maxDistance
   const vectorLength = maxDistance * 2 + 1

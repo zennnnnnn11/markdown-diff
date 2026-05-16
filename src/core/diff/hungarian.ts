@@ -13,9 +13,26 @@
  * Complexity: O(n^3) where n = max(rows, cols).
  */
 
+import { hungarianAssignmentWasm } from './diff-wasm'
+
+let wasmFailed = false
+
 const LARGE_COST = 1e18
 
 export function hungarianAssignment(
+  costMatrix: readonly (readonly number[])[],
+): Array<[number, number]> {
+  if (!wasmFailed) {
+    try {
+      return hungarianAssignmentWasm(costMatrix)
+    } catch {
+      wasmFailed = true
+    }
+  }
+  return hungarianAssignmentJs(costMatrix)
+}
+
+function hungarianAssignmentJs(
   costMatrix: readonly (readonly number[])[],
 ): Array<[number, number]> {
   const originalRows = costMatrix.length
