@@ -10,6 +10,7 @@ import { buildMatchedChange } from './engine/alignment'
 import { recoverMoves } from './engine/moves'
 import { recoverDefinitionIdentifierPairs, recoverRenamesAndMeta } from './engine/renames'
 import { computePresentationDiffs } from './engine/presentation'
+import { maybeApplyStructuralFallback } from './engine/structural-fallback'
 
 export async function diffMarkdownTrees(
   oldRoot: Section,
@@ -29,6 +30,7 @@ export async function diffMarkdownTrees(
     matchesByOld: new Map(),
     matchesByNew: new Map(),
     warnings: [],
+    structuralFallback: resolved.enhancedLocalRecovery ? maybeApplyStructuralFallback : undefined,
   }
 
   addMatch(context, oldRoot.id, newRoot.id, 'forced-root')

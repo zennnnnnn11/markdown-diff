@@ -16,10 +16,10 @@ import {
   estimateSectionAlignmentCost,
   labelForNode,
   parentContextScore,
+  uniqueHeadingSiblingNames,
   withinSiblingOffsetThreshold,
 } from './helpers'
 import { seedLocalMatches } from './local-matching'
-import { maybeApplyStructuralFallback } from './structural-fallback'
 
 export async function buildMatchedChange(
   context: DiffContext,
@@ -419,8 +419,8 @@ export async function buildAlignedChange(
       change.warnings.push('local-window-exceeded')
     }
 
-    if (context.options.enhancedLocalRecovery) {
-      await maybeApplyStructuralFallback(context, change, oldNode, newNode)
+    if (context.structuralFallback) {
+      await context.structuralFallback(context, change, oldNode, newNode)
     }
   }
 
@@ -638,36 +638,4 @@ export async function rewriteChildrenWithFallbackPairs(
   }
 
   return rewritten
-}
-
-export function uniqueHeadingSiblingNames(
-  context: DiffContext,
-  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-): boolean {
-  const oldSiblings = oldNode.parentId
-    ? (context.oldIndex.childrenById.get(oldNode.parentId) ?? [])
-    : []
-  const newSiblings = newNode.parentId
-    ? (context.newIndex.childrenById.get(newNode.parentId) ?? [])
-    : []
-  const duplicateOld = oldSiblings
-    .map((id) => context.oldIndex.byId.get(id))
-    .some(
-      (candidate) =>
-        candidate &&
-        candidate.id !== oldNode.id &&
-        candidate.kind === 'heading' &&
-        candidate.normalizedTitle === newNode.normalizedTitle,
-    )
-  const duplicateNew = newSiblings
-    .map((id) => context.newIndex.byId.get(id))
-    .some(
-      (candidate) =>
-        candidate &&
-        candidate.id !== newNode.id &&
-        candidate.kind === 'heading' &&
-        candidate.normalizedTitle === oldNode.normalizedTitle,
-    )
-  return !duplicateOld && !duplicateNew
 }

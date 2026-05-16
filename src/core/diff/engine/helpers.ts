@@ -5,7 +5,6 @@ import type {
   DiffChange,
   DiffChangeIndex,
   DiffStatus,
-  MatchKind,
   MatchPair,
   SemanticIndex,
 } from '../types'
@@ -13,42 +12,11 @@ import {
   extractNodeText,
   getBlockIdentifier,
   getSectionIdentifier,
-  makePairKey,
 } from '../utils'
 import type { DiffContext, SiblingAnchorBounds } from './context'
 
-export function addMatch(
-  context: DiffContext,
-  oldId: string,
-  newId: string,
-  matchKind: MatchKind,
-  logicalMoveId?: string,
-  score?: number,
-): MatchPair | undefined {
-  const existingOld = context.matchesByOld.get(oldId)
-  const existingNew = context.matchesByNew.get(newId)
-  if (existingOld || existingNew) {
-    if (existingOld && existingOld.newId === newId) {
-      if (logicalMoveId && !existingOld.logicalMoveId) existingOld.logicalMoveId = logicalMoveId
-      if (score !== undefined) existingOld.score = score
-      return existingOld
-    }
-    return undefined
-  }
-
-  const pair: MatchPair = {
-    oldId,
-    newId,
-    pairKind: 'match',
-    pairKey: makePairKey('match', oldId, newId),
-    matchKind,
-    logicalMoveId,
-    score,
-  }
-  context.matchesByOld.set(oldId, pair)
-  context.matchesByNew.set(newId, pair)
-  return pair
-}
+export { addMatch, convertChangeToMove, upgradeToMatch } from './context-ops'
+export { estimateSectionAlignmentCost, estimateAptedRecoveryCost, estimateInlineDiffCost } from './cost'
 
 export function createStatus(overrides?: Partial<DiffStatus>): DiffStatus {
   return {
@@ -328,29 +296,6 @@ export function oldRootPair(context: DiffContext): MatchPair | undefined {
   return context.matchesByOld.get(context.oldIndex.rootId)
 }
 
-export function estimateSectionAlignmentCost(
-  context: DiffContext,
-  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
-): number {
-  const oldChildren = context.oldIndex.childrenById.get(oldNode.id)?.length ?? 0
-  const newChildren = context.newIndex.childrenById.get(newNode.id)?.length ?? 0
-  return oldChildren * newChildren + oldChildren + newChildren
-}
-
-export function estimateAptedRecoveryCost(change: DiffChange): number {
-  const deletes = change.children.filter((child) => child.primaryOp === 'delete').length
-  const inserts = change.children.filter((child) => child.primaryOp === 'insert').length
-  return deletes * inserts
-}
-
-export function estimateInlineDiffCost(
-  oldChildren: InlineContent[],
-  newChildren: InlineContent[],
-): number {
-  return oldChildren.length * newChildren.length
-}
-
 export function parentContextScore(
   context: DiffContext,
   oldParentId: string,
@@ -362,23 +307,34 @@ export function parentContextScore(
     : DIFF_HEURISTICS.context.unmatchedParentScore
 }
 
-export function convertChangeToMove(change: DiffChange, pair: MatchPair, role: 'source' | 'target'): void {
-  change.primaryOp = 'move'
-  change.pairKind = 'match'
-  change.pairKey = pair.pairKey
-  change.matchKind = pair.matchKind
-  change.logicalMoveId = pair.logicalMoveId
-  change.moveRole = role
-  change.movePeerKey = pair.logicalMoveId
-  change.status.isMatchPair = true
-  change.status.isAlignedPair = false
-  change.status.moved = true
-}
-
-export function upgradeToMatch(change: DiffChange): void {
-  if (!change.oldId || !change.newId) return
-  change.pairKind = 'match'
-  change.pairKey = makePairKey('match', change.oldId, change.newId)
-  change.status.isMatchPair = true
-  change.status.isAlignedPair = false
+export function uniqueHeadingSiblingNames(
+  context: DiffContext,
+  oldNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+  newNode: NonNullable<ReturnType<SemanticIndex['byId']['get']>>,
+): boolean {
+  const oldSiblings = oldNode.parentId
+    ? (context.oldIndex.childrenById.get(oldNode.parentId) ?? [])
+    : []
+  const newSiblings = newNode.parentId
+    ? (context.newIndex.childrenById.get(newNode.parentId) ?? [])
+    : []
+  const duplicateOld = oldSiblings
+    .map((id) => context.oldIndex.byId.get(id))
+    .some(
+      (candidate) =>
+        candidate &&
+        candidate.id !== oldNode.id &&
+        candidate.kind === 'heading' &&
+        candidate.normalizedTitle === newNode.normalizedTitle,
+    )
+  const duplicateNew = newSiblings
+    .map((id) => context.newIndex.byId.get(id))
+    .some(
+      (candidate) =>
+        candidate &&
+        candidate.id !== newNode.id &&
+        candidate.kind === 'heading' &&
+        candidate.normalizedTitle === oldNode.normalizedTitle,
+    )
+  return !duplicateOld && !duplicateNew
 }

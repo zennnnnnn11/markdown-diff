@@ -1,31 +1,13 @@
-import { xxhash128 } from 'hash-wasm'
-import { isSection } from '../transformer'
-import type { Block, InlineContent, Section } from '../transformer'
-import type { InlineToken, MetadataChange, SourcePoint, SourceRange } from './types'
-import { charikarSimHashWasm, simHashHammingDistanceBatchWasm } from './simhash-wasm'
+import type { Block } from '../transformer'
+import type { MetadataChange, SourcePoint, SourceRange } from './types'
+import { stableStringify } from './hash'
+import { normalizeIdentifier } from './text'
 
-const HASH_SEED_LOW = 0
-const HASH_SEED_HIGH = 0
-const textEncoder = new TextEncoder()
+export { isSection } from '../transformer'
 
-export async function hashCanonical(value: unknown): Promise<string> {
-  return xxhash128(textEncoder.encode(stableStringify(value)), HASH_SEED_LOW, HASH_SEED_HIGH)
-}
-
-export async function hashText(value: string): Promise<string> {
-  return xxhash128(textEncoder.encode(value), HASH_SEED_LOW, HASH_SEED_HIGH)
-}
-
-export function stableStringify(value: unknown): string {
-  return JSON.stringify(sortCanonical(value))
-}
-
-export function normalizeIdentifier(value: unknown): string {
-  return String(value ?? '')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .toLowerCase()
-}
+export { hashCanonical, hashText, stableStringify, charikarSimHash, simHashHammingDistance, simHashHammingDistanceBatch } from './hash'
+export { normalizeIdentifier, normalizeHeadingTitle, slugifyHeading, tokenizeText, structuredTextTokens, extractNodeText, buildInlineTokens, buildInlineToken, extractInlineStructure, readTableData, maxColumns, pathHashInput } from './text'
+export { jaccardSimilarity, multisetJaccardSimilarity, sequenceSimilarity } from './math'
 
 export function getBlockIdentifier(block: Block | undefined): string {
   return normalizeIdentifier(block?.identifier)
@@ -33,204 +15,6 @@ export function getBlockIdentifier(block: Block | undefined): string {
 
 export function getSectionIdentifier(section: { heading?: Block } | undefined): string {
   return normalizeIdentifier(section?.heading?.identifier)
-}
-
-export function normalizeHeadingTitle(value: string): string {
-  return collapseWhitespace(stripHeadingPrefix(value.normalize('NFKC').trim().toLowerCase()))
-}
-
-export function slugifyHeading(value: string): string {
-  return normalizeHeadingTitle(value)
-    .replace(/[^\p{L}\p{N}\s-]+/gu, ' ')
-    .trim()
-    .replace(/[\s_-]+/g, '-')
-}
-
-export function tokenizeText(value: string): string[] {
-  const normalized = collapseWhitespace(value)
-  if (!normalized) return []
-
-  const tokens = segmentWords(normalized)
-  if (tokens.length > 0) return tokens
-
-  const fallback = normalized
-    .toLowerCase()
-    .split(/[^0-9\p{L}]+/u)
-    .filter(Boolean)
-  return fallback.length > 0 ? fallback : cjkFallbackTokens(normalized)
-}
-
-export function structuredTextTokens(node: Section | Block | InlineContent | undefined): string[] {
-  if (!node) return []
-  if (isSection(node)) {
-    const titleTokens = node.kind === 'heading' ? tokenizeText(node.title) : []
-    const headingTokens = node.heading ? structuredTextTokens(node.heading) : []
-    const itemTokens = node.items.flatMap((item) => structuredTextTokens(item))
-    return [...titleTokens, ...headingTokens, ...itemTokens]
-  }
-
-  const tokens: string[] = []
-  if (node.url) tokens.push(`url:${String(node.url).toLowerCase()}`)
-  if (node.title) tokens.push(`title:${String(node.title).toLowerCase()}`)
-  if (node.alt) tokens.push(`alt:${String(node.alt).toLowerCase()}`)
-  if (node.identifier) tokens.push(`id:${normalizeIdentifier(node.identifier)}`)
-  if (node.type) tokens.push(`type:${node.type}`)
-  if (Array.isArray(node.children)) {
-    tokens.push(...node.children.flatMap((child) => structuredTextTokens(child)))
-  }
-  return tokens
-}
-
-export function extractNodeText(node: Section | Block | InlineContent | undefined): string {
-  if (!node) return ''
-  if (isSection(node)) {
-    if (node.kind === 'heading') {
-      return collapseWhitespace([node.title, ...node.items.map((item) => extractNodeText(item))].join(' '))
-    }
-    if (node.kind === 'frontmatter') return node.frontmatterValue ?? ''
-    return collapseWhitespace(node.items.map((item) => extractNodeText(item)).join(' '))
-  }
-
-  if (node.type === 'text') return String(node.value ?? '')
-  if (node.type === 'inlineCode' || node.type === 'code' || node.type === 'math' || node.type === 'inlineMath') {
-    return String(node.value ?? '')
-  }
-  if (node.type === 'image') return collapseWhitespace([node.alt, node.url].filter(Boolean).join(' '))
-  if (node.type === 'definition') {
-    return collapseWhitespace([node.identifier, node.url, node.title].filter(Boolean).join(' '))
-  }
-  if (Array.isArray(node.children)) {
-    return collapseWhitespace(node.children.map((child) => extractNodeText(child)).join(' '))
-  }
-  return String(node.value ?? '')
-}
-
-export async function buildInlineTokens(nodes: InlineContent[]): Promise<InlineToken[]> {
-  return Promise.all(nodes.map((node) => buildInlineToken(node)))
-}
-
-export async function buildInlineToken(node: InlineContent): Promise<InlineToken> {
-  const children = Array.isArray(node.children) ? await buildInlineTokens(node.children) : undefined
-  const tokenData = {
-    type: node.type,
-    value: node.value,
-    url: node.url,
-    alt: node.alt,
-    title: node.title,
-    normalizedIdentifier:
-      node.identifier !== undefined ? normalizeIdentifier(node.identifier) : undefined,
-    children: children?.map((child) => ({ ...child, source: undefined })),
-  }
-
-  return {
-    type: node.type,
-    rawText: extractNodeText(node),
-    normalizedIdentifier: tokenData.normalizedIdentifier,
-    url: tokenData.url,
-    alt: tokenData.alt,
-    title: tokenData.title,
-    children,
-    source: node,
-    hash: await hashCanonical(tokenData),
-  }
-}
-
-export function extractInlineStructure(node: Block | InlineContent | undefined): string[] {
-  if (!node) return []
-  const own = [node.type]
-  const children = Array.isArray(node.children)
-    ? node.children.flatMap((child) => extractInlineStructure(child))
-    : []
-  return [...own, ...children]
-}
-
-export async function charikarSimHash(tokens: readonly string[]): Promise<string | undefined> {
-  if (tokens.length === 0) return undefined
-  try {
-    return await charikarSimHashWasm(tokens)
-  } catch {
-    return charikarSimHashLegacy(tokens)
-  }
-}
-
-async function charikarSimHashLegacy(tokens: readonly string[]): Promise<string | undefined> {
-  const hashed = await Promise.all(tokens.map((token) => hashText(token)))
-  const weights = Array.from<number>({ length: 64 }).fill(0)
-  for (const hex of hashed) {
-    const value = BigInt(`0x${hex.slice(0, 16)}`)
-    for (let bit = 0; bit < 64; bit++) {
-      const mask = 1n << BigInt(bit)
-      weights[bit] = (weights[bit] ?? 0) + ((value & mask) === 0n ? -1 : 1)
-    }
-  }
-
-  let result = 0n
-  for (let bit = 0; bit < 64; bit++) {
-    if ((weights[bit] ?? 0) >= 0) result |= 1n << BigInt(bit)
-  }
-  return result.toString(16).padStart(16, '0')
-}
-
-export function simHashHammingDistance(left?: string, right?: string): number | undefined {
-  if (!left || !right) return undefined
-  const xor = BigInt(`0x${left}`) ^ BigInt(`0x${right}`)
-  let value = xor
-  let distance = 0
-  while (value !== 0n) {
-    distance += Number(value & 1n)
-    value >>= 1n
-  }
-  return distance
-}
-
-export function simHashHammingDistanceBatch(
-  query: string | undefined,
-  candidates: readonly (string | undefined)[],
-): Array<number | undefined> {
-  try {
-    return simHashHammingDistanceBatchWasm(query, candidates)
-  } catch {
-    return candidates.map((candidate) => simHashHammingDistance(query, candidate))
-  }
-}
-
-export function jaccardSimilarity(left: readonly string[], right: readonly string[]): number {
-  const leftSet = new Set(left)
-  const rightSet = new Set(right)
-  if (leftSet.size === 0 && rightSet.size === 0) return 1
-
-  let intersection = 0
-  for (const token of leftSet) {
-    if (rightSet.has(token)) intersection++
-  }
-
-  const union = new Set([...leftSet, ...rightSet]).size
-  return union === 0 ? 1 : intersection / union
-}
-
-export function multisetJaccardSimilarity(left: readonly string[], right: readonly string[]): number {
-  if (left.length === 0 && right.length === 0) return 1
-
-  const leftCounts = countTokens(left)
-  const rightCounts = countTokens(right)
-  const keys = new Set([...leftCounts.keys(), ...rightCounts.keys()])
-  let intersection = 0
-  let union = 0
-
-  for (const key of keys) {
-    const leftCount = leftCounts.get(key) ?? 0
-    const rightCount = rightCounts.get(key) ?? 0
-    intersection += Math.min(leftCount, rightCount)
-    union += Math.max(leftCount, rightCount)
-  }
-
-  return union === 0 ? 1 : intersection / union
-}
-
-export function sequenceSimilarity(left: readonly string[], right: readonly string[]): number {
-  if (left.length === 0 && right.length === 0) return 1
-  const distance = levenshtein(left, right)
-  return 1 - distance / Math.max(left.length, right.length, 1)
 }
 
 export function makePairKey(pairKind: 'match' | 'align', oldId: string, newId: string): string {
@@ -260,10 +44,6 @@ export function mergeSourceRanges(ranges: Array<SourceRange | undefined>): Sourc
     start: starts.sort(compareSourcePoint)[0],
     end: ends.sort(compareSourcePoint)[ends.length - 1],
   }
-}
-
-export function pathHashInput(parts: string[]): string {
-  return parts.map((part) => normalizeHeadingTitle(part)).join(' / ')
 }
 
 export function metadataDiff(oldValue: unknown, newValue: unknown, basePath = ''): MetadataChange[] {
@@ -299,119 +79,6 @@ export function metadataDiff(oldValue: unknown, newValue: unknown, basePath = ''
   return result
 }
 
-export { isSection } from '../transformer'
-
-export function readTableData(block: Block | undefined): { cells: string[][]; structured: InlineContent[][][] } {
-  if (!block || !Array.isArray(block.children)) return { cells: [], structured: [] }
-  const cells: string[][] = []
-  const structured: InlineContent[][][] = []
-  for (const row of block.children) {
-    if (!Array.isArray(row.children)) {
-      cells.push([])
-      structured.push([])
-      continue
-    }
-    cells.push(row.children.map((cell) => extractNodeText(cell)))
-    structured.push(
-      row.children.map((cell) =>
-        Array.isArray(cell.children) ? (cell.children as InlineContent[]) : [],
-      ),
-    )
-  }
-  return { cells, structured }
-}
-
-export function maxColumns(rows: string[][]): number {
-  return rows.reduce((max, row) => Math.max(max, row.length), 0)
-}
-
-function sortCanonical(value: unknown): unknown {
-  if (value === null || value === undefined) return value
-  if (Array.isArray(value)) return value.map((item) => sortCanonical(item))
-  if (typeof value === 'number') return Number(value)
-  if (typeof value !== 'object') return value
-
-  const record = value as Record<string, unknown>
-  const result: Record<string, unknown> = {}
-  for (const key of Object.keys(record).sort()) {
-    const entry = sortCanonical(record[key])
-    if (entry !== undefined) result[key] = entry
-  }
-  return result
-}
-
-function stripHeadingPrefix(value: string): string {
-  const match = value.match(/^([ivxlcdm]+|\d+(?:\.\d+)*|\d{1,4})[.)、：:-]\s+/iu)
-  if (!match) return value
-
-  const prefix = match[1] ?? ''
-  if (/^\d{4}$/u.test(prefix)) {
-    const year = Number(prefix)
-    if (year >= 1900 && year <= 2100) return value
-  }
-  return value.slice(match[0].length)
-}
-
-function collapseWhitespace(value: string): string {
-  return value.trim().replace(/\s+/g, ' ')
-}
-
-function segmentWords(value: string): string[] {
-  const intlWithSegmenter = Intl as typeof Intl & {
-    Segmenter?: new (
-      locales?: Intl.LocalesArgument,
-      options?: { granularity?: 'grapheme' | 'word' | 'sentence' },
-    ) => {
-      segment(input: string): Iterable<{ segment: string; isWordLike?: boolean }>
-    }
-  }
-
-  if (typeof intlWithSegmenter.Segmenter !== 'function') return []
-
-  const segmenter = new intlWithSegmenter.Segmenter(undefined, { granularity: 'word' })
-  const segments = Array.from(segmenter.segment(value))
-    .filter((segment) => segment.isWordLike)
-    .map((segment) => segment.segment.toLowerCase())
-    .filter(Boolean)
-
-  if (segments.length > 0) return segments
-  return cjkFallbackTokens(value)
-}
-
-function cjkFallbackTokens(value: string): string[] {
-  const cleaned = value.replace(/\s+/g, '')
-  if (!cleaned) return []
-
-  const chars = [...cleaned]
-  const looksCjk = chars.some((char) => /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}/u.test(char))
-  if (!looksCjk) return []
-  if (chars.length === 1) return chars.map((char) => char.toLowerCase())
-
-  const tokens: string[] = []
-  for (let index = 0; index < chars.length - 1; index++) {
-    tokens.push(`${chars[index]}${chars[index + 1]}`.toLowerCase())
-  }
-  return tokens
-}
-
-function levenshtein(left: readonly string[], right: readonly string[]): number {
-  const m = left.length
-  const n = right.length
-  if (m === 0) return n
-  if (n === 0) return m
-  let prev = Array.from({ length: n + 1 }, (_, i) => i)
-  let curr = new Array<number>(n + 1)
-  for (let i = 1; i <= m; i++) {
-    curr[0] = i
-    for (let j = 1; j <= n; j++) {
-      const cost = left[i - 1] === right[j - 1] ? 0 : 1
-      curr[j] = Math.min(prev[j]! + 1, curr[j - 1]! + 1, prev[j - 1]! + cost)
-    }
-    ;[prev, curr] = [curr, prev]
-  }
-  return prev[n]!
-}
-
 function deepEqual(left: unknown, right: unknown): boolean {
   return stableStringify(left) === stableStringify(right)
 }
@@ -439,10 +106,4 @@ function compareSourcePoint(left: SourcePoint, right: SourcePoint): number {
   if (leftLine !== rightLine) return leftLine - rightLine
 
   return (left.column ?? Number.POSITIVE_INFINITY) - (right.column ?? Number.POSITIVE_INFINITY)
-}
-
-function countTokens(values: readonly string[]): Map<string, number> {
-  const counts = new Map<string, number>()
-  values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1))
-  return counts
 }

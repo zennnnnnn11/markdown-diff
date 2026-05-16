@@ -1,4 +1,4 @@
-import type { DiffOptions, MatchKind, MatchPair, SemanticIndex } from '../types'
+import type { DiffChange, DiffNode, DiffOptions, MatchKind, MatchPair, SemanticIndex } from '../types'
 
 export interface MatchCandidate {
   oldId: string
@@ -15,6 +15,12 @@ export interface DiffContext {
   matchesByOld: Map<string, MatchPair>
   matchesByNew: Map<string, MatchPair>
   warnings: string[]
+  structuralFallback?: (
+    context: DiffContext,
+    change: DiffChange,
+    oldNode: DiffNode,
+    newNode: DiffNode,
+  ) => Promise<void>
 }
 
 export interface AptedDiffMeta {

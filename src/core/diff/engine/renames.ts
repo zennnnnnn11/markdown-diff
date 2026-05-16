@@ -13,17 +13,17 @@ import {
   addMatch,
   collectChanges,
   push,
+  uniqueHeadingSiblingNames,
   upgradeToMatch,
 } from './helpers'
 import {
   rewriteChildrenWithExistingMatches,
-  uniqueHeadingSiblingNames,
 } from './alignment'
 import {
   computeTableMetadataChange,
   isStructuralOnlyTableChange,
   metadataChangeToDiff,
-} from './presentation'
+} from './table-diff'
 
 export async function recoverRenamesAndMeta(context: DiffContext, root: DiffChange): Promise<void> {
   await forEachChangeAsync(root, async (change) => {

@@ -17,7 +17,7 @@ import {
   parentContextScore,
   push,
 } from './helpers'
-import { buildAlignedChange, rewriteChildrenWithFallbackPairs } from './alignment'
+import { rewriteChildrenWithFallbackPairs } from './alignment'
 
 export async function maybeApplyStructuralFallback(
   context: DiffContext,
