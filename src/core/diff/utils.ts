@@ -7,7 +7,7 @@ export { isSection } from '../transformer'
 
 export { hashCanonical, hashText, stableStringify, charikarSimHash, simHashHammingDistance, simHashHammingDistanceBatch } from './hash'
 export { normalizeIdentifier, normalizeHeadingTitle, slugifyHeading, tokenizeText, structuredTextTokens, extractNodeText, buildInlineTokens, buildInlineToken, extractInlineStructure, readTableData, maxColumns, pathHashInput } from './text'
-export { jaccardSimilarity, multisetJaccardSimilarity, sequenceSimilarity } from './math'
+export { characterNgramSimilarity, jaccardSimilarity, multisetJaccardSimilarity, sequenceSimilarity } from './math'
 
 export function getBlockIdentifier(block: Block | undefined): string {
   return normalizeIdentifier(block?.identifier)

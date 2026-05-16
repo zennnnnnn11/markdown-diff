@@ -125,6 +125,24 @@ export function indexOfMaxScore(scores: readonly number[]): number {
   return bestIndex
 }
 
+export function childMatchOverlap(
+  context: DiffContext,
+  oldId: string,
+  newId: string,
+): number {
+  const oldChildren = context.oldIndex.childrenById.get(oldId) ?? []
+  const newChildren = context.newIndex.childrenById.get(newId) ?? []
+  if (oldChildren.length === 0 || newChildren.length === 0) return 0
+
+  const newChildSet = new Set(newChildren)
+  let mutualMatches = 0
+  for (const oldChildId of oldChildren) {
+    const pair = context.matchesByOld.get(oldChildId)
+    if (pair && newChildSet.has(pair.newId)) mutualMatches++
+  }
+  return mutualMatches / Math.max(oldChildren.length, newChildren.length)
+}
+
 export function uniqueSharedHashes(
   oldMap: Map<string, string[]>,
   newMap: Map<string, string[]>,
@@ -136,6 +154,20 @@ export function uniqueSharedHashes(
     pairs.push([oldIds[0]!, newIds[0]!])
   }
   return pairs
+}
+
+export function ambiguousSharedHashes(
+  oldMap: Map<string, string[]>,
+  newMap: Map<string, string[]>,
+): Array<{ hash: string; oldIds: string[]; newIds: string[] }> {
+  const result: Array<{ hash: string; oldIds: string[]; newIds: string[] }> = []
+  for (const [hash, oldIds] of oldMap) {
+    const newIds = newMap.get(hash)
+    if (!newIds || oldIds.length < 2 || newIds.length < 2) continue
+    if (oldIds.length !== newIds.length) continue
+    result.push({ hash, oldIds: [...oldIds], newIds: [...newIds] })
+  }
+  return result
 }
 
 export function filterIdentityHashes(

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  characterNgramSimilarity,
   jaccardSimilarity,
   multisetJaccardSimilarity,
   sequenceSimilarity,
@@ -85,6 +86,52 @@ describe('math module', () => {
       const forward = sequenceSimilarity(['a', 'b', 'c'], ['a', 'b', 'c'])
       const reversed = sequenceSimilarity(['a', 'b', 'c'], ['c', 'b', 'a'])
       expect(forward).toBeGreaterThan(reversed)
+    })
+  })
+
+  describe('characterNgramSimilarity', () => {
+    it('returns 1 for identical text', () => {
+      expect(characterNgramSimilarity('hello world', 'hello world')).toBe(1)
+    })
+
+    it('returns 0 for completely different text', () => {
+      expect(characterNgramSimilarity('abc', 'xyz')).toBe(0)
+    })
+
+    it('returns 1 for two empty strings', () => {
+      expect(characterNgramSimilarity('', '')).toBe(1)
+    })
+
+    it('returns a mid-range value for reversed word order', () => {
+      const sim = characterNgramSimilarity('hello world', 'world hello')
+      expect(sim).toBeGreaterThan(0.3)
+      expect(sim).toBeLessThan(1)
+    })
+
+    it('handles CJK characters correctly', () => {
+      const sim = characterNgramSimilarity('你好世界欢迎来到', '你好世界欢迎来到')
+      expect(sim).toBe(1)
+      const partial = characterNgramSimilarity('你好世界欢迎来到', '你好世界再见各位')
+      expect(partial).toBeGreaterThan(0)
+      expect(partial).toBeLessThan(1)
+    })
+
+    it('handles emoji and multi-byte characters', () => {
+      const sim = characterNgramSimilarity('hello 🌍 world', 'hello 🌍 world')
+      expect(sim).toBe(1)
+    })
+
+    it('is case-insensitive', () => {
+      expect(characterNgramSimilarity('Hello World', 'hello world')).toBe(1)
+    })
+
+    it('normalizes whitespace', () => {
+      expect(characterNgramSimilarity('hello   world', 'hello world')).toBe(1)
+    })
+
+    it('returns a value for text shorter than n', () => {
+      const sim = characterNgramSimilarity('ab', 'ab')
+      expect(sim).toBe(1)
     })
   })
 

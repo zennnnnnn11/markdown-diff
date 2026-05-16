@@ -157,6 +157,67 @@ describe('table-diff', () => {
     })
   })
 
+  describe('table shape diff (row/column alignment)', () => {
+    it('produces rowEdits when a row is added', async () => {
+      const oldMd = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+      const newMd = '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |'
+
+      const result = await diffMarkdown(oldMd, newMd)
+      const changes = flatten(result.root)
+      const tableChange = changes.find((c) => c.blockType === 'table')
+      expect(tableChange?.tableDiff?.rowEdits).toBeDefined()
+      const insertRows = tableChange!.tableDiff!.rowEdits!.filter((r) => r.op === 'insert')
+      expect(insertRows.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('produces rowEdits when a row is deleted', async () => {
+      const oldMd = '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |'
+      const newMd = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+
+      const result = await diffMarkdown(oldMd, newMd)
+      const changes = flatten(result.root)
+      const tableChange = changes.find((c) => c.blockType === 'table')
+      expect(tableChange?.tableDiff?.rowEdits).toBeDefined()
+      const deleteRows = tableChange!.tableDiff!.rowEdits!.filter((r) => r.op === 'delete')
+      expect(deleteRows.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('produces columnEdits when a column is added', async () => {
+      const oldMd = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+      const newMd = '| A | B | C |\n| --- | --- | --- |\n| 1 | 2 | 3 |'
+
+      const result = await diffMarkdown(oldMd, newMd)
+      const changes = flatten(result.root)
+      const tableChange = changes.find((c) => c.blockType === 'table')
+      expect(tableChange?.tableDiff?.columnEdits).toBeDefined()
+      const insertCols = tableChange!.tableDiff!.columnEdits!.filter((c) => c.op === 'insert')
+      expect(insertCols.length).toBeGreaterThanOrEqual(1)
+    })
+
+    it('produces cell diffs for aligned rows with content changes', async () => {
+      const oldMd = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+      const newMd = '| A | B |\n| --- | --- |\n| 1 | 2 |\n| 1 | changed |'
+
+      const result = await diffMarkdown(oldMd, newMd)
+      const changes = flatten(result.root)
+      const tableChange = changes.find((c) => c.blockType === 'table')
+      expect(tableChange?.tableDiff?.shapeChanged).toBe(true)
+      expect(tableChange?.tableDiff?.rowEdits).toBeDefined()
+    })
+
+    it('same-shape tables still use the original logic without rowEdits', async () => {
+      const oldMd = '| A | B |\n| --- | --- |\n| 1 | 2 |'
+      const newMd = '| A | B |\n| --- | --- |\n| 1 | 3 |'
+
+      const result = await diffMarkdown(oldMd, newMd)
+      const changes = flatten(result.root)
+      const tableChange = changes.find((c) => c.blockType === 'table')
+      expect(tableChange?.tableDiff?.shapeChanged).toBe(false)
+      expect(tableChange?.tableDiff?.rowEdits).toBeUndefined()
+      expect(tableChange?.tableDiff?.cellDiffs.length).toBeGreaterThan(0)
+    })
+  })
+
   describe('behavioral equivalence', () => {
     it('table diff in integration produces same result', async () => {
       const oldMd = [

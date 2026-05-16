@@ -329,19 +329,20 @@ describe('diff workbench view-model', () => {
     expect(detail?.score).toBe(1)
   })
 
-  it('has labels for all 18 matchKind values', () => {
+  it('has labels for all 19 matchKind values', () => {
     const kinds = [
-      'forced-root', 'exact-subtree', 'exact-self', 'exact-self-with-context',
-      'exact-direct', 'frontmatter-anchor', 'footnote-identity', 'footnote-identifier',
-      'definition-identity', 'definition-identifier', 'local-heading-slug',
-      'local-heading-body', 'local-similarity', 'local-identity',
+      'forced-root', 'exact-subtree', 'exact-subtree-resolved', 'exact-self',
+      'exact-self-with-context', 'exact-direct', 'frontmatter-anchor',
+      'footnote-identity', 'footnote-identifier', 'definition-identity',
+      'definition-identifier', 'local-heading-slug', 'local-heading-body',
+      'local-similarity', 'local-identity',
       'move-exact', 'move-direct', 'move-heading', 'move-code',
     ] as const
 
     for (const kind of kinds) {
       expect(matchKindLabels[kind]).toBeTruthy()
     }
-    expect(kinds).toHaveLength(18)
+    expect(kinds).toHaveLength(19)
   })
 
   // ─── pairKind on ProjectionLine ───

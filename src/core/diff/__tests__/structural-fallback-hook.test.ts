@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { resolveDiffOptions } from '../options'
 import { diffMarkdown, flatten } from './test-helpers'
 
 describe('structural fallback hook via DiffContext', () => {
@@ -197,4 +198,114 @@ describe('structural fallback hook via DiffContext', () => {
       expect(deletes.length).toBeGreaterThan(0)
     })
   })
+
+  describe('updated default values', () => {
+    it('defaults enhancedLocalRecovery to true', () => {
+      const options = resolveDiffOptions({})
+      expect(options.enhancedLocalRecovery).toBe(true)
+    })
+
+    it('defaults maxAptedCost to 10_000', () => {
+      const options = resolveDiffOptions({})
+      expect(options.maxAptedCost).toBe(10_000)
+    })
+
+    it('defaults aptedUnpairedThreshold to 0.35', () => {
+      const options = resolveDiffOptions({})
+      expect(options.aptedUnpairedThreshold).toBe(0.35)
+    })
+
+    it('allows overriding new defaults', () => {
+      const options = resolveDiffOptions({
+        enhancedLocalRecovery: false,
+        maxAptedCost: 5_000,
+        aptedUnpairedThreshold: 0.6,
+      })
+      expect(options.enhancedLocalRecovery).toBe(false)
+      expect(options.maxAptedCost).toBe(5_000)
+      expect(options.aptedUnpairedThreshold).toBe(0.6)
+    })
+
+    it('recovers matches at cost 6400 (was blocked by old maxAptedCost=2500)', async () => {
+      const lines = (count: number, prefix: string) =>
+        Array.from({ length: count }, (_, i) => `${prefix} line ${i + 1}`)
+
+      const oldMd = [
+        '# Root',
+        '',
+        '## Section',
+        '',
+        ...lines(8, 'Old paragraph'),
+        '',
+      ].join('\n')
+
+      const newMd = [
+        '# Root',
+        '',
+        '## Section',
+        '',
+        ...lines(8, 'New paragraph'),
+        '',
+      ].join('\n')
+
+      const result = await diffMarkdown(oldMd, newMd)
+      const changes = flatten(result.root)
+      expect(changes.some((c) => c.primaryOp !== 'equal')).toBe(true)
+    })
+
+    it('triggers fallback at 40% unpaired rate (was blocked by old threshold=0.5)', async () => {
+      const oldMd = [
+        '# Root',
+        '',
+        '## Sub A',
+        '',
+        'Content alpha.',
+        '',
+        '## Sub B',
+        '',
+        'Content beta.',
+        '',
+        '## Sub C',
+        '',
+        'Content gamma.',
+        '',
+        '## Sub D',
+        '',
+        'Content delta.',
+        '',
+        '## Sub E',
+        '',
+        'Content epsilon.',
+      ].join('\n')
+
+      const newMd = [
+        '# Root',
+        '',
+        '## Sub A',
+        '',
+        'Content alpha rewritten.',
+        '',
+        '## Sub B',
+        '',
+        'Content beta rewritten.',
+        '',
+        '## Sub C',
+        '',
+        'Content gamma rewritten.',
+        '',
+        '## Sub D',
+        '',
+        'Content delta rewritten.',
+        '',
+        '## Sub E',
+        '',
+        'Content epsilon rewritten.',
+      ].join('\n')
+
+      const result = await diffMarkdown(oldMd, newMd)
+      expect(result.root).toBeDefined()
+      expect(result.stats).toBeDefined()
+    })
+  })
+
 })

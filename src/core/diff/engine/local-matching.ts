@@ -5,6 +5,7 @@ import { simHashHammingDistanceBatch } from '../utils'
 import type { DiffContext, MatchCandidate } from './context'
 import {
   addMatch,
+  childMatchOverlap,
   indexOfMaxScore,
   push,
   resolveSiblingAnchorBounds,
@@ -64,7 +65,8 @@ export async function seedLocalMatches(
     if (comparables.length === 0) continue
 
     const scores = comparables.map((newNode) =>
-      computeNodeSimilarity(oldNode, newNode, context.options, 1),
+      computeNodeSimilarity(oldNode, newNode, context.options, 1) +
+      DIFF_HEURISTICS.childMatch.bonusWeight * childMatchOverlap(context, oldNode.id, newNode.id),
     )
     const bestIndex = indexOfMaxScore(scores)
     const bestScore = scores[bestIndex] ?? 0
@@ -78,7 +80,8 @@ export async function seedLocalMatches(
       isSameShape(candidate, bestNew),
     )
     const reverseScores = reverseCandidates.map((candidate) =>
-      computeNodeSimilarity(candidate, bestNew, context.options, 1),
+      computeNodeSimilarity(candidate, bestNew, context.options, 1) +
+      DIFF_HEURISTICS.childMatch.bonusWeight * childMatchOverlap(context, candidate.id, bestNew.id),
     )
     if (uniquenessMargin(reverseScores) < context.options.minUniquenessMargin) continue
 

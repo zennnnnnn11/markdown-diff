@@ -4,6 +4,7 @@ import type {
   DiffChange,
   DiffChangeIndex,
   DiffResult,
+  InlineSpan,
   LineDiffSpan,
   MetadataChange,
   Section,
@@ -16,6 +17,7 @@ import type {
   DetailMetadataItem,
   DetailPanelModel,
   DetailRenderedLine,
+  DetailTableCellModel,
   DetailTableRowModel,
   HighlightFilter,
   MoveInfo,
@@ -262,9 +264,14 @@ function buildTableRows(
   const rows = Array.isArray(node.children) ? node.children : []
   if (!rows.length) return undefined
 
+  const tableDiff = change.tableDiff
   const diffCells = new Map(
-    (change.tableDiff?.cellDiffs ?? []).map((cell) => [`${cell.row}:${cell.column}`, cell]),
+    (tableDiff?.cellDiffs ?? []).map((cell) => [`${cell.row}:${cell.column}`, cell]),
   )
+
+  if (tableDiff?.rowEdits && tableDiff.columnEdits) {
+    return buildAlignedTableRows(rows, tableDiff, diffCells, side, highlightTone)
+  }
 
   const renderedRows = rows.map((row, rowIndex) => {
     const cells = Array.isArray(row.children) ? row.children : []
@@ -276,7 +283,7 @@ function buildTableRows(
           ? buildSideSegmentsFromSpans(diffCell.spans, side, highlightTone)
           : undefined
         const text = collectInlineText(cell.children)
-        const tone = diffCell || change.tableDiff?.structureChanged ? highlightTone : 'plain'
+        const tone = diffCell || tableDiff?.structureChanged ? highlightTone : 'plain'
         return {
           key: `table:${rowIndex}:${cellIndex}`,
           text,
@@ -288,6 +295,70 @@ function buildTableRows(
   })
 
   return renderedRows.some((row) => row.cells.some((cell) => cell.tone !== 'plain')) ? renderedRows : undefined
+}
+
+function buildAlignedTableRows(
+  rows: Block[],
+  tableDiff: NonNullable<DiffChange['tableDiff']>,
+  diffCells: Map<string, { row: number; column: number; spans: InlineSpan[] }>,
+  side: 'old' | 'new',
+  highlightTone: Tone,
+): DetailTableRowModel[] | undefined {
+  const rowEdits = tableDiff.rowEdits!
+  const columnEdits = tableDiff.columnEdits!
+  const isOld = side === 'old'
+  const renderedRows: DetailTableRowModel[] = []
+
+  for (const re of rowEdits) {
+    if (isOld && re.op === 'insert') continue
+    if (!isOld && re.op === 'delete') continue
+
+    const rowIndex = isOld ? re.oldIndex! : re.newIndex!
+    const row = rows[rowIndex]
+    if (!row) continue
+    const rowCells = Array.isArray(row.children) ? row.children : []
+    const rowOp = re.op
+    const cells: DetailTableCellModel[] = []
+
+    for (const ce of columnEdits) {
+      if (isOld && ce.op === 'insert') continue
+      if (!isOld && ce.op === 'delete') continue
+
+      const colIndex = isOld ? ce.oldIndex! : ce.newIndex!
+      const cell = rowCells[colIndex]
+      const text = cell ? collectInlineText(cell.children) : ''
+      const columnOp = ce.op
+
+      let segments: ProjectionSegment[] | undefined
+      let tone: Tone = 'plain'
+
+      if (re.op === 'equal' && ce.op === 'equal' && re.newIndex != null && ce.newIndex != null) {
+        const diffCell = diffCells.get(`${re.newIndex}:${ce.newIndex}`)
+        if (diffCell) {
+          segments = buildSideSegmentsFromSpans(diffCell.spans, side, highlightTone)
+          tone = highlightTone
+        }
+      } else if (re.op === 'insert' || re.op === 'delete' || ce.op === 'insert' || ce.op === 'delete') {
+        tone = highlightTone
+      }
+
+      cells.push({
+        key: `table:${rowIndex}:${colIndex}`,
+        text,
+        tone,
+        segments,
+        columnOp,
+      })
+    }
+
+    renderedRows.push({
+      key: `table:${rowIndex}`,
+      cells,
+      rowOp,
+    })
+  }
+
+  return renderedRows.length > 0 ? renderedRows : undefined
 }
 
 function buildOldContent(change: DiffChange): string | undefined {

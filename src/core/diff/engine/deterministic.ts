@@ -4,6 +4,7 @@ import { AnchorRegistry } from './context'
 import type { DiffContext, MatchCandidate } from './context'
 import {
   addMatch,
+  ambiguousSharedHashes,
   collectConflicts,
   coverDescendants,
   filterDefinitionIdentifiers,
@@ -24,6 +25,7 @@ export async function runDeterministicMatching(context: DiffContext): Promise<vo
   registerDeterministicAnchor(context, anchors, oldRootPair(context))
 
   await applyExactSubtreeMatches(context, anchors, coveredOld, coveredNew)
+  resolveAmbiguousSubtrees(context, anchors, coveredOld, coveredNew)
   const candidates = await collectDeterministicCandidates(context, anchors, coveredOld, coveredNew)
   const highestPriorityByOld = new Map<string, number>()
   const highestPriorityByNew = new Map<string, number>()
@@ -336,7 +338,7 @@ export function registerDeterministicAnchor(
 }
 
 export function shouldRegisterDeterministicAnchor(matchKind: MatchKind | undefined): boolean {
-  return matchKind === 'forced-root' || matchKind === 'exact-subtree' || matchKind === 'exact-self'
+  return matchKind === 'forced-root' || matchKind === 'exact-subtree' || matchKind === 'exact-subtree-resolved' || matchKind === 'exact-self'
 }
 
 export function isCandidateWithinAnchoredBounds(
@@ -365,4 +367,93 @@ export function isCandidateWithinAnchoredBounds(
   )
   if (!interval) return true
   return newNode.preorder >= interval.min && newNode.preorder <= interval.max
+}
+
+function resolveAmbiguousSubtrees(
+  context: DiffContext,
+  anchors: AnchorRegistry,
+  blockedOld: Set<string>,
+  blockedNew: Set<string>,
+): void {
+  const ambiguous = ambiguousSharedHashes(
+    context.oldIndex.bySubtreeHash,
+    context.newIndex.bySubtreeHash,
+  )
+  ambiguous.sort((a, b) => {
+    const sizeA = context.oldIndex.byId.get(a.oldIds[0]!)?.subtreeSize ?? 0
+    const sizeB = context.oldIndex.byId.get(b.oldIds[0]!)?.subtreeSize ?? 0
+    return sizeB - sizeA
+  })
+
+  for (const { oldIds, newIds } of ambiguous) {
+    const resolved = resolveByChildDisambiguation(context, oldIds, newIds, blockedOld, blockedNew, 3)
+    for (const { oldId, newId } of resolved) {
+      if (blockedOld.has(oldId) || blockedNew.has(newId)) continue
+      if (context.matchesByOld.has(oldId) || context.matchesByNew.has(newId)) continue
+      const oldNode = context.oldIndex.byId.get(oldId)
+      const newNode = context.newIndex.byId.get(newId)
+      if (!oldNode || !newNode || !isSameShape(oldNode, newNode)) continue
+      const pair = addMatch(context, oldId, newId, 'exact-subtree-resolved', undefined, 1)
+      registerDeterministicAnchor(context, anchors, pair)
+      coverDescendants(context.oldIndex, oldId, blockedOld)
+      coverDescendants(context.newIndex, newId, blockedNew)
+    }
+  }
+}
+
+function resolveByChildDisambiguation(
+  context: DiffContext,
+  oldIds: string[],
+  newIds: string[],
+  blockedOld: Set<string>,
+  blockedNew: Set<string>,
+  remainingDepth: number,
+): Array<{ oldId: string; newId: string }> {
+  if (remainingDepth <= 0 || oldIds.length !== newIds.length) return []
+
+  const oldChildMaps = new Map<string, Map<string, string[]>>()
+  const newChildMaps = new Map<string, Map<string, string[]>>()
+  for (const oldId of oldIds) {
+    const childMap = new Map<string, string[]>()
+    for (const childId of context.oldIndex.childrenById.get(oldId) ?? []) {
+      const child = context.oldIndex.byId.get(childId)
+      if (child) push(childMap, child.subtreeHash, childId)
+    }
+    oldChildMaps.set(oldId, childMap)
+  }
+  for (const newId of newIds) {
+    const childMap = new Map<string, string[]>()
+    for (const childId of context.newIndex.childrenById.get(newId) ?? []) {
+      const child = context.newIndex.byId.get(childId)
+      if (child) push(childMap, child.subtreeHash, childId)
+    }
+    newChildMaps.set(newId, childMap)
+  }
+
+  const evidence = new Map<string, string>()
+  for (const oldId of oldIds) {
+    const oldMap = oldChildMaps.get(oldId)!
+    for (const [childHash, oldChildIds] of oldMap) {
+      if (oldChildIds.length !== 1) continue
+      const candidates: string[] = []
+      for (const newId of newIds) {
+        const newChildIds = newChildMaps.get(newId)!.get(childHash)
+        if (newChildIds?.length === 1) candidates.push(newId)
+      }
+      if (candidates.length !== 1) continue
+      const existing = evidence.get(oldId)
+      if (existing && existing !== candidates[0]) { evidence.delete(oldId); break }
+      evidence.set(oldId, candidates[0]!)
+    }
+  }
+
+  const usedNew = new Set<string>()
+  const result: Array<{ oldId: string; newId: string }> = []
+  for (const [oldId, newId] of evidence) {
+    if (usedNew.has(newId) || blockedOld.has(oldId) || blockedNew.has(newId)) continue
+    usedNew.add(newId)
+    result.push({ oldId, newId })
+  }
+  if (result.length !== oldIds.length) return []
+  return result
 }

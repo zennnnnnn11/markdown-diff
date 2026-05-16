@@ -55,6 +55,23 @@ function levenshtein(left: readonly string[], right: readonly string[]): number 
   return prev[n]!
 }
 
+export function characterNgramSimilarity(oldText: string, newText: string, n = 3): number {
+  const oldNgrams = generateCharacterNgrams(oldText, n)
+  const newNgrams = generateCharacterNgrams(newText, n)
+  return multisetJaccardSimilarity(oldNgrams, newNgrams)
+}
+
+function generateCharacterNgrams(text: string, n: number): string[] {
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').trim()
+  if (normalized.length < n) return normalized ? [normalized] : []
+  const chars = [...normalized]
+  const ngrams: string[] = []
+  for (let i = 0; i <= chars.length - n; i++) {
+    ngrams.push(chars.slice(i, i + n).join(''))
+  }
+  return ngrams
+}
+
 function countTokens(values: readonly string[]): Map<string, number> {
   const counts = new Map<string, number>()
   values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1))

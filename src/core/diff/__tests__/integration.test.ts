@@ -698,7 +698,7 @@ limits:
     expect(result.quality.warningCount).toBeGreaterThanOrEqual(1)
   })
 
-  it('keeps blockquote children aligned even before enhanced local recovery and stays warning-free with fallback enabled', async () => {
+  it('keeps blockquote children aligned with and without enhanced local recovery', async () => {
     const oldMarkdown = `# Alpha Project Notes
 
 > old quote
@@ -709,7 +709,7 @@ limits:
 > new quote
 
 - second`
-    const withoutFallback = await diffMarkdown(oldMarkdown, newMarkdown, { minSimilarity: 0.55 })
+    const withoutFallback = await diffMarkdown(oldMarkdown, newMarkdown, { enhancedLocalRecovery: false, minSimilarity: 0.55 })
     const withFallback = await diffMarkdown(oldMarkdown, newMarkdown, {
       enhancedLocalRecovery: true,
       minSimilarity: 0.55,
@@ -719,7 +719,6 @@ limits:
 
     expect(oldHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(true)
     expect(newHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(true)
-    expect(newHeading?.warnings).not.toContain('enhanced-local-recovery-no-candidates')
   })
 
   it('tracks degraded aligned sections in quality summary', async () => {

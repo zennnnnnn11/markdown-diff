@@ -11,6 +11,9 @@ export const DIFF_HEURISTICS = {
     // SimHash 越接近时给 fallback 评分补的额外权重。
     simHashBonusWeight: 0.05,
   },
+  childMatch: {
+    bonusWeight: 0.15,
+  },
   context: {
     // 父节点已匹配时给相似度模型的完整上下文分数。
     matchedParentScore: 1,

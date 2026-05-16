@@ -7,7 +7,7 @@ export const DEFAULT_DIFF_OPTIONS: DiffOptions = {
   minUniquenessMargin: 0.12,
   // 单个 replace section 做局部对齐时允许的最大矩阵成本（≈ n×m 格数）。
   maxLocalAlignmentCost: 12_000,
-  enhancedLocalRecovery: false,
+  enhancedLocalRecovery: true,
   // token 数量超过该阈值后，文本相似度从精确 Jaccard 切到 MinHash 估算。
   minHashTokenCount: 256,
   // MatchPair 递归对齐子节点时允许的最大矩阵成本。
@@ -37,9 +37,9 @@ export const DEFAULT_DIFF_OPTIONS: DiffOptions = {
   // MinHash sketch 使用的哈希函数数量，越大越稳但越慢。
   minHashNumFunctions: 64,
   // APTED 结构回退允许的最大乘积成本。
-  maxAptedCost: 2_500,
+  maxAptedCost: 10_000,
   // replace section 中未配对子节点占比超过该值时，才考虑启用 APTED 回退。
-  aptedUnpairedThreshold: 0.5,
+  aptedUnpairedThreshold: 0.35,
 }
 
 export function resolveDiffOptions(options?: Partial<DiffOptions>): DiffOptions {

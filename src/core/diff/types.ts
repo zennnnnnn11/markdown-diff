@@ -6,6 +6,7 @@ export type PrimaryOp = 'equal' | 'insert' | 'delete' | 'replace' | 'move' | 'me
 export type MatchKind =
   | 'forced-root'
   | 'exact-subtree'
+  | 'exact-subtree-resolved'
   | 'exact-self'
   | 'exact-self-with-context'
   | 'exact-direct'
@@ -110,11 +111,25 @@ export interface TableCellDiff {
   spans: InlineSpan[]
 }
 
+export interface TableRowEdit {
+  op: 'equal' | 'insert' | 'delete'
+  oldIndex?: number
+  newIndex?: number
+}
+
+export interface TableColumnEdit {
+  op: 'equal' | 'insert' | 'delete'
+  oldIndex?: number
+  newIndex?: number
+}
+
 export interface TableDiff {
   structureChanged: boolean
   shapeChanged: boolean
   alignmentChanged: boolean
   cellDiffs: TableCellDiff[]
+  rowEdits?: TableRowEdit[]
+  columnEdits?: TableColumnEdit[]
 }
 
 export interface DiffNode {

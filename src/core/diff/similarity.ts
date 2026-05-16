@@ -1,6 +1,6 @@
 import type { DiffNode, DiffOptions } from './types'
 import { DIFF_HEURISTICS } from './heuristics'
-import { extractNodeText, jaccardSimilarity, maxColumns, readTableData, sequenceSimilarity, tokenizeText } from './utils'
+import { extractNodeText, characterNgramSimilarity, jaccardSimilarity, maxColumns, readTableData, sequenceSimilarity, tokenizeText } from './utils'
 import { estimateMinHashSimilarityWasm } from './simhash-wasm'
 
 export function computeNodeSimilarity(
@@ -305,6 +305,7 @@ function textContentSimilarity(
   return Math.max(
     tokenSimilarity(oldTokens, newTokens, options),
     sequenceSimilarity(oldTokens, newTokens),
+    characterNgramSimilarity(oldText, newText, 3),
   )
 }
 

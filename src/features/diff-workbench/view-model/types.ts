@@ -79,11 +79,13 @@ export interface DetailTableCellModel {
   text: string
   tone: Tone
   segments?: ProjectionSegment[]
+  columnOp?: 'equal' | 'insert' | 'delete'
 }
 
 export interface DetailTableRowModel {
   key: string
   cells: DetailTableCellModel[]
+  rowOp?: 'equal' | 'insert' | 'delete'
 }
 
 export interface MoveInfo {

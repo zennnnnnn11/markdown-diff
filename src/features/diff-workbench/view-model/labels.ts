@@ -3,6 +3,7 @@ import type { DiffChange, MatchKind, Tone } from './types'
 export const matchKindLabels: Record<MatchKind, string> = {
   'forced-root': '根节点强制对应',
   'exact-subtree': '完整子树完全一致',
+  'exact-subtree-resolved': '歧义子树消歧匹配',
   'exact-self': '节点自身完全一致',
   'exact-self-with-context': '上下文确认匹配',
   'exact-direct': '直接子节点确认匹配',
