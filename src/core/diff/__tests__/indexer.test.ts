@@ -212,6 +212,148 @@ Paragraph two.
       expect(node1.preorder).toBe(node2.preorder)
     }
   })
+
+  it('subtreeSize for leaf block nodes is 1', async () => {
+    const tree = transformMarkdown(await parseMarkdown('Just a paragraph.'))
+    const index = await buildSemanticIndex(tree, 'new')
+
+    const paragraphs = index.byBlockType.get('paragraph') ?? []
+    for (const id of paragraphs) {
+      const node = index.byId.get(id)!
+      expect(node.subtreeSize).toBe(1)
+    }
+  })
+
+  it('subtreeSize of parent equals 1 plus sum of children sizes', async () => {
+    const tree = transformMarkdown(await parseMarkdown('# Heading\n\nPara 1\n\nPara 2'))
+    const index = await buildSemanticIndex(tree, 'new')
+
+    const headingId = index.byKind.get('heading')?.[0]
+    const heading = headingId ? index.byId.get(headingId) : undefined
+    expect(heading).toBeDefined()
+
+    const childIds = index.childrenById.get(heading!.id) ?? []
+    const childSizeSum = childIds.reduce((sum, id) => sum + (index.byId.get(id)?.subtreeSize ?? 0), 0)
+    expect(heading!.subtreeSize).toBe(1 + childSizeSum)
+  })
+
+  it('root subtreeSize equals total node count', async () => {
+    const markdown = `# A
+
+Para
+
+## B
+
+- item 1
+- item 2
+
+### C
+
+Deep para`
+    const tree = transformMarkdown(await parseMarkdown(markdown))
+    const index = await buildSemanticIndex(tree, 'new')
+
+    const root = index.byId.get(index.rootId)!
+    expect(root.subtreeSize).toBe(index.byId.size)
+  })
+
+  it('preorder range of children is contiguous and within parent range', async () => {
+    const markdown = `# A
+
+Para A
+
+## B
+
+Para B
+
+## C
+
+Para C`
+    const tree = transformMarkdown(await parseMarkdown(markdown))
+    const index = await buildSemanticIndex(tree, 'new')
+
+    for (const [, node] of index.byId) {
+      const childIds = index.childrenById.get(node.id) ?? []
+      if (childIds.length === 0) continue
+
+      const children = childIds.map((id) => index.byId.get(id)!)
+      for (let i = 1; i < children.length; i++) {
+        const prev = children[i - 1]!
+        const curr = children[i]!
+        expect(curr.preorder).toBe(prev.preorder + prev.subtreeSize)
+      }
+
+      const firstChild = children[0]!
+      expect(firstChild.preorder).toBe(node.preorder + 1)
+    }
+  })
+
+  it('deeply nested headings maintain correct preorder and subtreeSize', async () => {
+    const markdown = `# L1
+
+## L2
+
+### L3
+
+#### L4
+
+##### L5
+
+Leaf paragraph`
+    const tree = transformMarkdown(await parseMarkdown(markdown))
+    const index = await buildSemanticIndex(tree, 'new')
+
+    const allNodes = [...index.byId.values()]
+    const preorders = allNodes.map((n) => n.preorder).sort((a, b) => a - b)
+
+    for (let i = 0; i < preorders.length; i++) {
+      expect(preorders[i]).toBe(i)
+    }
+  })
+
+  it('heading section with shared heading block caches block self-hash', async () => {
+    const markdown = `# Heading
+
+Para 1
+
+## Sub
+
+Para 2`
+    const tree = transformMarkdown(await parseMarkdown(markdown))
+
+    const index1 = await buildSemanticIndex(tree, 'new')
+    const index2 = await buildSemanticIndex(tree, 'new')
+
+    for (const [id, node1] of index1.byId) {
+      const node2 = index2.byId.get(id)!
+      expect(node1.selfHash).toBe(node2.selfHash)
+    }
+  })
+
+  it('all preorder slots are filled with no holes', async () => {
+    const markdown = `# H1
+
+P1
+
+## H2
+
+P2
+
+- L1
+- L2
+
+## H3
+
+> Quote`
+    const tree = transformMarkdown(await parseMarkdown(markdown))
+    const index = await buildSemanticIndex(tree, 'new')
+
+    for (let i = 0; i < index.nodesInPreorder.length; i++) {
+      expect(index.nodesInPreorder[i]).toBeDefined()
+      expect(index.nodesInPreorder[i]!.preorder).toBe(i)
+    }
+    expect(index.nodesInPreorder.length).toBe(index.byId.size)
+  })
 })
 
 describe('diff utils', () => {

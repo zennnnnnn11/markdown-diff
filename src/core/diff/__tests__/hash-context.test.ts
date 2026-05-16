@@ -57,7 +57,7 @@ describe('createHashContext', () => {
     const ctx2 = createHashContext()
     const r1 = await ctx1.hashText('shared')
     const r2 = await ctx2.hashText('shared')
-    expect(r1).toBe(r2) // same result but computed independently
+    expect(r1).toBe(r2)
   })
 
   it('handles empty string', async () => {
@@ -73,6 +73,34 @@ describe('createHashContext', () => {
     const expectedUndef = await hashCanonical(undefined)
     expect(await hctx.hashCanonical(undefined)).toBe(expectedUndef)
   })
+
+  it('handles deeply nested canonical objects', async () => {
+    const hctx = createHashContext()
+    const deep = { a: { b: { c: { d: { e: 'leaf' } } } } }
+    const expected = await hashCanonical(deep)
+    expect(await hctx.hashCanonical(deep)).toBe(expected)
+  })
+
+  it('handles arrays in canonical', async () => {
+    const hctx = createHashContext()
+    const arr = [1, 'two', { three: 3 }, [4, 5]]
+    const expected = await hashCanonical(arr)
+    expect(await hctx.hashCanonical(arr)).toBe(expected)
+  })
+
+  it('handles canonical objects with undefined values consistently', async () => {
+    const hctx = createHashContext()
+    const r1 = await hctx.hashCanonical({ a: 1, b: undefined })
+    const r2 = await hctx.hashCanonical({ a: 1, b: undefined })
+    expect(r1).toBe(r2)
+  })
+
+  it('handles long strings', async () => {
+    const hctx = createHashContext()
+    const longStr = 'x'.repeat(100_000)
+    const expected = await hashText(longStr)
+    expect(await hctx.hashText(longStr)).toBe(expected)
+  })
 })
 
 describe('HashContext integration', () => {
@@ -84,7 +112,6 @@ describe('HashContext integration', () => {
     const index1 = await buildSemanticIndex(tree, 'new')
     const index2 = await buildSemanticIndex(tree, 'new')
 
-    // All DiffNode hash fields must be identical across runs
     for (const [id, node1] of index1.byId) {
       const node2 = index2.byId.get(id)
       expect(node2).toBeDefined()
@@ -95,6 +122,41 @@ describe('HashContext integration', () => {
       expect(node1.contentOnlyHash).toBe(node2!.contentOnlyHash)
       if (node1.headingBodyHash) expect(node1.headingBodyHash).toBe(node2!.headingBodyHash)
       if (node1.pathHash) expect(node1.pathHash).toBe(node2!.pathHash)
+    }
+  })
+
+  it('buildSemanticIndex with complex nested document produces consistent output', async () => {
+    const markdown = `# Doc
+
+## A
+
+- list 1
+  - nested
+- list 2
+
+## B
+
+> blockquote
+
+\`\`\`js
+code()
+\`\`\`
+
+[^1]: Footnote
+
+[ref]: https://example.com`
+    const ast = await parseMarkdown(markdown)
+    const tree = transformMarkdown(ast)
+
+    const index1 = await buildSemanticIndex(tree, 'old')
+    const index2 = await buildSemanticIndex(tree, 'old')
+
+    expect(index1.byId.size).toBe(index2.byId.size)
+    for (const [id, node1] of index1.byId) {
+      const node2 = index2.byId.get(id)!
+      expect(node1.selfHash).toBe(node2.selfHash)
+      expect(node1.subtreeHash).toBe(node2.subtreeHash)
+      expect(node1.preorder).toBe(node2.preorder)
     }
   })
 })

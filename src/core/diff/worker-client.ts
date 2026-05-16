@@ -20,13 +20,22 @@ export function runDiffInWorker(oldMarkdown: string, newMarkdown: string): Promi
   const id = nextId++
   const w = getWorker()
   return new Promise((resolve, reject) => {
-    function handler(event: MessageEvent<DiffResponse>) {
+    function messageHandler(event: MessageEvent<DiffResponse>) {
       if (event.data.id !== id) return
-      w.removeEventListener('message', handler)
+      cleanup()
       if (event.data.error) reject(new Error(event.data.error))
       else resolve(event.data.result!)
     }
-    w.addEventListener('message', handler)
+    function errorHandler(event: ErrorEvent) {
+      cleanup()
+      reject(new Error(event.message || 'Worker error'))
+    }
+    function cleanup() {
+      w.removeEventListener('message', messageHandler)
+      w.removeEventListener('error', errorHandler)
+    }
+    w.addEventListener('message', messageHandler)
+    w.addEventListener('error', errorHandler)
     w.postMessage({ id, oldMarkdown, newMarkdown })
   })
 }
