@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { isReactive } from 'vue'
 
 import { useDiffWorkbench } from '../use-diff-workbench'
 import { flattenChanges } from '../view-model'
@@ -374,20 +375,16 @@ describe('useDiffWorkbench', () => {
     expect(workbench.peerHighlightKey.value).toBeUndefined()
   })
 
-  it('scrollToFirstMatch calls scrollIntoView on the first matching cell', async () => {
-    const scrollIntoView = vi.fn()
-    const mockElement = { scrollIntoView } as unknown as HTMLElement
-    vi.spyOn(document, 'querySelector').mockReturnValue(mockElement)
-
+  it('scrollToFirstMatch sets pendingScrollTarget for the first matching line', async () => {
     const workbench = useDiffWorkbench('# Title\n\nold paragraph', '# Title\n\nnew paragraph')
     await workbench.executeDiff()
 
     workbench.scrollToFirstMatch('replace')
 
-    expect(document.querySelector).toHaveBeenCalled()
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
-
-    vi.restoreAllMocks()
+    expect(workbench.pendingScrollTarget.value).not.toBeNull()
+    expect(workbench.pendingScrollTarget.value!.side).toBe('new')
+    expect(workbench.pendingScrollTarget.value!.index).toBeGreaterThanOrEqual(0)
+    expect(workbench.pendingScrollTarget.value!.changeKey).toBeTruthy()
   })
 
   it('scrollToFirstMatch does nothing when no result exists', () => {
@@ -398,30 +395,18 @@ describe('useDiffWorkbench', () => {
   })
 
   it('scrollToFirstMatch with delete filter finds lines in old projection', async () => {
-    const scrollIntoView = vi.fn()
-    const mockElement = { scrollIntoView } as unknown as HTMLElement
-    vi.spyOn(document, 'querySelector').mockReturnValue(mockElement)
-
     const workbench = useDiffWorkbench('# Title\n\ndeleted paragraph', '# Title')
     await workbench.executeDiff()
 
     workbench.scrollToFirstMatch('delete')
 
-    expect(document.querySelector).toHaveBeenCalled()
-    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'center' })
-
-    vi.restoreAllMocks()
+    expect(workbench.pendingScrollTarget.value).not.toBeNull()
+    expect(workbench.pendingScrollTarget.value!.side).toBe('old')
+    expect(workbench.pendingScrollTarget.value!.index).toBeGreaterThanOrEqual(0)
+    expect(workbench.pendingScrollTarget.value!.changeKey).toBeTruthy()
   })
 
   it('scrollToFirstMatch with warning filter targets a warning line', async () => {
-    const scrollIntoView = vi.fn()
-    vi.spyOn(document, 'querySelector').mockImplementation((selector: string) => {
-      if (typeof selector === 'string' && selector.includes('data-change-key')) {
-        return { scrollIntoView } as unknown as HTMLElement
-      }
-      return null
-    })
-
     const workbench = useDiffWorkbench('# Title\n\nold paragraph', '# Title\n\nnew paragraph')
     await workbench.executeDiff()
 
@@ -435,19 +420,9 @@ describe('useDiffWorkbench', () => {
 
     // The function must not throw
     expect(() => workbench.scrollToFirstMatch('warning')).not.toThrow()
-
-    vi.restoreAllMocks()
   })
 
-  it('scrollToFirstMatch escapes CSS metacharacters in changeKey', async () => {
-    const scrollIntoView = vi.fn()
-    const querySpy = vi.spyOn(document, 'querySelector').mockImplementation((selector: string) => {
-      if (typeof selector === 'string' && selector.includes('data-change-key')) {
-        return { scrollIntoView } as unknown as HTMLElement
-      }
-      return null
-    })
-
+  it('scrollToFirstMatch handles changeKeys with special characters', async () => {
     const workbench = useDiffWorkbench('# Title\n\nold paragraph', '# Title\n\nnew paragraph')
     await workbench.executeDiff()
 
@@ -462,13 +437,6 @@ describe('useDiffWorkbench', () => {
     }
 
     expect(() => workbench.scrollToFirstMatch('replace')).not.toThrow()
-    if (querySpy.mock.calls.length > 0) {
-      const selector = querySpy.mock.calls[0]![0] as string
-      expect(selector).toContain('\\$')
-      expect(selector).toContain('\\[')
-    }
-
-    vi.restoreAllMocks()
   })
 
   it('isDiffStale is false when no result exists', () => {
@@ -517,5 +485,36 @@ describe('useDiffWorkbench', () => {
     expect(card!.label).toBe('重排')
     expect(card!.value).toBe(3)
     expect(card!.filter).toBe('reorder')
+  })
+
+  it('marks DiffResult as non-reactive after executeDiff', async () => {
+    const workbench = useDiffWorkbench('# Title\n\nold', '# Title\n\nnew')
+    await workbench.executeDiff()
+
+    expect(workbench.result.value).not.toBeNull()
+    expect(isReactive(workbench.result.value)).toBe(false)
+    expect(isReactive(workbench.result.value!.root)).toBe(false)
+  })
+
+  it('downstream computeds still update after markRaw result', async () => {
+    const workbench = useDiffWorkbench('# Title\n\nold paragraph', '# Title\n\nnew paragraph')
+    await workbench.executeDiff()
+
+    expect(workbench.projectionLines.value.length).toBeGreaterThan(0)
+    expect(workbench.oldProjectionLines.value.length).toBeGreaterThan(0)
+    expect(workbench.statsCards.value.length).toBeGreaterThan(0)
+  })
+
+  it('replacing markRaw result triggers computed updates', async () => {
+    const workbench = useDiffWorkbench('# Title\n\nold', '# Title\n\nnew')
+    await workbench.executeDiff()
+
+    const firstProjectionCount = workbench.projectionLines.value.length
+
+    workbench.newMarkdown.value = '# Title\n\nnew\n\nextra paragraph\n\nmore content'
+    await workbench.executeDiff()
+
+    expect(workbench.projectionLines.value.length).not.toBe(firstProjectionCount)
+    expect(isReactive(workbench.result.value)).toBe(false)
   })
 })

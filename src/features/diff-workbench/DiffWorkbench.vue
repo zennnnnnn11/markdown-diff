@@ -91,17 +91,49 @@ watch(
     if (!nextKey || !nextSide) return
     await nextTick()
     if (workbench.viewMode.value === 'source') {
-      const row = document.querySelector<HTMLElement>(
-        `.projection-row[data-side="${nextSide}"][data-change-key="${CSS.escape(nextKey)}"]`,
-      )
-      row?.scrollIntoView({ block: 'center' })
+      const lines = nextSide === 'old' ? workbench.oldProjectionLines.value : workbench.projectionLines.value
+      const targetIndex = lines.findIndex((line) => line.changeKey === nextKey)
+      if (targetIndex >= 0) {
+        const tableRef = nextSide === 'old' ? leftProjectionRef.value : rightProjectionRef.value
+        const exposed = tableRef as any
+        exposed?.scrollToIndex?.(targetIndex)
+      }
       return
     }
     if (workbench.viewMode.value === 'unified') {
-      const cell = document.querySelector<HTMLElement>(
-        `.cell[data-side="${nextSide}"][data-change-key="${CSS.escape(nextKey)}"]`,
+      const targetIndex = mergedRows.value.findIndex((row) =>
+        (nextSide === 'old' && row.oldLine?.changeKey === nextKey) ||
+        (nextSide === 'new' && row.newLine?.changeKey === nextKey),
       )
-      cell?.scrollIntoView({ block: 'center' })
+      if (targetIndex >= 0) {
+        const exposed = unifiedTableRef.value as any
+        exposed?.scrollToIndex?.(targetIndex)
+      }
+    }
+  },
+  { flush: 'post' },
+)
+
+watch(
+  () => workbench.pendingScrollTarget.value,
+  async (target) => {
+    if (!target) return
+    workbench.pendingScrollTarget.value = null
+    await nextTick()
+
+    if (workbench.viewMode.value === 'source') {
+      const tableRef = target.side === 'old' ? leftProjectionRef.value : rightProjectionRef.value
+      const exposed = tableRef as any
+      exposed?.scrollToIndex?.(target.index)
+    } else if (workbench.viewMode.value === 'unified') {
+      const rowIndex = mergedRows.value.findIndex((row) => {
+        const line = target.side === 'old' ? row.oldLine : row.newLine
+        return line?.changeKey === target.changeKey
+      })
+      if (rowIndex >= 0) {
+        const exposed = unifiedTableRef.value as any
+        exposed?.scrollToIndex?.(rowIndex)
+      }
     }
   },
   { flush: 'post' },

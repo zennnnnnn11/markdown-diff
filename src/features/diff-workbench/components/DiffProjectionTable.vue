@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import type { HighlightFilter, ProjectionAnnotation, ProjectionLine, ProjectionSegment, Tone } from '../view-model'
 import { lineMatchesFilter } from '../view-model'
 
 const scrollBody = ref<HTMLElement | null>(null)
-
-defineExpose({ scrollBody })
 
 const props = defineProps<{
   projectionLines: ProjectionLine[]
@@ -13,6 +12,18 @@ const props = defineProps<{
   peerHighlightKey?: string
   side: 'old' | 'new'
 }>()
+
+const rowVirtualizer = useVirtualizer(computed(() => ({
+  count: props.projectionLines.length,
+  getScrollElement: () => scrollBody.value,
+  estimateSize: () => 28,
+  overscan: 20,
+})))
+
+const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
+const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
+
+defineExpose({ scrollBody, scrollToIndex: (index: number) => rowVirtualizer.value.scrollToIndex(index, { align: 'center' }) })
 
 const emit = defineEmits<{
   (e: 'select', changeKey: string | undefined, side: 'old' | 'new'): void
@@ -52,71 +63,82 @@ function segmentClass(segment: ProjectionSegment): string {
     </div>
 
     <div ref="scrollBody" class="projection-table" role="table" :aria-label="label">
-      <component
-        :is="line.changeKey ? 'button' : 'div'"
-        v-for="line in projectionLines"
-        :id="rowId(line)"
-        :key="line.key"
-        :data-change-key="line.changeKey"
-        :data-side="side"
-        :title="line.changeTooltip"
-        class="projection-row"
-        :class="[
-          lineClassName(line.baseTone),
-          {
-            interactive: !!line.changeKey,
-            active: lineMatchesFilter(line, activeFilter),
-            'pair-match': line.pairKind === 'match',
-            'pair-align': line.pairKind === 'align',
-            'peer-highlight': !!peerHighlightKey && line.changeKey === peerHighlightKey,
-          },
-        ]"
-        :type="line.changeKey ? 'button' : undefined"
-        role="row"
-        @click="emit('select', line.changeKey, side)"
-      >
-        <div class="gutter" role="cell">
-          <span class="line-number">{{ line.lineNumber }}</span>
-          <span class="gutter-badges">
-            <span v-if="line.hasDescendantChange && line.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
-            <span v-if="line.changeKeys.length > 1" class="overlap-flag" :title="`该行命中 ${line.changeKeys.length} 个变更`">
-              +{{ line.changeKeys.length - 1 }}
-            </span>
-            <span v-if="line.warnings.length" class="warning-flag" title="存在告警">⚠</span>
-            <span
-              v-if="line.baseTone === 'move' && line.movePeerLineNumber"
-              class="move-peer-flag"
-              :title="side === 'old' ? `移动目标：第 ${line.movePeerLineNumber} 行` : `移动来源：第 ${line.movePeerLineNumber} 行`"
-            >{{ line.movePeerLineNumber > line.lineNumber ? '↓' : '↑' }}{{ line.movePeerLineNumber }}</span>
-          </span>
-        </div>
-
-        <div class="code-cell" role="cell">
-          <span class="line-content">
-            <template v-if="line.segments?.length">
+      <div :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
+        <component
+          :is="projectionLines[vRow.index]?.changeKey ? 'button' : 'div'"
+          v-for="vRow in virtualRows"
+          :key="projectionLines[vRow.index]?.key ?? vRow.index"
+          :ref="(el: any) => { const node = el?.$el ?? el; if (node?.getBoundingClientRect?.().height) rowVirtualizer.measureElement(node) }"
+          :data-index="vRow.index"
+          :id="projectionLines[vRow.index] ? rowId(projectionLines[vRow.index]!) : undefined"
+          :data-change-key="projectionLines[vRow.index]?.changeKey"
+          :data-side="side"
+          :title="projectionLines[vRow.index]?.changeTooltip"
+          class="projection-row"
+          :class="[
+            lineClassName(projectionLines[vRow.index]?.baseTone ?? 'plain'),
+            {
+              interactive: !!projectionLines[vRow.index]?.changeKey,
+              active: lineMatchesFilter(projectionLines[vRow.index]!, activeFilter),
+              'pair-match': projectionLines[vRow.index]?.pairKind === 'match',
+              'pair-align': projectionLines[vRow.index]?.pairKind === 'align',
+              'peer-highlight': !!peerHighlightKey && projectionLines[vRow.index]?.changeKey === peerHighlightKey,
+            },
+          ]"
+          :type="projectionLines[vRow.index]?.changeKey ? 'button' : undefined"
+          role="row"
+          :style="{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            transform: `translateY(${vRow.start}px)`,
+          }"
+          @click="emit('select', projectionLines[vRow.index]?.changeKey, side)"
+        >
+          <div class="gutter" role="cell">
+            <span class="line-number">{{ projectionLines[vRow.index]?.lineNumber }}</span>
+            <span class="gutter-badges">
+              <span v-if="projectionLines[vRow.index]?.hasDescendantChange && projectionLines[vRow.index]?.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
+              <span v-if="(projectionLines[vRow.index]?.changeKeys.length ?? 0) > 1" class="overlap-flag" :title="`该行命中 ${projectionLines[vRow.index]?.changeKeys.length} 个变更`">
+                +{{ (projectionLines[vRow.index]?.changeKeys.length ?? 1) - 1 }}
+              </span>
+              <span v-if="projectionLines[vRow.index]?.warnings.length" class="warning-flag" title="存在告警">⚠</span>
               <span
-                v-for="(segment, segmentIndex) in line.segments"
-                :key="`${line.key}:segment:${segmentIndex}`"
-                class="segment"
-                :class="segmentClass(segment)"
-              >{{ segment.text || ' ' }}</span>
-            </template>
-            <template v-else>{{ line.text || ' ' }}</template>
-          </span>
-          <span class="line-meta">
-            <span
-              v-for="(annotation, annotationIndex) in line.annotations"
-              :key="`${line.key}:annotation:${annotationIndex}`"
-              class="annotation-chip"
-              :class="annotationClass(annotation)"
-              :title="annotation.label"
-            >
-              {{ annotation.label }}
+                v-if="projectionLines[vRow.index]?.baseTone === 'move' && projectionLines[vRow.index]?.movePeerLineNumber"
+                class="move-peer-flag"
+                :title="side === 'old' ? `移动目标：第 ${projectionLines[vRow.index]?.movePeerLineNumber} 行` : `移动来源：第 ${projectionLines[vRow.index]?.movePeerLineNumber} 行`"
+              >{{ (projectionLines[vRow.index]?.movePeerLineNumber ?? 0) > (projectionLines[vRow.index]?.lineNumber ?? 0) ? '↓' : '↑' }}{{ projectionLines[vRow.index]?.movePeerLineNumber }}</span>
             </span>
-            <span v-if="line.changeKey" class="line-hint">点击查看具体变更</span>
-          </span>
-        </div>
-      </component>
+          </div>
+
+          <div class="code-cell" role="cell">
+            <span class="line-content">
+              <template v-if="projectionLines[vRow.index]?.segments?.length">
+                <span
+                  v-for="(segment, segmentIndex) in projectionLines[vRow.index]!.segments"
+                  :key="`${projectionLines[vRow.index]!.key}:segment:${segmentIndex}`"
+                  class="segment"
+                  :class="segmentClass(segment)"
+                >{{ segment.text || ' ' }}</span>
+              </template>
+              <template v-else>{{ projectionLines[vRow.index]?.text || ' ' }}</template>
+            </span>
+            <span class="line-meta">
+              <span
+                v-for="(annotation, annotationIndex) in projectionLines[vRow.index]?.annotations"
+                :key="`${projectionLines[vRow.index]!.key}:annotation:${annotationIndex}`"
+                class="annotation-chip"
+                :class="annotationClass(annotation)"
+                :title="annotation.label"
+              >
+                {{ annotation.label }}
+              </span>
+              <span v-if="projectionLines[vRow.index]?.changeKey" class="line-hint">点击查看具体变更</span>
+            </span>
+          </div>
+        </component>
+      </div>
     </div>
   </section>
 </template>
@@ -169,10 +191,7 @@ function segmentClass(segment: ProjectionSegment): string {
   border-top: 1px solid var(--border-subtle);
   text-align: left;
   padding: 0;
-}
-
-.projection-row:first-child {
-  border-top: 0;
+  box-sizing: border-box;
 }
 
 .projection-row.interactive {

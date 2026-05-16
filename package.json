@@ -17,9 +17,9 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@tanstack/vue-virtual": "^3.13.24",
     "hash-wasm": "^4.12.0",
     "js-toml": "^1.1.0",
-    "pinia": "^3.0.4",
     "remark-directive": "^4.0.0",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",

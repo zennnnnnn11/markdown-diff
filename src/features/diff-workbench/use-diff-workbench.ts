@@ -1,6 +1,7 @@
-import { computed, ref, shallowRef } from 'vue'
+import { computed, markRaw, ref, shallowRef } from 'vue'
 
 import type { DiffChange, DiffResult } from '@/core/diff'
+import { runDiffInWorker } from '@/core/diff/worker-client'
 
 import type { StatCardModel } from './types'
 import type { HighlightFilter, ProjectionLine } from './view-model'
@@ -26,6 +27,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
   const result = shallowRef<DiffResult | null>(null)
   const lastDiffedOld = ref('')
   const lastDiffedNew = ref('')
+  const pendingScrollTarget = ref<{ changeKey: string; index: number; side: 'old' | 'new' } | null>(null)
 
   const flatChanges = computed(() => (result.value ? flattenChanges(result.value.root) : []))
   const changeByKey = computed(() => {
@@ -94,7 +96,10 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     try {
       lastDiffedOld.value = oldMarkdown.value
       lastDiffedNew.value = newMarkdown.value
-      result.value = await runMarkdownDiff(oldMarkdown.value, newMarkdown.value)
+      const raw = typeof Worker !== 'undefined'
+        ? await runDiffInWorker(oldMarkdown.value, newMarkdown.value)
+        : await runMarkdownDiff(oldMarkdown.value, newMarkdown.value)
+      result.value = markRaw(raw)
     } catch (error) {
       result.value = null
       errorMessage.value = error instanceof Error ? error.message : '比对失败'
@@ -125,12 +130,26 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
 
   function scrollToFirstMatch(filter: HighlightFilter): void {
     if (!result.value) return
-    const first =
-      projectionLines.value.find((line) => lineMatchesFilter(line, filter))
-      ?? oldProjectionLines.value.find((line) => lineMatchesFilter(line, filter))
-    if (!first?.changeKey) return
-    document.querySelector<HTMLElement>(`[data-change-key="${CSS.escape(first.changeKey)}"]`)
-      ?.scrollIntoView({ block: 'center' })
+
+    const newIndex = projectionLines.value.findIndex((line) => lineMatchesFilter(line, filter))
+    if (newIndex >= 0 && projectionLines.value[newIndex]?.changeKey) {
+      pendingScrollTarget.value = {
+        changeKey: projectionLines.value[newIndex]!.changeKey!,
+        index: newIndex,
+        side: 'new',
+      }
+      return
+    }
+
+    const oldIndex = oldProjectionLines.value.findIndex((line) => lineMatchesFilter(line, filter))
+    if (oldIndex >= 0 && oldProjectionLines.value[oldIndex]?.changeKey) {
+      pendingScrollTarget.value = {
+        changeKey: oldProjectionLines.value[oldIndex]!.changeKey!,
+        index: oldIndex,
+        side: 'old',
+      }
+      return
+    }
   }
 
   return {
@@ -151,6 +170,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     statsCards,
     peerHighlightKey,
     peerSide,
+    pendingScrollTarget,
     executeDiff,
     clearEditor,
     selectLine,

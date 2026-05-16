@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useVirtualizer } from '@tanstack/vue-virtual'
 import type {
   HighlightFilter,
   MergedRow,
@@ -12,13 +13,23 @@ import { lineMatchesFilter } from '../view-model'
 
 const scrollBody = ref<HTMLElement | null>(null)
 
-defineExpose({ scrollBody })
-
-defineProps<{
+const props = defineProps<{
   mergedRows: MergedRow[]
   activeFilter: HighlightFilter | null
   peerHighlightKey?: string
 }>()
+
+const rowVirtualizer = useVirtualizer(computed(() => ({
+  count: props.mergedRows.length,
+  getScrollElement: () => scrollBody.value,
+  estimateSize: () => 28,
+  overscan: 20,
+})))
+
+const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
+const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
+
+defineExpose({ scrollBody, scrollToIndex: (index: number) => rowVirtualizer.value.scrollToIndex(index, { align: 'center' }) })
 
 const emit = defineEmits<{
   (e: 'select', changeKey: string | undefined, side: 'old' | 'new'): void
@@ -74,145 +85,156 @@ function segmentClass(segment: ProjectionSegment): string {
         <div class="center-gap center-gap-header" aria-hidden="true"></div>
         <div class="side-heading side-heading-new" role="columnheader">新文档</div>
       </div>
-      <div
-        v-for="(row, index) in mergedRows"
-        :key="row.key"
-        class="unified-row"
-      >
-        <div class="row-index" role="cell">{{ index + 1 }}</div>
-
-        <!-- Old gutter -->
+      <div :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
         <div
-          class="gutter gutter-old"
-          :class="{ interactive: isInteractive(row.oldLine) }"
-          role="cell"
-          @click="onClick(row.oldLine, 'old')"
+          v-for="vRow in virtualRows"
+          :key="props.mergedRows[vRow.index]?.key ?? vRow.index"
+          :ref="(el: any) => { if (el?.getBoundingClientRect?.().height) rowVirtualizer.measureElement(el) }"
+          :data-index="vRow.index"
+          class="unified-row"
+          :style="{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            transform: `translateY(${vRow.start}px)`,
+          }"
         >
-          <template v-if="row.oldLine">
-            <span class="line-number">{{ row.oldLine.lineNumber }}</span>
-            <span class="gutter-badges">
-              <span v-if="row.oldLine.hasDescendantChange && row.oldLine.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
-              <span v-if="row.oldLine.changeKeys.length > 1" class="overlap-flag" :title="`旧侧命中 ${row.oldLine.changeKeys.length} 个变更`">+{{ row.oldLine.changeKeys.length - 1 }}</span>
-              <span v-if="row.oldLine.warnings.length" class="warning-flag" title="存在告警">⚠</span>
-              <span
-                v-if="row.oldLine.baseTone === 'move' && row.oldLine.movePeerLineNumber"
-                class="move-peer-flag"
-                :title="`移动目标：第 ${row.oldLine.movePeerLineNumber} 行`"
-              >{{ (row.oldLine.movePeerRowIndex ?? index) > index ? '↓' : '↑' }}{{ row.oldLine.movePeerLineNumber }}</span>
-            </span>
-          </template>
-        </div>
+          <div class="row-index" role="cell">{{ vRow.index + 1 }}</div>
 
-        <!-- Old content -->
-        <div
-          class="cell cell-old"
-          :class="[
-            toneClass(row.oldLine),
-            pairClass(row.oldLine),
-            {
-              active: filterClass(row.oldLine, activeFilter),
-              'peer-highlight': peerClass(row.oldLine, peerHighlightKey),
-              interactive: isInteractive(row.oldLine),
-            },
-          ]"
-          :data-change-key="row.oldLine?.changeKey"
-          :title="row.oldLine?.changeTooltip"
-          data-side="old"
-          role="cell"
-          @click="onClick(row.oldLine, 'old')"
-        >
-          <template v-if="row.oldLine">
-            <span class="line-text">
-              <template v-if="row.oldLine.segments?.length">
+          <!-- Old gutter -->
+          <div
+            class="gutter gutter-old"
+            :class="{ interactive: isInteractive(props.mergedRows[vRow.index]?.oldLine ?? null) }"
+            role="cell"
+            @click="onClick(props.mergedRows[vRow.index]?.oldLine ?? null, 'old')"
+          >
+            <template v-if="props.mergedRows[vRow.index]?.oldLine">
+              <span class="line-number">{{ props.mergedRows[vRow.index]!.oldLine!.lineNumber }}</span>
+              <span class="gutter-badges">
+                <span v-if="props.mergedRows[vRow.index]!.oldLine!.hasDescendantChange && props.mergedRows[vRow.index]!.oldLine!.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
+                <span v-if="props.mergedRows[vRow.index]!.oldLine!.changeKeys.length > 1" class="overlap-flag" :title="`旧侧命中 ${props.mergedRows[vRow.index]!.oldLine!.changeKeys.length} 个变更`">+{{ props.mergedRows[vRow.index]!.oldLine!.changeKeys.length - 1 }}</span>
+                <span v-if="props.mergedRows[vRow.index]!.oldLine!.warnings.length" class="warning-flag" title="存在告警">⚠</span>
                 <span
-                  v-for="(segment, segmentIndex) in row.oldLine.segments"
-                  :key="`${row.oldLine.key}:segment:${segmentIndex}`"
-                  class="segment"
-                  :class="segmentClass(segment)"
-                >{{ segment.text || ' ' }}</span>
-              </template>
-              <template v-else>{{ row.oldLine.text || ' ' }}</template>
-            </span>
-            <span v-if="row.oldLine.annotations.length" class="cell-annotations">
-              <span
-                v-for="(annotation, annotationIndex) in row.oldLine.annotations"
-                :key="`${row.oldLine.key}:annotation:${annotationIndex}`"
-                class="annotation-chip"
-                :class="annotationClass(annotation)"
-              >
-                {{ annotation.label }}
+                  v-if="props.mergedRows[vRow.index]!.oldLine!.baseTone === 'move' && props.mergedRows[vRow.index]!.oldLine!.movePeerLineNumber"
+                  class="move-peer-flag"
+                  :title="`移动目标：第 ${props.mergedRows[vRow.index]!.oldLine!.movePeerLineNumber} 行`"
+                >{{ (props.mergedRows[vRow.index]!.oldLine!.movePeerRowIndex ?? vRow.index) > vRow.index ? '↓' : '↑' }}{{ props.mergedRows[vRow.index]!.oldLine!.movePeerLineNumber }}</span>
               </span>
-            </span>
-          </template>
-          <span v-else class="placeholder-text" aria-hidden="true">{{ row.newLine?.text || ' ' }}</span>
-        </div>
+            </template>
+          </div>
 
-        <div class="center-gap" aria-hidden="true"></div>
-
-        <!-- New gutter -->
-        <div
-          class="gutter gutter-new"
-          :class="{ interactive: isInteractive(row.newLine) }"
-          role="cell"
-          @click="onClick(row.newLine, 'new')"
-        >
-          <template v-if="row.newLine">
-            <span class="line-number">{{ row.newLine.lineNumber }}</span>
-            <span class="gutter-badges">
-              <span v-if="row.newLine.hasDescendantChange && row.newLine.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
-              <span v-if="row.newLine.changeKeys.length > 1" class="overlap-flag" :title="`新侧命中 ${row.newLine.changeKeys.length} 个变更`">+{{ row.newLine.changeKeys.length - 1 }}</span>
-              <span v-if="row.newLine.warnings.length" class="warning-flag" title="存在告警">⚠</span>
-              <span
-                v-if="row.newLine.baseTone === 'move' && row.newLine.movePeerLineNumber"
-                class="move-peer-flag"
-                :title="`移动来源：第 ${row.newLine.movePeerLineNumber} 行`"
-              >{{ (row.newLine.movePeerRowIndex ?? index) > index ? '↓' : '↑' }}{{ row.newLine.movePeerLineNumber }}</span>
-            </span>
-          </template>
-        </div>
-
-        <!-- New content -->
-        <div
-          class="cell cell-new"
-          :class="[
-            toneClass(row.newLine),
-            pairClass(row.newLine),
-            {
-              active: filterClass(row.newLine, activeFilter),
-              'peer-highlight': peerClass(row.newLine, peerHighlightKey),
-              interactive: isInteractive(row.newLine),
-            },
-          ]"
-          :data-change-key="row.newLine?.changeKey"
-          :title="row.newLine?.changeTooltip"
-          data-side="new"
-          role="cell"
-          @click="onClick(row.newLine, 'new')"
-        >
-          <template v-if="row.newLine">
-            <span class="line-text">
-              <template v-if="row.newLine.segments?.length">
+          <!-- Old content -->
+          <div
+            class="cell cell-old"
+            :class="[
+              toneClass(props.mergedRows[vRow.index]?.oldLine ?? null),
+              pairClass(props.mergedRows[vRow.index]?.oldLine ?? null),
+              {
+                active: filterClass(props.mergedRows[vRow.index]?.oldLine ?? null, activeFilter),
+                'peer-highlight': peerClass(props.mergedRows[vRow.index]?.oldLine ?? null, peerHighlightKey),
+                interactive: isInteractive(props.mergedRows[vRow.index]?.oldLine ?? null),
+              },
+            ]"
+            :data-change-key="props.mergedRows[vRow.index]?.oldLine?.changeKey"
+            :title="props.mergedRows[vRow.index]?.oldLine?.changeTooltip"
+            data-side="old"
+            role="cell"
+            @click="onClick(props.mergedRows[vRow.index]?.oldLine ?? null, 'old')"
+          >
+            <template v-if="props.mergedRows[vRow.index]?.oldLine">
+              <span class="line-text">
+                <template v-if="props.mergedRows[vRow.index]!.oldLine!.segments?.length">
+                  <span
+                    v-for="(segment, segmentIndex) in props.mergedRows[vRow.index]!.oldLine!.segments"
+                    :key="`${props.mergedRows[vRow.index]!.oldLine!.key}:segment:${segmentIndex}`"
+                    class="segment"
+                    :class="segmentClass(segment)"
+                  >{{ segment.text || ' ' }}</span>
+                </template>
+                <template v-else>{{ props.mergedRows[vRow.index]!.oldLine!.text || ' ' }}</template>
+              </span>
+              <span v-if="props.mergedRows[vRow.index]!.oldLine!.annotations.length" class="cell-annotations">
                 <span
-                  v-for="(segment, segmentIndex) in row.newLine.segments"
-                  :key="`${row.newLine.key}:segment:${segmentIndex}`"
-                  class="segment"
-                  :class="segmentClass(segment)"
-                >{{ segment.text || ' ' }}</span>
-              </template>
-              <template v-else>{{ row.newLine.text || ' ' }}</template>
-            </span>
-            <span v-if="row.newLine.annotations.length" class="cell-annotations">
-              <span
-                v-for="(annotation, annotationIndex) in row.newLine.annotations"
-                :key="`${row.newLine.key}:annotation:${annotationIndex}`"
-                class="annotation-chip"
-                :class="annotationClass(annotation)"
-              >
-                {{ annotation.label }}
+                  v-for="(annotation, annotationIndex) in props.mergedRows[vRow.index]!.oldLine!.annotations"
+                  :key="`${props.mergedRows[vRow.index]!.oldLine!.key}:annotation:${annotationIndex}`"
+                  class="annotation-chip"
+                  :class="annotationClass(annotation)"
+                >
+                  {{ annotation.label }}
+                </span>
               </span>
-            </span>
-          </template>
-          <span v-else class="placeholder-text" aria-hidden="true">{{ row.oldLine?.text || ' ' }}</span>
+            </template>
+            <span v-else class="placeholder-text" aria-hidden="true">{{ props.mergedRows[vRow.index]?.newLine?.text || ' ' }}</span>
+          </div>
+
+          <div class="center-gap" aria-hidden="true"></div>
+
+          <!-- New gutter -->
+          <div
+            class="gutter gutter-new"
+            :class="{ interactive: isInteractive(props.mergedRows[vRow.index]?.newLine ?? null) }"
+            role="cell"
+            @click="onClick(props.mergedRows[vRow.index]?.newLine ?? null, 'new')"
+          >
+            <template v-if="props.mergedRows[vRow.index]?.newLine">
+              <span class="line-number">{{ props.mergedRows[vRow.index]!.newLine!.lineNumber }}</span>
+              <span class="gutter-badges">
+                <span v-if="props.mergedRows[vRow.index]!.newLine!.hasDescendantChange && props.mergedRows[vRow.index]!.newLine!.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
+                <span v-if="props.mergedRows[vRow.index]!.newLine!.changeKeys.length > 1" class="overlap-flag" :title="`新侧命中 ${props.mergedRows[vRow.index]!.newLine!.changeKeys.length} 个变更`">+{{ props.mergedRows[vRow.index]!.newLine!.changeKeys.length - 1 }}</span>
+                <span v-if="props.mergedRows[vRow.index]!.newLine!.warnings.length" class="warning-flag" title="存在告警">⚠</span>
+                <span
+                  v-if="props.mergedRows[vRow.index]!.newLine!.baseTone === 'move' && props.mergedRows[vRow.index]!.newLine!.movePeerLineNumber"
+                  class="move-peer-flag"
+                  :title="`移动来源：第 ${props.mergedRows[vRow.index]!.newLine!.movePeerLineNumber} 行`"
+                >{{ (props.mergedRows[vRow.index]!.newLine!.movePeerRowIndex ?? vRow.index) > vRow.index ? '↓' : '↑' }}{{ props.mergedRows[vRow.index]!.newLine!.movePeerLineNumber }}</span>
+              </span>
+            </template>
+          </div>
+
+          <!-- New content -->
+          <div
+            class="cell cell-new"
+            :class="[
+              toneClass(props.mergedRows[vRow.index]?.newLine ?? null),
+              pairClass(props.mergedRows[vRow.index]?.newLine ?? null),
+              {
+                active: filterClass(props.mergedRows[vRow.index]?.newLine ?? null, activeFilter),
+                'peer-highlight': peerClass(props.mergedRows[vRow.index]?.newLine ?? null, peerHighlightKey),
+                interactive: isInteractive(props.mergedRows[vRow.index]?.newLine ?? null),
+              },
+            ]"
+            :data-change-key="props.mergedRows[vRow.index]?.newLine?.changeKey"
+            :title="props.mergedRows[vRow.index]?.newLine?.changeTooltip"
+            data-side="new"
+            role="cell"
+            @click="onClick(props.mergedRows[vRow.index]?.newLine ?? null, 'new')"
+          >
+            <template v-if="props.mergedRows[vRow.index]?.newLine">
+              <span class="line-text">
+                <template v-if="props.mergedRows[vRow.index]!.newLine!.segments?.length">
+                  <span
+                    v-for="(segment, segmentIndex) in props.mergedRows[vRow.index]!.newLine!.segments"
+                    :key="`${props.mergedRows[vRow.index]!.newLine!.key}:segment:${segmentIndex}`"
+                    class="segment"
+                    :class="segmentClass(segment)"
+                  >{{ segment.text || ' ' }}</span>
+                </template>
+                <template v-else>{{ props.mergedRows[vRow.index]!.newLine!.text || ' ' }}</template>
+              </span>
+              <span v-if="props.mergedRows[vRow.index]!.newLine!.annotations.length" class="cell-annotations">
+                <span
+                  v-for="(annotation, annotationIndex) in props.mergedRows[vRow.index]!.newLine!.annotations"
+                  :key="`${props.mergedRows[vRow.index]!.newLine!.key}:annotation:${annotationIndex}`"
+                  class="annotation-chip"
+                  :class="annotationClass(annotation)"
+                >
+                  {{ annotation.label }}
+                </span>
+              </span>
+            </template>
+            <span v-else class="placeholder-text" aria-hidden="true">{{ props.mergedRows[vRow.index]?.oldLine?.text || ' ' }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -314,10 +336,6 @@ function segmentClass(segment: ProjectionSegment): string {
 .unified-row {
   border-top: 1px solid var(--border-subtle);
   min-height: 28px;
-}
-
-.unified-row:first-child {
-  border-top: 0;
 }
 
 .gutter {

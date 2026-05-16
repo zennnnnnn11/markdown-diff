@@ -147,6 +147,71 @@ Paragraph body.
     expect(paragraph?.identityHash).toBe(paragraph?.selfHash)
     expect(listItem?.identityHash).toBe(listItem?.selfHash)
   })
+
+  it('assigns non-overlapping preorder indexes with sibling parallelism', async () => {
+    const markdown = `# A
+
+Para A
+
+## B
+
+Para B
+
+## C
+
+Para C
+
+### D
+
+Para D`
+    const tree = transformMarkdown(await parseMarkdown(markdown))
+    const index = await buildSemanticIndex(tree, 'new')
+
+    const preorders = index.nodesInPreorder.map((node) => node.preorder)
+    const uniquePreorders = new Set(preorders)
+    expect(uniquePreorders.size).toBe(preorders.length)
+
+    for (const [, node] of index.byId) {
+      const childIds = index.childrenById.get(node.id) ?? []
+      for (const childId of childIds) {
+        const child = index.byId.get(childId)!
+        expect(child.preorder).toBeGreaterThan(node.preorder)
+      }
+    }
+  })
+
+  it('produces identical hashes across repeated builds with parallel visitation', async () => {
+    const markdown = `# Heading
+
+Paragraph one.
+
+## Sub
+
+Paragraph two.
+
+- item 1
+- item 2
+
+> blockquote
+
+[^1]: Footnote body
+
+[ref]: https://example.com "Title"`
+    const tree = transformMarkdown(await parseMarkdown(markdown))
+
+    const index1 = await buildSemanticIndex(tree, 'new')
+    const index2 = await buildSemanticIndex(tree, 'new')
+
+    for (const [id, node1] of index1.byId) {
+      const node2 = index2.byId.get(id)!
+      expect(node2).toBeDefined()
+      expect(node1.selfHash).toBe(node2.selfHash)
+      expect(node1.directHash).toBe(node2.directHash)
+      expect(node1.subtreeHash).toBe(node2.subtreeHash)
+      expect(node1.identityHash).toBe(node2.identityHash)
+      expect(node1.preorder).toBe(node2.preorder)
+    }
+  })
 })
 
 describe('diff utils', () => {

@@ -1,11 +1,10 @@
 import type { Block, Section } from '../transformer'
 import type { BacklinkIndex, DiffNode, SemanticIndex } from './types'
+import { createHashContext } from './hash-context'
 import {
   charikarSimHash,
   extractInlineStructure,
   extractNodeText,
-  hashCanonical,
-  hashText,
   isSection,
   mergeSourceRanges,
   normalizeHeadingTitle,
@@ -30,9 +29,12 @@ interface IndexedRawNode {
   siblingIndex: number
   pathParts: string[]
   logicalChildren: IndexedRawNode[]
+  subtreeSize: number
 }
 
 export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Promise<SemanticIndex> {
+  const hctx = createHashContext()
+  const blockSelfHashCache = new Map<Block, string>()
   const byId = new Map<string, DiffNode>()
   const nodesInPreorder: DiffNode[] = []
   const childrenById = new Map<string, string[]>()
@@ -49,10 +51,10 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
     footnotes: new Map(),
     definitions: new Map(),
   }
-  let nextPreorder = 0
 
   const indexedRoot = buildLogicalTree(root, tree)
-  await visit(indexedRoot, undefined, [])
+  computeSubtreeSizes(indexedRoot)
+  await visit(indexedRoot, undefined, [], 0)
 
   return {
     tree,
@@ -76,18 +78,21 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
     current: IndexedRawNode,
     parentId: string | undefined,
     headingPath: string[],
+    assignedPreorder: number,
   ): Promise<DiffNode> {
-    const preorder = nextPreorder++
+    const preorder = assignedPreorder
     const nextPath =
       current.entity === 'section' && current.kind === 'heading'
         ? [...headingPath, (current.raw as Section).title]
         : headingPath
 
-    const childNodes: DiffNode[] = []
-    for (let index = 0; index < current.logicalChildren.length; index++) {
-      const child = current.logicalChildren[index]!
-      childNodes.push(await visit(child, current.id, nextPath))
-    }
+    let childPreorder = preorder + 1
+    const childPromises = current.logicalChildren.map((child) => {
+      const startPreorder = childPreorder
+      childPreorder += child.subtreeSize
+      return visit(child, current.id, nextPath, startPreorder)
+    })
+    const childNodes = await Promise.all(childPromises)
 
     const baseNode = await createDiffNode(current, childNodes, parentId, preorder, nextPath)
 
@@ -125,10 +130,204 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
       for (const child of block.children) registerBacklinks(child, holderId)
     }
   }
+  async function createDiffNode(
+    current: IndexedRawNode,
+    childNodes: DiffNode[],
+    parentId: string | undefined,
+    preorder: number,
+    headingPath: string[],
+  ): Promise<DiffNode> {
+    const pathHash = headingPath.length > 0 ? await hctx.hashText(pathHashInput(headingPath)) : undefined
+    if (current.entity === 'block') {
+      const block = current.raw as Block
+      const selfHash = await computeBlockSelfHash(block)
+      const text = extractNodeText(block)
+      const textTokens = tokenizeText(text)
+      const structuredTokens = structuredTextTokens(block)
+      return {
+        id: current.id,
+        sourceId: current.sourceId,
+        tree: current.tree,
+        entity: 'block',
+        raw: block,
+        block,
+        blockType: block.type,
+        parentId,
+        logicalChildren: [],
+        preorder,
+        subtreeSize: 1,
+        siblingIndex: current.siblingIndex,
+        depth: headingPath.length,
+        sourceRange: sourceRangeFromPosition(block.position),
+        selfHash,
+        directHash: selfHash,
+        subtreeHash: selfHash,
+        identityHash: await computeBlockIdentityHash(block, selfHash),
+        contentOnlyHash: await hctx.hashText(text),
+        textSimHash: await charikarSimHash([...textTokens, ...structuredTokens]),
+        titleTokens: [],
+        textTokens,
+        structuredTokens,
+        pathParts: headingPath,
+        pathHash,
+      }
+    }
+
+    const section = current.raw as Section
+    const normalizedTitle = normalizeHeadingTitle(section.title)
+    const titleTokens = tokenizeText(normalizedTitle)
+    const structuredTokens = structuredTextTokens(section)
+    const selfHash = await computeSectionSelfHash(section, normalizedTitle)
+    const directHash = await hctx.hashCanonical({
+      selfHash,
+      children: childNodes.map((child) => child.selfHash),
+    })
+    const subtreeHash = await hctx.hashCanonical({
+      selfHash,
+      children: childNodes.map((child) => child.subtreeHash),
+    })
+    const headingBodyHash = await computeHeadingBodyHash(section, childNodes)
+    const text = extractNodeText(section)
+    const textTokens = tokenizeText(text)
+    const sourceRange = mergeSourceRanges([
+      sourceRangeFromPosition(section.position),
+      sourceRangeFromPosition(section.heading?.position),
+      ...childNodes.map((child) => child.sourceRange),
+    ])
+
+    return {
+      id: current.id,
+      sourceId: current.sourceId,
+      tree: current.tree,
+      entity: 'section',
+      raw: section,
+      section,
+      kind: section.kind,
+      parentId,
+      logicalChildren: childNodes.map((child) => child.id),
+      preorder,
+      subtreeSize: 1 + childNodes.reduce((sum, child) => sum + child.subtreeSize, 0),
+      siblingIndex: current.siblingIndex,
+      depth: headingPath.length,
+      sourceRange,
+      selfHash,
+      directHash,
+      subtreeHash,
+      identityHash: await computeSectionIdentityHash(section, childNodes, selfHash),
+      contentOnlyHash: await hctx.hashText(text),
+      headingBodyHash,
+      pathHash,
+      textSimHash: await charikarSimHash([...textTokens, ...structuredTokens]),
+      normalizedTitle,
+      titleSlug: slugifyHeading(section.title),
+      titleTokens,
+      textTokens,
+      structuredTokens,
+      pathParts: headingPath,
+    }
+  }
+
+  async function computeSectionSelfHash(section: Section, normalizedTitle: string): Promise<string> {
+    return hctx.hashCanonical({
+      kind: section.kind,
+      title: normalizedTitle,
+      headingDepth: section.headingDepth,
+      listDepth: section.listDepth,
+      quoteDepth: section.quoteDepth,
+      checked: section.checked,
+      ordered: section.ordered,
+      spread: section.spread,
+      identifier: extractSectionIdentifier(section),
+      frontmatterType: section.frontmatterType,
+      frontmatterValue: section.frontmatterValue,
+      heading: section.heading ? await computeBlockSelfHash(section.heading) : undefined,
+    })
+  }
+
+  async function computeSectionIdentityHash(section: Section, childNodes: DiffNode[], selfHash: string): Promise<string> {
+    if (section.kind === 'footnote') {
+      return hctx.hashCanonical({
+        kind: section.kind,
+        children: childNodes.map((child) => child.subtreeHash),
+      })
+    }
+    return selfHash
+  }
+
+  async function computeHeadingBodyHash(section: Section, childNodes: DiffNode[]): Promise<string | undefined> {
+    if (section.kind !== 'heading') return undefined
+    return hctx.hashCanonical({
+      headingDepth: section.headingDepth,
+      listDepth: section.listDepth,
+      quoteDepth: section.quoteDepth,
+      children: childNodes.map((child) => child.subtreeHash),
+    })
+  }
+
+  async function computeBlockSelfHash(block: Block): Promise<string> {
+    const cached = blockSelfHashCache.get(block)
+    if (cached !== undefined) return cached
+
+    const children = Array.isArray(block.children)
+      ? await Promise.all(
+          block.children.map(async (child) => ({
+            type: child.type,
+            hash: await computeBlockSelfHash(child),
+          })),
+        )
+      : undefined
+
+    const result = await hctx.hashCanonical({
+      type: block.type,
+      value: block.value,
+      lang: block.lang,
+      meta: block.meta,
+      checked: block.checked,
+      identifier: block.identifier,
+      title: block.title,
+      url: block.url,
+      alt: block.alt,
+      align: block.align,
+      depth: block.depth,
+      ordered: block.ordered,
+      start: block.start,
+      spread: block.spread,
+      children,
+      structure: extractInlineStructure(block),
+    })
+
+    blockSelfHashCache.set(block, result)
+    return result
+  }
+
+  async function computeBlockIdentityHash(block: Block, selfHash: string): Promise<string> {
+    if (block.type === 'definition') {
+      return hctx.hashCanonical({
+        type: block.type,
+        url: block.url,
+        title: block.title,
+      })
+    }
+    return selfHash
+  }
+
+  function extractSectionIdentifier(section: Section): string | undefined {
+    if (section.kind !== 'footnote') return undefined
+    return getSectionIdentifier(section)
+  }
 }
 
 function buildLogicalTree(root: Section, tree: 'old' | 'new'): IndexedRawNode {
   return buildIndexedSection(root, tree, undefined, 0, [])
+}
+
+function computeSubtreeSizes(node: IndexedRawNode): number {
+  let size = 1
+  for (const child of node.logicalChildren) {
+    size += computeSubtreeSizes(child)
+  }
+  node.subtreeSize = size
+  return size
 }
 
 function buildIndexedSection(
@@ -158,6 +357,7 @@ function buildIndexedSection(
         ? buildIndexedSection(item, tree, id, index, nextPath)
         : buildIndexedBlock(item, tree, id, index, nextPath),
     ),
+    subtreeSize: 0,
   }
 }
 
@@ -226,187 +426,8 @@ function buildIndexedBlock(
     siblingIndex,
     pathParts,
     logicalChildren: [],
+    subtreeSize: 0,
   }
-}
-
-async function createDiffNode(
-  current: IndexedRawNode,
-  childNodes: DiffNode[],
-  parentId: string | undefined,
-  preorder: number,
-  headingPath: string[],
-): Promise<DiffNode> {
-  const pathHash = headingPath.length > 0 ? await hashText(pathHashInput(headingPath)) : undefined
-  if (current.entity === 'block') {
-    const block = current.raw as Block
-    const selfHash = await computeBlockSelfHash(block)
-    const text = extractNodeText(block)
-    const textTokens = tokenizeText(text)
-    const structuredTokens = structuredTextTokens(block)
-    return {
-      id: current.id,
-      sourceId: current.sourceId,
-      tree: current.tree,
-      entity: 'block',
-      raw: block,
-      block,
-      blockType: block.type,
-      parentId,
-      logicalChildren: [],
-      preorder,
-      subtreeSize: 1,
-      siblingIndex: current.siblingIndex,
-      depth: headingPath.length,
-      sourceRange: sourceRangeFromPosition(block.position),
-      selfHash,
-      directHash: selfHash,
-      subtreeHash: selfHash,
-      identityHash: await computeBlockIdentityHash(block, selfHash),
-      contentOnlyHash: await hashText(text),
-      textSimHash: await charikarSimHash([...textTokens, ...structuredTokens]),
-      titleTokens: [],
-      textTokens,
-      structuredTokens,
-      pathParts: headingPath,
-      pathHash,
-    }
-  }
-
-  const section = current.raw as Section
-  const normalizedTitle = normalizeHeadingTitle(section.title)
-  const titleTokens = tokenizeText(normalizedTitle)
-  const structuredTokens = structuredTextTokens(section)
-  const selfHash = await computeSectionSelfHash(section, normalizedTitle)
-  const directHash = await hashCanonical({
-    selfHash,
-    children: childNodes.map((child) => child.selfHash),
-  })
-  const subtreeHash = await hashCanonical({
-    selfHash,
-    children: childNodes.map((child) => child.subtreeHash),
-  })
-  const headingBodyHash = await computeHeadingBodyHash(section, childNodes)
-  const text = extractNodeText(section)
-  const textTokens = tokenizeText(text)
-  const sourceRange = mergeSourceRanges([
-    sourceRangeFromPosition(section.position),
-    sourceRangeFromPosition(section.heading?.position),
-    ...childNodes.map((child) => child.sourceRange),
-  ])
-
-  return {
-    id: current.id,
-    sourceId: current.sourceId,
-    tree: current.tree,
-    entity: 'section',
-    raw: section,
-    section,
-    kind: section.kind,
-    parentId,
-    logicalChildren: childNodes.map((child) => child.id),
-    preorder,
-    subtreeSize: 1 + childNodes.reduce((sum, child) => sum + child.subtreeSize, 0),
-    siblingIndex: current.siblingIndex,
-    depth: headingPath.length,
-    sourceRange,
-    selfHash,
-    directHash,
-    subtreeHash,
-    identityHash: await computeSectionIdentityHash(section, childNodes, selfHash),
-    contentOnlyHash: await hashText(text),
-    headingBodyHash,
-    pathHash,
-    textSimHash: await charikarSimHash([...textTokens, ...structuredTokens]),
-    normalizedTitle,
-    titleSlug: slugifyHeading(section.title),
-    titleTokens,
-    textTokens,
-    structuredTokens,
-    pathParts: headingPath,
-  }
-}
-
-async function computeSectionSelfHash(section: Section, normalizedTitle: string): Promise<string> {
-  return hashCanonical({
-    kind: section.kind,
-    title: normalizedTitle,
-    headingDepth: section.headingDepth,
-    listDepth: section.listDepth,
-    quoteDepth: section.quoteDepth,
-    checked: section.checked,
-    ordered: section.ordered,
-    spread: section.spread,
-    identifier: extractSectionIdentifier(section),
-    frontmatterType: section.frontmatterType,
-    frontmatterValue: section.frontmatterValue,
-    heading: section.heading ? await computeBlockSelfHash(section.heading) : undefined,
-  })
-}
-
-async function computeSectionIdentityHash(section: Section, childNodes: DiffNode[], selfHash: string): Promise<string> {
-  if (section.kind === 'footnote') {
-    return hashCanonical({
-      kind: section.kind,
-      children: childNodes.map((child) => child.subtreeHash),
-    })
-  }
-  return selfHash
-}
-
-async function computeHeadingBodyHash(section: Section, childNodes: DiffNode[]): Promise<string | undefined> {
-  if (section.kind !== 'heading') return undefined
-  return hashCanonical({
-    headingDepth: section.headingDepth,
-    listDepth: section.listDepth,
-    quoteDepth: section.quoteDepth,
-    children: childNodes.map((child) => child.subtreeHash),
-  })
-}
-
-async function computeBlockSelfHash(block: Block): Promise<string> {
-  const children = Array.isArray(block.children)
-    ? await Promise.all(
-        block.children.map(async (child) => ({
-          type: child.type,
-          hash: await computeBlockSelfHash(child),
-        })),
-      )
-    : undefined
-
-  return hashCanonical({
-    type: block.type,
-    value: block.value,
-    lang: block.lang,
-    meta: block.meta,
-    checked: block.checked,
-    identifier: block.identifier,
-    title: block.title,
-    url: block.url,
-    alt: block.alt,
-    align: block.align,
-    depth: block.depth,
-    ordered: block.ordered,
-    start: block.start,
-    spread: block.spread,
-    children,
-    structure: extractInlineStructure(block),
-  })
-}
-
-async function computeBlockIdentityHash(block: Block, selfHash: string): Promise<string> {
-  if (block.type === 'definition') {
-    return hashCanonical({
-      type: block.type,
-      url: block.url,
-      title: block.title,
-    })
-  }
-  return selfHash
-}
-
-function extractSectionIdentifier(section: Section): string | undefined {
-  if (section.kind !== 'footnote') return undefined
-  return getSectionIdentifier(section)
 }
 
 function getItemSourceOffset(item: Block | Section): number | undefined {
