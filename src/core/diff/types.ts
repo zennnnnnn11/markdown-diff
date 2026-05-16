@@ -39,17 +39,13 @@ export interface SourceRange {
 export interface DiffOptions {
   minSimilarity: number
   minUniquenessMargin: number
-  maxLocalWindowSize: number
   maxLocalAlignmentCost: number
   enhancedLocalRecovery: boolean
   minHashTokenCount: number
-  maxRecursiveSubtreeSize: number
   maxRecursiveAlignmentCost: number
-  maxInlineDiffCost: number
   maxInlineDiffMatrixCost: number
   longCodeLineThreshold: number
   codeFoldContextLines: number
-  foldContextLines: number
   preorderOffsetThreshold: number
   contextSiblingWindow: number
   shortSequenceThreshold: number
@@ -59,7 +55,6 @@ export interface DiffOptions {
   moveSubtreeSizeRatioMax: number
   moveDepthDiffMax: number
   minHashNumFunctions: number
-  aptedMaxSubtreeSize: number
   maxAptedCost: number
   aptedUnpairedThreshold: number
 }

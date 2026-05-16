@@ -738,9 +738,7 @@ limits:
     const oldMarkdown = `# Alpha\n\n${nestedList(60, 'old leaf')}`
     const newMarkdown = `# Alpha\n\n${nestedList(60, 'new leaf')}`
     const result = await diffMarkdown(oldMarkdown, newMarkdown, {
-      maxLocalWindowSize: 1,
       maxLocalAlignmentCost: 200,
-      maxRecursiveSubtreeSize: 1,
       maxRecursiveAlignmentCost: 200,
       minSimilarity: 0.4,
     })
