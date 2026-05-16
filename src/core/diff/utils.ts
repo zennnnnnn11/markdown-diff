@@ -1,4 +1,5 @@
 import type { Block } from '../transformer'
+import type { Node, Point } from 'unist'
 import type { MetadataChange, SourcePoint, SourceRange } from './types'
 import { stableStringify } from './hash'
 import { normalizeIdentifier } from './text'
@@ -25,7 +26,7 @@ export function makeMoveId(oldId: string, newId: string): string {
   return `move:${oldId}:${newId}`
 }
 
-export function sourceRangeFromPosition(position: any): SourceRange | undefined {
+export function sourceRangeFromPosition(position: Node['position']): SourceRange | undefined {
   if (!position) return undefined
   return {
     start: toSourcePoint(position.start),
@@ -87,7 +88,7 @@ function isRecordLike(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
 
-function toSourcePoint(point: any): SourcePoint | undefined {
+function toSourcePoint(point: Point | undefined): SourcePoint | undefined {
   if (!point) return undefined
   return {
     offset: typeof point.offset === 'number' ? point.offset : undefined,

@@ -11,6 +11,10 @@ import { useDiffWorkbench } from './use-diff-workbench'
 import { buildMergedRows, formatWarningLabel } from './view-model'
 import type { HighlightFilter } from './view-model'
 
+interface ScrollableExposed {
+  scrollToIndex?: (index: number) => void
+}
+
 const props = defineProps<{
   initialOldMarkdown: string
   initialNewMarkdown: string
@@ -95,7 +99,7 @@ watch(
       const targetIndex = lines.findIndex((line) => line.changeKey === nextKey)
       if (targetIndex >= 0) {
         const tableRef = nextSide === 'old' ? leftProjectionRef.value : rightProjectionRef.value
-        const exposed = tableRef as any
+        const exposed = tableRef as unknown as ScrollableExposed | null
         exposed?.scrollToIndex?.(targetIndex)
       }
       return
@@ -106,7 +110,7 @@ watch(
         (nextSide === 'new' && row.newLine?.changeKey === nextKey),
       )
       if (targetIndex >= 0) {
-        const exposed = unifiedTableRef.value as any
+        const exposed = unifiedTableRef.value as unknown as ScrollableExposed | null
         exposed?.scrollToIndex?.(targetIndex)
       }
     }
@@ -123,7 +127,7 @@ watch(
 
     if (workbench.viewMode.value === 'source') {
       const tableRef = target.side === 'old' ? leftProjectionRef.value : rightProjectionRef.value
-      const exposed = tableRef as any
+      const exposed = tableRef as unknown as ScrollableExposed | null
       exposed?.scrollToIndex?.(target.index)
     } else if (workbench.viewMode.value === 'unified') {
       const rowIndex = mergedRows.value.findIndex((row) => {
@@ -131,7 +135,7 @@ watch(
         return line?.changeKey === target.changeKey
       })
       if (rowIndex >= 0) {
-        const exposed = unifiedTableRef.value as any
+        const exposed = unifiedTableRef.value as unknown as ScrollableExposed | null
         exposed?.scrollToIndex?.(rowIndex)
       }
     }
@@ -161,7 +165,7 @@ function setHighlight(filter: HighlightFilter | null): void {
   workbench.activeFilter.value = filter
 }
 
-function selectLine(changeKey?: string, _side?: 'old' | 'new'): void {
+function selectLine(changeKey?: string, _side?: 'old' | 'new'): void { // eslint-disable-line @typescript-eslint/no-unused-vars
   workbench.selectLine(changeKey)
 }
 

@@ -7,7 +7,6 @@ import type {
   ProjectionAnnotation,
   ProjectionLine,
   ProjectionSegment,
-  Tone,
 } from '../view-model'
 import { lineMatchesFilter } from '../view-model'
 

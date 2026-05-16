@@ -400,8 +400,8 @@ function sectionItemStructureSimilarity(oldNode: DiffNode, newNode: DiffNode): n
 
 function sectionItemKinds(node: DiffNode): string[] {
   const items = node.section?.items ?? []
-  return items.map((item: any) =>
-    typeof item?.kind === 'string' ? `section:${item.kind}` : `block:${String(item?.type ?? 'unknown')}`,
+  return items.map((item) =>
+    'kind' in item ? `section:${item.kind}` : `block:${String(item.type ?? 'unknown')}`,
   )
 }
 
