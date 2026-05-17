@@ -20,8 +20,7 @@ describe('App', () => {
       await waitFor(() => wrapper.text().includes('统计条') && !wrapper.text().includes('比对中...'))
 
       expect(wrapper.text()).toContain('Markdown Diff')
-      expect(wrapper.find('#old-markdown').element).toBeTruthy()
-      expect(wrapper.find('#new-markdown').element).toBeTruthy()
+      expect(wrapper.findAll('.markdown-editor')).toHaveLength(2)
       expect(wrapper.text()).toContain('统计条')
       expect(wrapper.text()).toContain('左右对齐视图')
       expect(wrapper.text()).toContain('旧文档')

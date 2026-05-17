@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import MarkdownEditor from './MarkdownEditor.vue'
+
 defineProps<{
   oldMarkdown: string
   newMarkdown: string
@@ -27,27 +29,25 @@ const emit = defineEmits<{
     <div class="editor-grid">
       <div class="editor-pane">
         <div class="editor-toolbar">
-          <label for="old-markdown">旧文档</label>
+          <label>旧文档</label>
           <button type="button" class="secondary-button" @click="emit('clear', 'old')">清空</button>
         </div>
-        <textarea
-          id="old-markdown"
-          :value="oldMarkdown"
-          spellcheck="false"
-          @input="emit('update:oldMarkdown', ($event.target as HTMLTextAreaElement).value)"
+        <MarkdownEditor
+          :model-value="oldMarkdown"
+          placeholder="在此粘贴旧文档..."
+          @update:model-value="emit('update:oldMarkdown', $event)"
         />
       </div>
 
       <div class="editor-pane">
         <div class="editor-toolbar">
-          <label for="new-markdown">新文档</label>
+          <label>新文档</label>
           <button type="button" class="secondary-button" @click="emit('clear', 'new')">清空</button>
         </div>
-        <textarea
-          id="new-markdown"
-          :value="newMarkdown"
-          spellcheck="false"
-          @input="emit('update:newMarkdown', ($event.target as HTMLTextAreaElement).value)"
+        <MarkdownEditor
+          :model-value="newMarkdown"
+          placeholder="在此粘贴新文档..."
+          @update:model-value="emit('update:newMarkdown', $event)"
         />
       </div>
     </div>
@@ -98,26 +98,8 @@ const emit = defineEmits<{
   margin-top: 12px;
 }
 
-.editor-pane textarea {
-  width: 100%;
-  min-height: 280px;
-  resize: vertical;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-subtle);
-  color: var(--text-primary);
-  padding: 10px 12px;
-  outline: none;
-  transition: border-color 150ms, box-shadow 150ms;
-  margin-top: 6px;
-}
-
-.editor-pane textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgb(217 119 87 / 12%);
-  background: var(--bg-surface);
+.editor-pane {
+  min-width: 0;
 }
 
 .primary-button {
