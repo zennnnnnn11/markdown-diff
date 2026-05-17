@@ -94,6 +94,22 @@ describe('text extraction', () => {
 
       expect(extractText(p)).toBe('nested docs')
     })
+    it('T04d-break: returns space for break node', () => {
+      expect(extractText(node('break'))).toBe(' ')
+    })
+    it('T04d-break-heading: setext heading with break preserves word boundary', () => {
+      const h = node('heading', {
+        depth: 1,
+        children: [text('Part 1'), node('break'), text('Part 2')],
+      })
+      expect(extractHeadingText(h)).toBe('Part 1 Part 2')
+    })
+    it('T04d-break-para: paragraph with break separates words', () => {
+      const p = node('paragraph', {
+        children: [text('line one'), node('break'), text('line two')],
+      })
+      expect(extractText(p)).toBe('line one line two')
+    })
   })
 
   describe('extractListItemFirstText', () => {

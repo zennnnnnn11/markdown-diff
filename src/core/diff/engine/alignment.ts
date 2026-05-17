@@ -156,11 +156,11 @@ export async function flushGap(
     oldParentId,
     newParentId,
   )
-  const pairedOld = new Set(pairs.map((pair) => pair.oldId))
+  const pairByOldId = new Map(pairs.map((pair) => [pair.oldId, pair]))
   const pairedNew = new Set(pairs.map((pair) => pair.newId))
 
   for (const oldId of residualOldGap) {
-    const aligned = pairs.find((pair) => pair.oldId === oldId)
+    const aligned = pairByOldId.get(oldId)
     if (aligned) {
       changes.push(await buildAlignedChange(context, aligned, mode))
       continue

@@ -9,6 +9,7 @@ export function extractText(node: Node | Block): string {
   }
   if ('value' in node) return String(node.value ?? '')
   if ('alt' in node && typeof node.alt === 'string') return node.alt
+  if (node.type === 'break') return ' '
   return ''
 }
 
