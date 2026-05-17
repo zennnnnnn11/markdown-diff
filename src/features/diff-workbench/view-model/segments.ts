@@ -167,7 +167,7 @@ function buildPreciseSideSegments(
   return fallback ? [fallback] : undefined
 }
 
-function buildPreciseWordSegments(
+export function buildPreciseWordSegments(
   sourceText: string,
   wordSpans: NonNullable<InlineSpan['wordSpans']>,
   side: 'old' | 'new',
@@ -175,6 +175,7 @@ function buildPreciseWordSegments(
 ): ProjectionSegment[] | undefined {
   const segments: ProjectionSegment[] = []
   const loweredSource = sourceText.toLowerCase()
+  if (loweredSource.length !== sourceText.length) return undefined
   let cursor = 0
 
   for (const wordSpan of wordSpans) {

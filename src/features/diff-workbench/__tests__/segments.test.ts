@@ -6,6 +6,7 @@ import {
   buildCodeSegment,
   buildSegmentsFromRanges,
   buildSideSegmentsFromSpans,
+  buildPreciseWordSegments,
 } from '../view-model/segments'
 import type { ProjectionSegment, Tone } from '../view-model/types'
 
@@ -278,6 +279,43 @@ describe('segments module', () => {
       expect(result).toBeDefined()
       expect(result![0]!.tone).toBe('delete')
       expect(result![2]!.tone).toBe('insert')
+    })
+  })
+
+  describe('buildPreciseWordSegments', () => {
+    it('positions word segments correctly for ASCII text', () => {
+      const wordSpans = [
+        { op: 'replace' as const, oldText: 'world', newText: 'planet' },
+      ]
+      const result = buildPreciseWordSegments('hello world', wordSpans, 'old', 'replace')
+      expect(result).toBeDefined()
+      expect(result!.find((s) => s.tone === 'delete')?.text).toBe('world')
+      expect(result!.find((s) => s.tone === 'plain')?.text).toBe('hello ')
+    })
+
+    it('bails out for Turkish İ where toLowerCase changes string length', () => {
+      const wordSpans = [
+        { op: 'replace' as const, oldText: 'İstanbul', newText: 'Ankara' },
+      ]
+      const result = buildPreciseWordSegments('İstanbul Güzel', wordSpans, 'old', 'replace')
+      expect(result).toBeUndefined()
+    })
+
+    it('works normally for non-problematic Unicode', () => {
+      const wordSpans = [
+        { op: 'replace' as const, oldText: '世界', newText: '地球' },
+      ]
+      const result = buildPreciseWordSegments('你好 世界', wordSpans, 'old', 'replace')
+      expect(result).toBeDefined()
+      expect(result!.find((s) => s.tone === 'delete')?.text).toBe('世界')
+    })
+
+    it('returns undefined when word is not found in source', () => {
+      const wordSpans = [
+        { op: 'replace' as const, oldText: 'missing', newText: 'gone' },
+      ]
+      const result = buildPreciseWordSegments('hello world', wordSpans, 'old', 'replace')
+      expect(result).toBeUndefined()
     })
   })
 })
