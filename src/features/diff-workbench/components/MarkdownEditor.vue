@@ -34,6 +34,7 @@ const highlightStyle = HighlightStyle.define([
   { tag: tags.quote, color: '#5B3A9B' },
   { tag: tags.contentSeparator, color: '#9E9892' },
   { tag: tags.processingInstruction, color: '#6B6560' },
+  { tag: tags.list, color: '#D97757' },
 ])
 
 const editorTheme = EditorView.theme({
