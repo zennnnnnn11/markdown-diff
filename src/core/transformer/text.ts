@@ -8,6 +8,7 @@ export function extractText(node: Node | Block): string {
     return (node.children as (Node | Block)[]).map(extractText).join('')
   }
   if ('value' in node) return String(node.value ?? '')
+  if ('alt' in node && typeof node.alt === 'string') return node.alt
   return ''
 }
 

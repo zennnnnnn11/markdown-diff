@@ -55,6 +55,31 @@ describe('text extraction', () => {
       expect(extractText(node('inlineCode', { value: 'const x = 1' }))).toBe('const x = 1')
       expect(extractText(node('html', { value: '<br />' }))).toBe('<br />')
     })
+    it('T04c-img: returns alt text for image node', () => {
+      expect(extractText(node('image', { url: 'pic.png', alt: 'sunset photo' }))).toBe('sunset photo')
+    })
+    it('T04c-img-null: returns empty string for image with null alt', () => {
+      expect(extractText(node('image', { url: 'pic.png', alt: null }))).toBe('')
+    })
+    it('T04c-img-none: returns empty string for image with no alt property', () => {
+      expect(extractText(node('image', { url: 'pic.png' }))).toBe('')
+    })
+    it('T04c-img-heading: heading with inline image preserves alt text', () => {
+      const h = node('heading', {
+        depth: 1,
+        children: [text('Click '), node('image', { url: 'img.png', alt: 'icon' }), text(' here')],
+      })
+      expect(extractHeadingText(h)).toBe('Click icon here')
+    })
+    it('T04c-img-nested: paragraph with emphasis wrapping an image extracts alt', () => {
+      const p = node('paragraph', {
+        children: [
+          text('see '),
+          node('emphasis', { children: [node('image', { url: 'a.png', alt: 'diagram' })] }),
+        ],
+      })
+      expect(extractText(p)).toBe('see diagram')
+    })
     it('T04c: recursively extracts nested emphasis and link-reference text', () => {
       const p = node('paragraph', {
         children: [
