@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import DiffChangeNav from './components/DiffChangeNav.vue'
 import DiffDebugPanel from './components/DiffDebugPanel.vue'
 import DiffDetailModal from './components/DiffDetailModal.vue'
 import DiffInputPanel from './components/DiffInputPanel.vue'
@@ -36,6 +37,9 @@ const peerHighlightKey = computed(() => workbench.peerHighlightKey.value)
 const peerSide = computed(() => workbench.peerSide.value)
 const debugVisible = computed(() => !!workbench.result.value && workbench.viewMode.value === 'debug')
 const debugSnapshot = computed(() => workbench.debugSnapshot.value)
+const inputCollapsed = computed(() => workbench.inputCollapsed.value)
+const currentChangeIndex = computed(() => workbench.currentChangeIndex.value)
+const totalChangeCount = computed(() => workbench.totalChangeCount.value)
 const mergedRows = computed(() =>
   workbench.result.value
     ? buildMergedRows(workbench.oldMarkdown.value, workbench.newMarkdown.value, workbench.result.value)
@@ -144,10 +148,12 @@ watch(
 )
 
 onMounted(async () => {
+  document.addEventListener('keydown', onKeyDown)
   await workbench.executeDiff()
 })
 
 onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeyDown)
   unifiedTableRef.value = null
   leftProjectionRef.value = null
   rightProjectionRef.value = null
@@ -181,6 +187,17 @@ function getScrollBody(
   if (body instanceof HTMLElement) return body
   return body?.value ?? null
 }
+
+function toggleCollapse(): void {
+  workbench.inputCollapsed.value = !workbench.inputCollapsed.value
+}
+
+function onKeyDown(e: KeyboardEvent): void {
+  if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
+  if ((e.target as HTMLElement)?.closest('.cm-editor')) return
+  e.preventDefault()
+  workbench.navigateChange(e.key === 'ArrowUp' ? -1 : 1)
+}
 </script>
 
 <template>
@@ -203,10 +220,12 @@ function getScrollBody(
       :is-running="isRunning"
       :can-run="canRun"
       :error-message="errorMessage"
+      :collapsed="inputCollapsed"
       @update:old-markdown="updateOldMarkdown"
       @update:new-markdown="updateNewMarkdown"
       @run="workbench.executeDiff"
       @clear="workbench.clearEditor"
+      @toggle-collapse="toggleCollapse"
     />
 
     <DiffStatsBar
@@ -233,6 +252,14 @@ function getScrollBody(
         <li v-for="(warning, index) in displayWarnings" :key="index">{{ warning }}</li>
       </ul>
     </details>
+
+    <DiffChangeNav
+      v-if="resultVisible && totalChangeCount > 0"
+      :current="currentChangeIndex"
+      :total="totalChangeCount"
+      @prev="workbench.navigateChange(-1)"
+      @next="workbench.navigateChange(1)"
+    />
 
     <UnifiedDiffTable
       v-if="resultVisible && viewMode === 'unified'"

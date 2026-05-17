@@ -7,6 +7,7 @@ defineProps<{
   isRunning: boolean
   canRun: boolean
   errorMessage: string
+  collapsed: boolean
 }>()
 
 const emit = defineEmits<{
@@ -14,6 +15,7 @@ const emit = defineEmits<{
   'update:newMarkdown': [value: string]
   run: []
   clear: [side: 'old' | 'new']
+  'toggle-collapse': []
 }>()
 </script>
 
@@ -21,42 +23,55 @@ const emit = defineEmits<{
   <section class="panel">
     <div class="panel-header">
       <h2>输入区</h2>
-      <button type="button" class="primary-button" :disabled="!canRun" @click="emit('run')">
-        {{ isRunning ? '比对中...' : '运行比对' }}
-      </button>
-    </div>
-
-    <div class="editor-grid">
-      <div class="editor-pane">
-        <div class="editor-toolbar">
-          <label>旧文档</label>
-          <button type="button" class="secondary-button" @click="emit('clear', 'old')">清空</button>
-        </div>
-        <MarkdownEditor
-          :model-value="oldMarkdown"
-          placeholder="在此粘贴旧文档..."
-          @update:model-value="emit('update:oldMarkdown', $event)"
-        />
-      </div>
-
-      <div class="editor-pane">
-        <div class="editor-toolbar">
-          <label>新文档</label>
-          <button type="button" class="secondary-button" @click="emit('clear', 'new')">清空</button>
-        </div>
-        <MarkdownEditor
-          :model-value="newMarkdown"
-          placeholder="在此粘贴新文档..."
-          @update:model-value="emit('update:newMarkdown', $event)"
-        />
+      <div class="panel-actions">
+        <button type="button" class="primary-button" :disabled="!canRun" @click="emit('run')">
+          {{ isRunning ? '比对中...' : '运行比对' }}
+        </button>
+        <button type="button" class="secondary-button" @click="emit('toggle-collapse')">
+          {{ collapsed ? '展开' : '收起' }}
+        </button>
       </div>
     </div>
 
-    <div v-if="isRunning" class="loading-state">
-      <span class="spinner" aria-hidden="true"></span>
-      <p class="hint">正在解析 Markdown、构建 Section 树并执行 diff。</p>
+    <p class="collapsed-summary" :class="{ visible: collapsed }">
+      旧文档 {{ oldMarkdown.length }} 字 / 新文档 {{ newMarkdown.length }} 字
+    </p>
+
+    <div class="editor-body" :class="{ collapsed }">
+      <div class="editor-body-inner">
+        <div class="editor-grid">
+          <div class="editor-pane">
+            <div class="editor-toolbar">
+              <label>旧文档</label>
+              <button type="button" class="secondary-button" @click="emit('clear', 'old')">清空</button>
+            </div>
+            <MarkdownEditor
+              :model-value="oldMarkdown"
+              placeholder="在此粘贴旧文档..."
+              @update:model-value="emit('update:oldMarkdown', $event)"
+            />
+          </div>
+
+          <div class="editor-pane">
+            <div class="editor-toolbar">
+              <label>新文档</label>
+              <button type="button" class="secondary-button" @click="emit('clear', 'new')">清空</button>
+            </div>
+            <MarkdownEditor
+              :model-value="newMarkdown"
+              placeholder="在此粘贴新文档..."
+              @update:model-value="emit('update:newMarkdown', $event)"
+            />
+          </div>
+        </div>
+
+        <div v-if="isRunning" class="loading-state">
+          <span class="spinner" aria-hidden="true"></span>
+          <p class="hint">正在解析 Markdown、构建 Section 树并执行 diff。</p>
+        </div>
+        <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
+      </div>
     </div>
-    <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
   </section>
 </template>
 
@@ -80,9 +95,54 @@ const emit = defineEmits<{
   font-size: 14px;
   font-weight: 600;
   color: var(--text-secondary);
-  margin: 0 0 12px;
+  margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.panel-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.collapsed-summary {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+  max-height: 0;
+  opacity: 0;
+  overflow: hidden;
+  transition: max-height 300ms cubic-bezier(0.25, 0.8, 0.25, 1),
+              opacity 250ms ease,
+              margin 300ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.collapsed-summary.visible {
+  max-height: 2em;
+  opacity: 1;
+  margin: 10px 0 0;
+}
+
+.editor-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 400ms cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.editor-body.collapsed {
+  grid-template-rows: 0fr;
+}
+
+.editor-body-inner {
+  overflow: hidden;
+  min-height: 0;
+  opacity: 1;
+  transition: opacity 200ms ease;
+}
+
+.editor-body.collapsed .editor-body-inner {
+  opacity: 0;
 }
 
 .editor-toolbar label {

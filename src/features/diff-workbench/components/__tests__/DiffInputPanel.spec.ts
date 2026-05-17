@@ -9,6 +9,7 @@ function defaultProps() {
     isRunning: false,
     canRun: true,
     errorMessage: '',
+    collapsed: false,
   }
 }
 
@@ -47,14 +48,14 @@ describe('DiffInputPanel', () => {
 
   it('emits "clear" with "old" on old clear button click', async () => {
     const wrapper = shallowMount(DiffInputPanel, { props: defaultProps() })
-    const clearButtons = wrapper.findAll('.secondary-button')
+    const clearButtons = wrapper.findAll('.editor-toolbar .secondary-button')
     await clearButtons[0]!.trigger('click')
     expect(wrapper.emitted('clear')).toEqual([['old']])
   })
 
   it('emits "clear" with "new" on new clear button click', async () => {
     const wrapper = shallowMount(DiffInputPanel, { props: defaultProps() })
-    const clearButtons = wrapper.findAll('.secondary-button')
+    const clearButtons = wrapper.findAll('.editor-toolbar .secondary-button')
     await clearButtons[1]!.trigger('click')
     expect(wrapper.emitted('clear')).toEqual([['new']])
   })

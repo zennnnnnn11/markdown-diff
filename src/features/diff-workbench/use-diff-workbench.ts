@@ -16,6 +16,12 @@ import {
   runMarkdownDiff,
 } from './view-model'
 
+export interface ChangePosition {
+  changeKey: string
+  index: number
+  side: 'old' | 'new'
+}
+
 export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown: string) {
   const oldMarkdown = ref(initialOldMarkdown)
   const newMarkdown = ref(initialNewMarkdown)
@@ -28,6 +34,8 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
   const lastDiffedOld = ref('')
   const lastDiffedNew = ref('')
   const pendingScrollTarget = ref<{ changeKey: string; index: number; side: 'old' | 'new' } | null>(null)
+  const inputCollapsed = ref(false)
+  const currentChangeIndex = ref(-1)
 
   const flatChanges = computed(() => (result.value ? flattenChanges(result.value.root) : []))
   const changeByKey = computed(() => {
@@ -85,6 +93,39 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     return cards
   })
 
+  const changePositions = computed<ChangePosition[]>(() => {
+    if (!result.value) return []
+    const seen = new Set<string>()
+    const positions: ChangePosition[] = []
+
+    for (let i = 0; i < projectionLines.value.length; i++) {
+      const line = projectionLines.value[i]!
+      if (line.baseTone !== 'plain' && line.changeKey && !seen.has(line.changeKey)) {
+        seen.add(line.changeKey)
+        positions.push({ changeKey: line.changeKey, index: i, side: 'new' })
+      }
+    }
+    for (let i = 0; i < oldProjectionLines.value.length; i++) {
+      const line = oldProjectionLines.value[i]!
+      if (line.baseTone !== 'plain' && line.changeKey && !seen.has(line.changeKey)) {
+        seen.add(line.changeKey)
+        positions.push({ changeKey: line.changeKey, index: i, side: 'old' })
+      }
+    }
+    return positions
+  })
+
+  const totalChangeCount = computed(() => changePositions.value.length)
+
+  function navigateChange(delta: 1 | -1): void {
+    if (totalChangeCount.value === 0) return
+    const next = currentChangeIndex.value + delta
+    if (next < 0 || next >= totalChangeCount.value) return
+    currentChangeIndex.value = next
+    const pos = changePositions.value[next]!
+    pendingScrollTarget.value = { changeKey: pos.changeKey, index: pos.index, side: pos.side }
+  }
+
   async function executeDiff(): Promise<void> {
     if (!canRun.value) return
 
@@ -100,6 +141,8 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
         ? await runDiffInWorker(oldMarkdown.value, newMarkdown.value)
         : await runMarkdownDiff(oldMarkdown.value, newMarkdown.value)
       result.value = markRaw(raw)
+      inputCollapsed.value = true
+      currentChangeIndex.value = -1
     } catch (error) {
       result.value = null
       errorMessage.value = error instanceof Error ? error.message : '比对失败'
@@ -117,6 +160,8 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     errorMessage.value = ''
     lastDiffedOld.value = ''
     lastDiffedNew.value = ''
+    inputCollapsed.value = false
+    currentChangeIndex.value = -1
   }
 
   function selectLine(changeKey?: string): void {
@@ -171,11 +216,16 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     peerHighlightKey,
     peerSide,
     pendingScrollTarget,
+    inputCollapsed,
+    currentChangeIndex,
+    changePositions,
+    totalChangeCount,
     executeDiff,
     clearEditor,
     selectLine,
     closeDetail,
     scrollToFirstMatch,
+    navigateChange,
   }
 }
 
