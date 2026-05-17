@@ -29,7 +29,7 @@ export async function maybeApplyStructuralFallback(
   const newChildren = context.newIndex.childrenById.get(newNode.id) ?? []
   const unresolved = change.children.filter((child) => child.primaryOp !== 'equal').length
   const total = Math.max(oldChildren.length + newChildren.length, 1)
-  if (total === 0 || unresolved / total <= context.options.aptedUnpairedThreshold) return
+  if (unresolved / total <= context.options.aptedUnpairedThreshold) return
   if (estimateAptedRecoveryCost(change) > context.options.maxAptedCost) {
     change.warnings.push('enhanced-local-recovery-budget-exceeded')
     return

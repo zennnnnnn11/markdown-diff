@@ -308,4 +308,22 @@ describe('structural fallback hook via DiffContext', () => {
     })
   })
 
+  describe('threshold edge cases', () => {
+    it('skips fallback when all children are equal (unresolved ratio = 0)', async () => {
+      const md = '# Root\n\n## Sub\n\nContent.\n'
+      const result = await diffMarkdown(md, md, { enhancedLocalRecovery: true })
+      const changes = flatten(result.root)
+      expect(changes.every((c) => c.primaryOp === 'equal')).toBe(true)
+    })
+
+    it('handles one-sided diff (insert-only, old has no children) without division by zero', async () => {
+      const oldMd = '# Root\n'
+      const newMd = '# Root\n\nNew paragraph.\n'
+      const result = await diffMarkdown(oldMd, newMd, { enhancedLocalRecovery: true })
+      expect(result.root).toBeDefined()
+      const changes = flatten(result.root)
+      expect(changes.some((c) => c.primaryOp === 'insert')).toBe(true)
+    })
+  })
+
 })
