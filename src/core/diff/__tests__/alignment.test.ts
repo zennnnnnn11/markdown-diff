@@ -7,12 +7,13 @@ import {
   markReorderedChildren,
   buildDeleteChange,
   buildInsertChange,
+  buildAlignedChange,
   expandChildren,
   shouldUseShortHeadingFallback,
   pairGapNodes,
 } from '../engine/alignment'
 import type { DiffContext } from '../engine/context'
-import type { MatchPair, SemanticIndex } from '../types'
+import type { MatchPair, AlignedPair, SemanticIndex } from '../types'
 import { resolveDiffOptions } from '../options'
 import { makeStatus } from './test-helpers'
 
@@ -512,6 +513,81 @@ describe('alignment module', () => {
       const context = makeContext({ oldNodes: [old], newNodes: [nw] })
       const result = await pairGapNodes(context, ['o1'], ['n1'], 'p1', 'p2')
       expect(result).toEqual([])
+    })
+  })
+
+  describe('buildAlignedChange', () => {
+    function makeAligned(oldId: string, newId: string, overrides: Partial<AlignedPair> = {}): AlignedPair {
+      return {
+        oldId,
+        newId,
+        pairKind: 'align',
+        pairKey: `align:${oldId}:${newId}`,
+        score: 0.8,
+        ...overrides,
+      }
+    }
+
+    it('sets primaryOp to equal when selfHash and subtreeHash both match', async () => {
+      const hash = 'identical-hash'
+      const old = makeMockNode({ id: 'o1', entity: 'block', selfHash: hash, subtreeHash: hash })
+      const nw = makeMockNode({ id: 'n1', entity: 'block', selfHash: hash, subtreeHash: hash })
+      const context = makeContext({ oldNodes: [old], newNodes: [nw] })
+      const change = await buildAlignedChange(context, makeAligned('o1', 'n1'), 'global')
+      expect(change.primaryOp).toBe('equal')
+      expect(change.status.selfChanged).toBe(false)
+      expect(change.status.descendantChanged).toBe(false)
+    })
+
+    it('sets primaryOp to replace when selfHash differs', async () => {
+      const old = makeMockNode({ id: 'o1', entity: 'block', selfHash: 'a', subtreeHash: 'a' })
+      const nw = makeMockNode({ id: 'n1', entity: 'block', selfHash: 'b', subtreeHash: 'b' })
+      const context = makeContext({ oldNodes: [old], newNodes: [nw] })
+      const change = await buildAlignedChange(context, makeAligned('o1', 'n1'), 'global')
+      expect(change.primaryOp).toBe('replace')
+      expect(change.status.selfChanged).toBe(true)
+    })
+
+    it('sets primaryOp to replace when subtreeHash differs but selfHash matches', async () => {
+      const old = makeMockNode({ id: 'o1', entity: 'block', selfHash: 'same', subtreeHash: 'x' })
+      const nw = makeMockNode({ id: 'n1', entity: 'block', selfHash: 'same', subtreeHash: 'y' })
+      const context = makeContext({ oldNodes: [old], newNodes: [nw] })
+      const change = await buildAlignedChange(context, makeAligned('o1', 'n1'), 'global')
+      expect(change.primaryOp).toBe('replace')
+      expect(change.status.selfChanged).toBe(false)
+      expect(change.status.descendantChanged).toBe(true)
+    })
+
+    it('sets primaryOp to equal for identical section in local mode', async () => {
+      const hash = 'same'
+      const old = makeMockNode({
+        id: 'o1', entity: 'section', kind: 'heading',
+        selfHash: hash, subtreeHash: hash,
+        section: { kind: 'heading', headingDepth: 1 },
+      })
+      const nw = makeMockNode({
+        id: 'n1', entity: 'section', kind: 'heading',
+        selfHash: hash, subtreeHash: hash,
+        section: { kind: 'heading', headingDepth: 1 },
+      })
+      const context = makeContext({
+        oldNodes: [old], newNodes: [nw],
+        oldChildren: new Map([['o1', []]]),
+        newChildren: new Map([['n1', []]]),
+      })
+      const change = await buildAlignedChange(context, makeAligned('o1', 'n1'), 'local')
+      expect(change.primaryOp).toBe('equal')
+      expect(change.status.selfChanged).toBe(false)
+      expect(change.status.descendantChanged).toBe(false)
+    })
+
+    it('preserves pairKind as align', async () => {
+      const old = makeMockNode({ id: 'o1', selfHash: 'a', subtreeHash: 'a' })
+      const nw = makeMockNode({ id: 'n1', selfHash: 'a', subtreeHash: 'a' })
+      const context = makeContext({ oldNodes: [old], newNodes: [nw] })
+      const change = await buildAlignedChange(context, makeAligned('o1', 'n1'), 'global')
+      expect(change.pairKind).toBe('align')
+      expect(change.status.isAlignedPair).toBe(true)
     })
   })
 })

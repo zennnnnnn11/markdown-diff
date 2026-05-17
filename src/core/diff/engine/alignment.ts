@@ -373,6 +373,9 @@ export async function buildAlignedChange(
   const newNode = context.newIndex.byId.get(aligned.newId)
   if (!oldNode || !newNode) throw new Error(`Missing aligned nodes ${aligned.pairKey}`)
 
+  const selfChanged = oldNode.selfHash !== newNode.selfHash
+  const descendantChanged = oldNode.subtreeHash !== newNode.subtreeHash
+
   const change: DiffChange = {
     entity: oldNode.entity,
     kind: oldNode.kind,
@@ -383,11 +386,11 @@ export async function buildAlignedChange(
     newNode: newNode.raw,
     pairKey: aligned.pairKey,
     pairKind: 'align',
-    primaryOp: 'replace',
+    primaryOp: (selfChanged || descendantChanged) ? 'replace' : 'equal',
     status: createStatus({
       isAlignedPair: true,
-      selfChanged: oldNode.selfHash !== newNode.selfHash,
-      descendantChanged: oldNode.subtreeHash !== newNode.subtreeHash,
+      selfChanged,
+      descendantChanged,
     }),
     score: aligned.score,
     summary: `Aligned ${labelForNode(oldNode)}`,
