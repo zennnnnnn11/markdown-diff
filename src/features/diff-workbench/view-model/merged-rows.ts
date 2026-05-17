@@ -254,7 +254,8 @@ function computeLineMatches(
       const idx = candidates.find((i) => !usedOld.has(i))
       if (idx !== undefined) { usedOld.add(idx); matches.push([idx, j]) }
     }
-    return matches.sort((a, b) => a[0] - b[0])
+    matches.sort((a, b) => a[0] - b[0])
+    return removeNewIndexCrossings(matches)
   }
 
   const dp = Array.from({ length: oldLines.length + 1 }, () =>
@@ -332,6 +333,20 @@ function computeLineMatches(
   }
 
   return matches
+}
+
+export function removeNewIndexCrossings(
+  sorted: Array<[number, number]>,
+): Array<[number, number]> {
+  const result: Array<[number, number]> = []
+  let maxNewIndex = -1
+  for (const match of sorted) {
+    if (match[1] > maxNewIndex) {
+      result.push(match)
+      maxNewIndex = match[1]
+    }
+  }
+  return result
 }
 
 function plainBlockSimilarity(a: ProjectionBlock, b: ProjectionBlock): number {
