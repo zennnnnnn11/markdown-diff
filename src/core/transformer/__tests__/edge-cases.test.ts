@@ -122,7 +122,7 @@ describe('edge cases', () => {
     const root = { type: 'root', children } as any
     const tree = transformMarkdown(root)
     const heading = tree.children[0]!
-    expect(heading.items.length).toBeGreaterThanOrEqual(5000)
+    expect(heading.items.length).toBe(5000)
   }, 30000)
 
   it('E13: footnote-only doc → root.children empty, footnotes have content', async () => {
@@ -130,7 +130,7 @@ describe('edge cases', () => {
     const tree = transformMarkdown(await parseMarkdown(md))
     expect(tree.children).toHaveLength(0)
     expect(tree.footnotes!).toHaveLength(1)
-    expect(tree.footnotes![0]!.items.length).toBeGreaterThanOrEqual(1)
+    expect(tree.footnotes![0]!.items.length).toBe(1)
   })
 
   it('E14: definition-only doc → definitions have content, no crash', async () => {
@@ -150,6 +150,6 @@ describe('edge cases', () => {
     expect(items[1]!.type).toBe('paragraph')
     // definition should not be in items
     expect(items.some((b) => b.type === 'definition')).toBe(false)
-    expect(tree.definitions!.length).toBeGreaterThanOrEqual(1)
+    expect(tree.definitions!.length).toBe(1)
   })
 })

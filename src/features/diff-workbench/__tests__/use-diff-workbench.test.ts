@@ -429,12 +429,11 @@ describe('useDiffWorkbench', () => {
     const firstChange = workbench.result.value
       ? flattenChanges(workbench.result.value.root).find((c) => c.primaryOp !== 'equal')
       : undefined
-    if (firstChange) {
-      firstChange.metadataChanges = [{ op: 'replace', path: '$.tags[0]', oldValue: 'a', newValue: 'b' }]
-      delete (firstChange as any).pairKey
-      delete (firstChange as any).oldId
-      delete (firstChange as any).newId
-    }
+    expect(firstChange).toBeDefined()
+    firstChange!.metadataChanges = [{ op: 'replace', path: '$.tags[0]', oldValue: 'a', newValue: 'b' }]
+    delete (firstChange as any).pairKey
+    delete (firstChange as any).oldId
+    delete (firstChange as any).newId
 
     expect(() => workbench.scrollToFirstMatch('replace')).not.toThrow()
   })
@@ -534,21 +533,7 @@ describe('useDiffWorkbench', () => {
     expect(workbench.canRun.value).toBe(true)
   })
 
-  it('executeDiff populates errorMessage on failure', async () => {
-    const workbench = useDiffWorkbench('old', 'new')
-
-    // mock the worker to reject
-    vi.doMock('@/core/diff/worker-client', () => ({
-      runDiffInWorker: () => Promise.reject(new Error('parse failure')),
-    }))
-
-    // since we can't easily swap the import, test via the non-Worker path
-    // by verifying errorMessage resets correctly
-    await workbench.executeDiff()
-    expect(workbench.errorMessage.value).toBe('')
-
-    vi.doUnmock('@/core/diff/worker-client')
-  })
+  it.todo('executeDiff populates errorMessage on failure — vi.doMock cannot replace already-resolved imports')
 
   it('executeDiff resets errorMessage on successful run', async () => {
     const workbench = useDiffWorkbench('# Title\n\nold', '# Title\n\nnew')
@@ -618,13 +603,12 @@ describe('useDiffWorkbench', () => {
       return undefined
     })() : undefined
 
-    if (firstKey) {
-      workbench.selectLine(firstKey)
-      expect(workbench.selectedChangeKey.value).toBe(firstKey)
+    expect(firstKey).toBeDefined()
+    workbench.selectLine(firstKey!)
+    expect(workbench.selectedChangeKey.value).toBe(firstKey)
 
-      workbench.closeDetail()
-      expect(workbench.selectedChangeKey.value).toBeNull()
-    }
+    workbench.closeDetail()
+    expect(workbench.selectedChangeKey.value).toBeNull()
   })
 
   it('projectionLines returns correct line numbers', () => {
@@ -678,9 +662,8 @@ describe('useDiffWorkbench', () => {
 
     workbench.scrollToFirstMatch('insert')
 
-    if (workbench.pendingScrollTarget.value) {
-      expect(workbench.pendingScrollTarget.value.side).toBe('new')
-    }
+    expect(workbench.pendingScrollTarget.value).toBeDefined()
+    expect(workbench.pendingScrollTarget.value!.side).toBe('new')
   })
 
   it('isDiffStale is true only after old markdown changes post-diff', async () => {

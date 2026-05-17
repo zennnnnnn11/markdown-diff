@@ -34,7 +34,7 @@ describe('uniqueHeadingSiblingNames moved to helpers', () => {
     const result = await diffMarkdown(oldMd, newMd)
     const changes = flatten(result.root)
     const renamed = changes.filter((c) => c.status.renamed)
-    expect(renamed.length).toBeGreaterThan(0)
+    expect(renamed.length).toBe(1)
   })
 
   it('short heading fallback still uses uniqueHeadingSiblingNames', async () => {
@@ -55,9 +55,9 @@ describe('uniqueHeadingSiblingNames moved to helpers', () => {
     ].join('\n')
 
     const result = await diffMarkdown(oldMd, newMd)
-    expect(result.root).toBeDefined()
     const changes = flatten(result.root)
-    expect(changes.length).toBeGreaterThan(0)
+    const renamed = changes.filter((c) => c.status.renamed)
+    expect(renamed.length).toBe(1)
   })
 
   it('duplicate heading names prevent false rename matches', async () => {
@@ -86,6 +86,8 @@ describe('uniqueHeadingSiblingNames moved to helpers', () => {
     ].join('\n')
 
     const result = await diffMarkdown(oldMd, newMd)
-    expect(result.root).toBeDefined()
+    const changes = flatten(result.root)
+    const renamed = changes.filter((c) => c.status.renamed)
+    expect(renamed.length).toBeLessThanOrEqual(1)
   })
 })

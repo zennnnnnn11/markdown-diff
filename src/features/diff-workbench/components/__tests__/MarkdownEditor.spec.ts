@@ -90,9 +90,8 @@ describe('MarkdownEditor', () => {
       attachTo: document.body,
     })
     const placeholder = wrapper.find('.cm-placeholder')
-    if (placeholder.exists()) {
-      expect(placeholder.text()).toContain('Markdown')
-    }
+    expect(placeholder.exists()).toBe(true)
+    expect(placeholder.text()).toContain('Markdown')
   })
 
   it('destroys EditorView on unmount', () => {

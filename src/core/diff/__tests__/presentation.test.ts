@@ -245,7 +245,7 @@ describe('presentation module', () => {
 
     it('handles empty strings', () => {
       const result = diffCodeLines('', '', resolveDiffOptions({}))
-      expect(result.length).toBeGreaterThanOrEqual(0)
+      expect(result.length).toBe(1)
     })
   })
 })

@@ -156,17 +156,22 @@ describe('testing philosophy operations batch', () => {
 
   describe('html/math/yaml/toml block coverage', () => {
     it.each([
-      ['HM-001', '<div>x</div>', '<div>x</div>'],
       ['HM-002', '<div>x</div>', '<div>y</div>'],
-      ['HM-003', '$$x=1$$', '$$x=1$$'],
       ['HM-004', '$$x=1$$', '$$y=2$$'],
       ['HM-005', '```yaml\na: 1\n```', '```yaml\na: 2\n```'],
-      ['HM-006', '```toml\na = 1\n```', '```toml\na = 1\n```'],
       ['HM-007', '<div>x</div>', '$$x=1$$'],
-    ])('%s parses and diffs specialized block content without crashing', async (_id, oldMarkdown, newMarkdown) => {
+    ])('%s detects change in specialized block', async (_id, oldMarkdown, newMarkdown) => {
       const result = await diffMarkdown(oldMarkdown, newMarkdown)
-      expect(result.root).toBeDefined()
-      expect(result.stats).toBeDefined()
+      expect(hasAnySemanticChange(result)).toBe(true)
+    })
+
+    it.each([
+      ['HM-001', '<div>x</div>'],
+      ['HM-003', '$$x=1$$'],
+      ['HM-006', '```toml\na = 1\n```'],
+    ])('%s identity diff has no changes', async (_id, markdown) => {
+      const result = await diffMarkdown(markdown)
+      expect(hasAnySemanticChange(result)).toBe(false)
     })
   })
 })

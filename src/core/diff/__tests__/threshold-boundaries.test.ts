@@ -156,7 +156,7 @@ describe('threshold boundaries', () => {
       const highChanges = flatten(highThreshold.root)
       const lowDeletes = lowChanges.filter((c) => c.primaryOp === 'delete')
       const highDeletes = highChanges.filter((c) => c.primaryOp === 'delete')
-      expect(highDeletes.length).toBeGreaterThanOrEqual(lowDeletes.length)
+      expect(highDeletes.length).toBeGreaterThan(lowDeletes.length)
     })
   })
 
@@ -221,9 +221,8 @@ describe('threshold boundaries', () => {
       const result = await diffMarkdown(oldCode, newCode)
       const changes = flatten(result.root)
       const codeChange = changes.find((c) => c.blockType === 'code' && c.codeSpans)
-      if (codeChange) {
-        expect(codeChange.codeSpans!.length).toBe(10)
-      }
+      expect(codeChange).toBeDefined()
+      expect(codeChange!.codeSpans!.length).toBe(10)
     })
 
     it('code above threshold is folded', async () => {
@@ -238,9 +237,8 @@ describe('threshold boundaries', () => {
       })
       const changes = flatten(result.root)
       const codeChange = changes.find((c) => c.blockType === 'code' && c.codeSpans)
-      if (codeChange) {
-        expect(codeChange.codeSpans!.length).toBeLessThan(250)
-      }
+      expect(codeChange).toBeDefined()
+      expect(codeChange!.codeSpans!.length).toBeLessThan(250)
     })
   })
 

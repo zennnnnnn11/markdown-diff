@@ -543,22 +543,7 @@ describe('diff workbench view-model', () => {
     expect(detail?.newInlineSegments).toBeUndefined()
   })
 
-  it('omits title comparison for heading replace (align, not confirmed rename)', async () => {
-    // Two headings with different content and no body — they form an align pair,
-    // but if headingBodyHash is empty (no children), rename confirmation may not trigger.
-    const result = await runMarkdownDiff('# Alpha\n\ntext', '# Beta\n\ntext')
-    const alignedHeading = flattenChanges(result.root).find(
-      (change) => change.kind === 'heading' && change.pairKind === 'align',
-    )
-
-    if (!alignedHeading) return
-
-    const detail = buildDetailPanel(alignedHeading)
-
-    // Heading rename via align should still show inline segments (not title compare)
-    // because status.renamed may or may not be set depending on engine behavior
-    expect(detail?.oldTitle).toBeUndefined()
-  })
+  it.todo('omits title comparison for heading replace (align, not confirmed rename) — engine produces match+rename for this input, not an align pair')
 
   it('omits title comparison for paragraph changes', async () => {
     const result = await runMarkdownDiff('# Title\n\nold text', '# Title\n\nnew text')
@@ -572,22 +557,7 @@ describe('diff workbench view-model', () => {
     expect(detail?.newInlineSegments).toBeDefined()
   })
 
-  it('omits title comparison for footnote renames', async () => {
-    const result = await runMarkdownDiff(
-      'Body text[^old]\n\n[^old]: Old footnote',
-      'Body text[^new]\n\n[^new]: New footnote',
-    )
-    const footnoteChange = flattenChanges(result.root).find(
-      (change) => change.kind === 'footnote' && change.status.renamed,
-    )
-
-    if (!footnoteChange) return
-
-    const detail = buildDetailPanel(footnoteChange)
-
-    expect(detail?.oldTitle).toBeUndefined()
-    expect(detail?.newTitle).toBeUndefined()
-  })
+  it.todo('omits title comparison for footnote renames — engine treats different-identifier footnotes as delete+insert, not rename')
 
   // ─── matchKind — absence conditions ───
 
@@ -716,24 +686,7 @@ describe('diff workbench view-model', () => {
 
   // ─── backlink info ───
 
-  it('collects affected lines for footnote renames with backlinks', async () => {
-    const result = await runMarkdownDiff(
-      'Body with a reference[^old]\n\n[^old]: old footnote',
-      'Body with a reference[^new]\n\n[^new]: new footnote',
-    )
-    const noteChange = flattenChanges(result.root).find(
-      (change) => change.kind === 'footnote' && change.status.renamed,
-    )
-
-    if (!noteChange) return
-
-    const detail = buildDetailPanel(noteChange, undefined, result.newIndex, result.oldIndex)
-
-    expect(detail?.backlinkInfo).toBeDefined()
-    expect(detail?.backlinkInfo?.oldIdentifier).toBe('old')
-    expect(detail?.backlinkInfo?.newIdentifier).toBe('new')
-    expect(detail?.backlinkInfo?.affectedLines.length).toBeGreaterThan(0)
-  })
+  it.todo('collects affected lines for footnote renames with backlinks — engine treats different-identifier footnotes as delete+insert, not rename')
 
   it('returns no backlinkInfo for non-footnote/definition changes', async () => {
     const result = await runMarkdownDiff('# Title\n\nparagraph', '# Title\n\nparagraph')
@@ -802,26 +755,25 @@ describe('diff workbench view-model', () => {
     expect(oldLines.length).toBeGreaterThan(0)
   })
 
-  it('projects move-source in old document with move tone and match pairKind', async () => {
+  it('projects reordered sections in old document with reorder tone', async () => {
     const result = await runMarkdownDiff(
       '# Section A\n\ncontent A\n\n# Section B\n\ncontent B',
       '# Section B\n\ncontent B\n\n# Section A\n\ncontent A',
     )
     const allChanges = flattenChanges(result.root)
-    const moveSource = allChanges.find(
-      (change) => change.primaryOp === 'move' && change.moveRole === 'source',
+    const reordered = allChanges.find(
+      (change) => change.status.movedWithinParent || change.reordered,
     )
 
-    if (!moveSource) return
+    expect(reordered).toBeDefined()
 
     const oldLines = buildOldProjectionLines(
       '# Section A\n\ncontent A\n\n# Section B\n\ncontent B',
       result,
     )
-    const movedOldLine = oldLines.find((line) => line.baseTone === 'move')
+    const reorderedOldLine = oldLines.find((line) => line.baseTone === 'reorder')
 
-    expect(movedOldLine).toBeDefined()
-    expect(movedOldLine?.pairKind).toBe('match')
+    expect(reorderedOldLine).toBeDefined()
   })
 
   it('handles empty old document gracefully', async () => {
@@ -1025,7 +977,7 @@ describe('diff workbench view-model', () => {
     expect(detail?.backlinkInfo?.oldIdentifier).toBe('ref')
     expect(detail?.backlinkInfo?.newIdentifier).toBe('ref')
     // backlinks for definitions include the definition node itself as a holder
-    expect(detail?.backlinkInfo?.affectedLines.length).toBeGreaterThanOrEqual(0)
+    expect(detail?.backlinkInfo?.affectedLines.length).toBeGreaterThan(0)
   })
 
   it('marks list item inside blockquote as replace when content differs', async () => {

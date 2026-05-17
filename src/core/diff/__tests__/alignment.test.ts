@@ -503,7 +503,7 @@ describe('alignment module', () => {
         matchesByOld: new Map([['p1', makePair('p1', 'p2')]]),
       })
       const result = await pairGapNodes(context, ['o1'], ['n1'], 'p1', 'p2')
-      expect(result.length).toBeGreaterThanOrEqual(1)
+      expect(result.length).toBe(1)
       expect(result[0]!.pairKind).toBe('align')
     })
 

@@ -3,7 +3,7 @@ import { diffMarkdown, flatten } from './test-helpers'
 
 describe('feature interaction tests', () => {
   describe('move + rename simultaneously', () => {
-    it('heading moved to different section AND renamed', async () => {
+    it('heading moved to different section with title change', async () => {
       const oldMd = [
         '# Root',
         '',
@@ -35,8 +35,8 @@ describe('feature interaction tests', () => {
       const result = await diffMarkdown(oldMd, newMd)
       const changes = flatten(result.root)
       const moved = changes.filter((c) => c.status.moved)
-      const renamed = changes.filter((c) => c.status.renamed)
-      expect(moved.length + renamed.length).toBeGreaterThan(0)
+      expect(moved.length).toBeGreaterThan(0)
+      expect(result.stats.moves).toBeGreaterThanOrEqual(1)
     })
   })
 
@@ -71,7 +71,7 @@ describe('feature interaction tests', () => {
       const result = await diffMarkdown(oldMd, newMd)
       expect(result.root).toBeDefined()
       const changes = flatten(result.root)
-      expect(changes.length).toBeGreaterThan(0)
+      expect(changes.some((c) => c.primaryOp !== 'equal')).toBe(true)
     })
   })
 
@@ -144,9 +144,12 @@ describe('feature interaction tests', () => {
 
       const result = await diffMarkdown(oldMd, newMd)
       const changes = flatten(result.root)
-      expect(changes.some((c) => c.blockType === 'paragraph')).toBe(true)
-      expect(changes.some((c) => c.blockType === 'code')).toBe(true)
-      expect(changes.some((c) => c.blockType === 'table')).toBe(true)
+      const changedParagraph = changes.find((c) => c.blockType === 'paragraph' && c.primaryOp !== 'equal')
+      const changedCode = changes.find((c) => c.blockType === 'code' && c.primaryOp !== 'equal')
+      const changedTable = changes.find((c) => c.blockType === 'table' && c.primaryOp !== 'equal')
+      expect(changedParagraph).toBeDefined()
+      expect(changedCode).toBeDefined()
+      expect(changedTable).toBeDefined()
     })
 
     it('reorder + content edit in the same section', async () => {
@@ -188,6 +191,10 @@ describe('feature interaction tests', () => {
         (c) => c.reordered || c.status.moved || c.status.movedWithinParent,
       )
       expect(reorderedOrMoved.length).toBeGreaterThan(0)
+      const movedWithContentEdit = changes.find(
+        (c) => c.status.moved && c.status.selfChanged,
+      )
+      expect(movedWithContentEdit).toBeDefined()
     })
   })
 
@@ -210,7 +217,10 @@ describe('feature interaction tests', () => {
       const result = await diffMarkdown(oldMd, newMd)
       expect(result.root).toBeDefined()
       const changes = flatten(result.root)
-      expect(changes.length).toBeGreaterThan(1)
+      const listItems = changes.filter((c) => c.kind === 'listItem')
+      expect(listItems.length).toBeGreaterThan(1)
+      const nonEqual = listItems.filter((c) => c.primaryOp !== 'equal')
+      expect(nonEqual.length).toBeGreaterThan(0)
     })
   })
 })

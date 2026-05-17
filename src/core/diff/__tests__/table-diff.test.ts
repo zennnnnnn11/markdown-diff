@@ -167,7 +167,7 @@ describe('table-diff', () => {
       const tableChange = changes.find((c) => c.blockType === 'table')
       expect(tableChange?.tableDiff?.rowEdits).toBeDefined()
       const insertRows = tableChange!.tableDiff!.rowEdits!.filter((r) => r.op === 'insert')
-      expect(insertRows.length).toBeGreaterThanOrEqual(1)
+      expect(insertRows.length).toBe(1)
     })
 
     it('produces rowEdits when a row is deleted', async () => {
@@ -179,7 +179,7 @@ describe('table-diff', () => {
       const tableChange = changes.find((c) => c.blockType === 'table')
       expect(tableChange?.tableDiff?.rowEdits).toBeDefined()
       const deleteRows = tableChange!.tableDiff!.rowEdits!.filter((r) => r.op === 'delete')
-      expect(deleteRows.length).toBeGreaterThanOrEqual(1)
+      expect(deleteRows.length).toBe(1)
     })
 
     it('produces columnEdits when a column is added', async () => {
@@ -191,7 +191,7 @@ describe('table-diff', () => {
       const tableChange = changes.find((c) => c.blockType === 'table')
       expect(tableChange?.tableDiff?.columnEdits).toBeDefined()
       const insertCols = tableChange!.tableDiff!.columnEdits!.filter((c) => c.op === 'insert')
-      expect(insertCols.length).toBeGreaterThanOrEqual(1)
+      expect(insertCols.length).toBe(1)
     })
 
     it('produces cell diffs for aligned rows with content changes', async () => {

@@ -758,6 +758,9 @@ limits:
         !!change.pairKind,
     )
     expect(replacedParagraph ?? replacedLeafItem ?? deepMatchedItem).toBeDefined()
+    expect(
+      [replacedParagraph, replacedLeafItem, deepMatchedItem].filter(Boolean).length,
+    ).toBeGreaterThanOrEqual(1)
     expect(flatten(result.root).some((change) => change.warnings.includes('local-window-exceeded'))).toBe(false)
     expect(flatten(result.root).some((change) => change.warnings.includes('subtree-budget-exceeded'))).toBe(false)
   })
@@ -956,7 +959,7 @@ describe('hungarian gap matching integration', () => {
     )
 
     // The dissimilar paragraphs should produce insert+delete, not a replace pair
-    expect(dissimilarChanges.length).toBeGreaterThanOrEqual(1)
+    expect(dissimilarChanges.length).toBeGreaterThanOrEqual(2)
   })
 
   it('handles empty gap gracefully', async () => {

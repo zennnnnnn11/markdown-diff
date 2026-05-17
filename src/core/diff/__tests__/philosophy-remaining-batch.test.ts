@@ -131,12 +131,10 @@ describe('testing philosophy remaining batch', () => {
     ['HD-002', '# H1\n\nsame', '## H1\n\nsame'],
     ['HD-003', '# A\n\nlong text', '# B\n\nlong text'],
     ['HD-004', '# AB\n\ntxt', '# CD\n\ntxt'],
-    ['HD-007', '## X\n\ntext', '## X\n\ntext'],
     ['HD-009', '## X\n\ntext', '## Y\n\ntext'],
     ['HD-010', '## X\n\ntext', '## Y\n\nnew'],
     ['HD-011', '# \n\nbody', '## \n\nbody'],
     ['HD-012', `# ${'x'.repeat(5000)}\n\nbody`, `# ${'x'.repeat(4999)}y\n\nbody`],
-    ['HD-013', '## Note\n\nbody\n\n# Note\n\nbody', '## Note\n\nbody\n\n# Note\n\nbody'],
     ['HD-014', '## Hello World\n\nbody', '## Hello-World\n\nbody'],
     ['HD-015', '# 123\n\nbody', '# 456\n\nbody'],
     ['HD-016', '# @#$%\n\nbody', '# ^&*()\n\nbody'],
@@ -144,9 +142,10 @@ describe('testing philosophy remaining batch', () => {
     ['HD-018', '# [A](url)\n\nbody', '# [B](url)\n\nbody'],
     ['HD-019', '# **bold**\n\nbody', '# *italic*\n\nbody'],
     ['HD-020', '# ![a](x)\n\nbody', '# ![b](y)\n\nbody'],
-  ])('%s heading scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s heading change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
     expect(firstByKindOrType(result, 'heading')).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -159,7 +158,6 @@ describe('testing philosophy remaining batch', () => {
     ['PG-009', 'text', 'text ![img](url)'],
     ['PG-010', 'text', 'text `code`'],
     ['PG-011', 'a **b** c', 'a *d* `e` f'],
-    ['PG-012', '', ''],
     ['PG-013', '', 'new'],
     ['PG-014', 'old', ''],
     ['PG-015', Array.from({ length: 5000 }, () => 'a').join(' '), Array.from({ length: 5000 }, (_, i) => (i === 10 ? 'b' : 'a')).join(' ')],
@@ -168,9 +166,9 @@ describe('testing philosophy remaining batch', () => {
     ['PG-018', 'a\\*b', 'a\\*c'],
     ['PG-019', 'a   b', 'a    b'],
     ['PG-020', 'a\nb', 'a\n\nb'],
-  ])('%s paragraph/inline scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s paragraph change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -185,12 +183,12 @@ describe('testing philosophy remaining batch', () => {
     ['CD-010', '```\n```', '```\ncode\n```'],
     ['CD-011', '```\n# not heading\n```', '```\n## still not\n```'],
     ['CD-012', '```\na\n\nb\n```', '```\na\nb\n```'],
-    ['CD-013', '```\n```inner```\n```', '```\n```inner```\n```'],
     ['CD-014', `\`\`\`\n${Array.from({ length: 5000 }, (_, i) => (i === 2500 ? 'x' : 'a')).join('\n')}\n\`\`\``, `\`\`\`\n${Array.from({ length: 5000 }, (_, i) => (i === 2500 ? 'y' : 'a')).join('\n')}\n\`\`\``],
-    ['CD-015', `\`\`\`\n${'x'.repeat(10000)}\n\`\`\``, `\`\`\`\n${'x'.repeat(10000)}\n\`\`\``],
-  ])('%s code scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s code block change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(firstByKindOrType(result, 'code')).toBeDefined()
+    const code = firstByKindOrType(result, 'code')
+    expect(code).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   }, 20_000)
 
   it.each([
@@ -202,16 +200,15 @@ describe('testing philosophy remaining batch', () => {
     ['TB-006', '| a | b |\n| :-- | :-- |\n| 1 | 2 |', '| a | b |\n| :--: | :--: |\n| 1 | 2 |'],
     ['TB-007', '| A | B |\n| --- | --- |\n| 1 | 2 |', '| X | B |\n| --- | --- |\n| 1 | 2 |'],
     ['TB-008', '| A | B |\n| --- | --- |', '| A | B |\n| --- | --- |\n| x | y |'],
-    ['TB-009', '| A |\n| -- |', '| A |\n| -- |'],
     ['TB-010', '| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 |', '| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 9 | 4 | 5 |'],
     ['TB-011', '| a | |\n| --- | --- |\n| 1 | 2 |', '| a | b |\n| --- | --- |\n| 1 | 2 |'],
     ['TB-012', '| a | b |\n| --- | --- |\n| 1 | 2 |', 'text'],
     ['TB-013', '| a | b |', '| a | b |\n| --- | --- |'],
     ['TB-014', '| a | b |\n| --- | --- |\n| 1 | 2 | 3 |', '| a | b |\n| --- | --- |\n| 1 | 2 |'],
     ['TB-015', (() => { const rows = ['| H1 | H2 |\n| --- | --- |']; for (let i=0;i<50;i++) rows.push(`| ${i} | ${i===25?'x':'a'} |`); return rows.join('\n') })(), (() => { const rows = ['| H1 | H2 |\n| --- | --- |']; for (let i=0;i<50;i++) rows.push(`| ${i} | ${i===25?'y':'a'} |`); return rows.join('\n') })()],
-  ])('%s table scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s table change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -229,9 +226,9 @@ describe('testing philosophy remaining batch', () => {
     ['LS-012', '- a\n- b', 'paragraph'],
     ['LS-013', '1. a', '- a'],
     ['LS-014', '- a\n  - b\n    - c\n      - d\n        - e', '- a\n  - b\n    - c\n      - d\n        - f'],
-  ])('%s list scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s list change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -240,9 +237,9 @@ describe('testing philosophy remaining batch', () => {
     ['BQ-005', '> `code`', '> `new`'],
     ['BQ-006', '> quote', 'quote'],
     ['BQ-007', '>', '> text'],
-  ])('%s blockquote scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s blockquote change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -250,22 +247,22 @@ describe('testing philosophy remaining batch', () => {
     ['FN-003', 'Text[^a]\n\n[^a]: x', 'Text[^b]\n\n[^b]: y'],
     ['FN-006', 'text[^1]\n\n[^1]: note', 'text[^2]\n\n[^2]: note'],
     ['FN-008', 'text[^1]\n\n[^1]:\n    para1\n    para2', 'text[^1]\n\n[^1]:\n    para1'],
-  ])('%s footnote scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s footnote change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
     ['DF-001', '[old]: url', '[new]: url'],
     ['DF-002', '[id]: old', '[id]: new'],
-    ['DF-003', '[id]: url \"old\"', '[id]: url \"new\"'],
+    ['DF-003', '[id]: url "old"', '[id]: url "new"'],
     ['DF-004', '[a]: u1', '[b]: u2'],
     ['DF-008', 'Body [x][id]\n\n[id]: url', 'Changed body [x][id]\n\n[id]: url'],
     ['DF-009', '[text][id]\n\n[id]: url', '[new][id]\n\n[id]: url'],
     ['DF-010', '[text][]\n\n[text]: url', '[new][]\n\n[text]: url'],
-  ])('%s definition scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s definition change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -281,22 +278,19 @@ describe('testing philosophy remaining batch', () => {
     ['FM-013', '---\na:\n  b:\n    c: 1\n---', '---\na:\n  b:\n    c: 2\n---'],
     ['FM-014', '---\nitems:\n  - id: 1\n---', '---\nitems:\n  - id: 2\n---'],
     ['FM-015', '---\na: 1\n---\n---\nb: 2\n---', '---\na: 2\n---\n---\nb: 2\n---'],
-  ])('%s frontmatter scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s frontmatter change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(firstByKindOrType(result, 'frontmatter') ?? result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
-    ['HM-001', '<div>x</div>', '<div>x</div>'],
     ['HM-002', '<div>x</div>', '<div>y</div>'],
-    ['HM-003', '$$x=1$$', '$$x=1$$'],
     ['HM-004', '$$x=1$$', '$$y=2$$'],
     ['HM-005', '```yaml\na: 1\n```', '```yaml\na: 2\n```'],
-    ['HM-006', '```toml\na = 1\n```', '```toml\na = 1\n```'],
     ['HM-007', '<div>x</div>', '$$x=1$$'],
-  ])('%s specialized block scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s specialized block change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -316,9 +310,9 @@ describe('testing philosophy remaining batch', () => {
     ['CW-003', '## B\n\n## C', '## B changed\n\n## C'],
     ['CW-004', '# B', '# B changed'],
     ['CW-005', '## A\n\n## B\n\n## C', '## A changed\n\n## B changed\n\n## C'],
-  ])('%s context witness scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s context witness change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -334,12 +328,11 @@ describe('testing philosophy remaining batch', () => {
   it.each([
     ['LR-001', '## hello-world\n\nbody', '## hello world\n\nbody'],
     ['LR-002', '## Hello World\n\nbody', '## Hello World!\n\nbody'],
-    ['LR-003', '[id]: url', '[id]: url'],
     ['LR-004', '# Alpha\n\n> old\n\n- first', '# Beta\n\n> new\n\n- second'],
     ['LR-005', '# Alpha\n\n## Body One\n\nsame\n\n## Body Two\n\nsame', '# Beta\n\n## Body 1\n\nsame\n\n## Body 2\n\nsame'],
-  ])('%s local recovery scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s local recovery change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown, { enhancedLocalRecovery: true, minSimilarity: 0.55 })
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -351,9 +344,12 @@ describe('testing philosophy remaining batch', () => {
     ['IS-006', '![a](x)', '![b](y)'],
     ['IS-007', '`code`', '`new`'],
     ['IS-008', 'a **b** `c`', 'a *b* d'],
-  ])('%s inline span scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s inline span change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
+    const p = firstByKindOrType(result, 'paragraph')
+    expect(p).toBeDefined()
+    expect(p!.primaryOp).not.toBe('equal')
   })
 
   it.each([
@@ -361,9 +357,10 @@ describe('testing philosophy remaining batch', () => {
     ['TS-002', '# Hello\n\nbody', '# Hello World\n\nbody'],
     ['TS-003', '# Hello World\n\nbody', '# Hello\n\nbody'],
     ['TS-004', '# **A**\n\nbody', '# *A*\n\nbody'],
-  ])('%s title inline scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s title inline change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
     expect(firstByKindOrType(result, 'heading')).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -371,43 +368,57 @@ describe('testing philosophy remaining batch', () => {
     ['CS-002', '```ts\nconst a=1\n```', '```ts\nconst a=2\n```'],
     ['CS-003', '```\na\nb\nc\n```', '```\na\nx\nc\n```'],
     ['CS-004', '```\na\n\nb\n```', '```\na\nb\n```'],
-  ])('%s code span scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s code span change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    const code = firstByKindOrType(result, 'code')
+    expect(code).toBeDefined()
+    expect(code!.primaryOp).not.toBe('equal')
   })
 
   it.each([
     ['TD-001', '| a | b |\n| --- | --- |\n| 1 | 2 |', '| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |'],
     ['TD-002', '| a |\n| --- |\n| hello world |', '| a |\n| --- |\n| hello there |'],
-  ])('%s table diff scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s table diff produced', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    const table = firstByKindOrType(result, 'table')
+    expect(table).toBeDefined()
+    expect(table!.tableDiff).toBeDefined()
   })
 
   it.each([
     ['MC-001', '---\na: 1\n---', '---\na: 2\n---'],
     ['MC-002', '---\na:\n  x: 1\n---', '---\na:\n  x: 2\n---'],
     ['MC-003', '---\ntags: [a]\n---', '---\ntags: [a, b]\n---'],
-  ])('%s metadata-change path scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s metadata change path tracked', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(firstByKindOrType(result, 'frontmatter') ?? result.root).toBeDefined()
+    const fm = firstByKindOrType(result, 'frontmatter')
+    expect(fm).toBeDefined()
+    expect(fm!.metadataChanges?.length).toBeGreaterThan(0)
+  })
+
+  it('DG-002 extreme cost limit still produces valid result', async () => {
+    const oldMd = Array.from({ length: 400 }, (_, i) => `# H${i}\n\n${'x '.repeat(100)}`).join('\n\n')
+    const newMd = Array.from({ length: 400 }, (_, i) => `# H${i}\n\n${'y '.repeat(100)}`).join('\n\n')
+    const result = await diffMarkdown(oldMd, newMd, { maxRecursiveAlignmentCost: 10 })
+    expect(result.root).toBeDefined()
+    expect(result.quality).toBeDefined()
   })
 
   it.each([
-    ['DG-002', Array.from({ length: 400 }, (_, i) => `# H${i}\n\n${'x '.repeat(100)}`).join('\n\n'), Array.from({ length: 400 }, (_, i) => `# H${i}\n\n${'y '.repeat(100)}`).join('\n\n'), { maxRecursiveAlignmentCost: 10 }],
     ['DG-003', '# Root\n\n' + Array.from({ length: 200 }, (_, i) => `## H${i}\n\nbody ${i}`).join('\n\n'), '# Root\n\n' + Array.from({ length: 200 }, (_, i) => `## X${i}\n\nbody ${i}`).join('\n\n'), { maxLocalAlignmentCost: 10 }],
     ['DG-004', '# A\n\n> old\n\n- first', '# B\n\n> new\n\n- second', { enhancedLocalRecovery: true, maxAptedCost: 1, minSimilarity: 0.55 }],
-  ])('%s degraded/fallback scenario runs', async (_id, oldMarkdown, newMarkdown, options) => {
+  ])('%s degraded/fallback scenario produces valid diff', async (_id, oldMarkdown, newMarkdown, options) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown, options)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
+    expect(result.quality).toBeDefined()
   })
 
   it.each([
-    ['QS-001', '# Intro\n\ntext', '# Intro\n\ntext'],
     ['QS-002', 'a '.repeat(6000), 'b '.repeat(6000), { maxInlineDiffMatrixCost: 0 }],
     ['QS-003', 'old '.repeat(6000), 'new '.repeat(6000), { maxInlineDiffMatrixCost: 0 }],
-  ])('%s quality summary scenario runs', async (_id, oldMarkdown, newMarkdown, options?: Partial<DiffOptions>) => {
-    const result = await diffMarkdown(oldMarkdown, newMarkdown, options)
+  ])('%s quality summary with inline bypass', async (_id, oldMarkdown, newMarkdown, options) => {
+    const result = await diffMarkdown(oldMarkdown, newMarkdown, options as Partial<DiffOptions>)
+    expect(anyChange(result)).toBe(true)
     expect(result.quality).toBeDefined()
   })
 
@@ -416,9 +427,9 @@ describe('testing philosophy remaining batch', () => {
     ['SH-002', '# AB\n\ntxt', '# CD\n\ntxt'],
     ['SH-003', '# ABC\n\ntext', '# ABD\n\ntext'],
     ['SH-004', Array.from({ length: 10 }, (_, i) => `## A${i}\n\nbody`).join('\n\n'), Array.from({ length: 10 }, (_, i) => `## B${9 - i}\n\nbody`).join('\n\n')],
-  ])('%s short-heading fallback scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s short-heading fallback change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -428,9 +439,9 @@ describe('testing philosophy remaining batch', () => {
     ['SR-005', '# A\n# B\n# C', '# B\n# C'],
     ['SR-006', '## N\n\nbody1\n\n## N\n\nbody2', '## N\n\nbody2\n\n## N\n\nbody1'],
     ['SR-007', '## Intro\n\nbody1\n\n## Overview\n\nbody2', '## Overview\n\nbody2\n\n## Intro\n\nbody1'],
-  ])('%s reorder scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s reorder change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -439,9 +450,9 @@ describe('testing philosophy remaining batch', () => {
     ['MX-003', '---\na:1\n---\n# A\n\ntext\n\n```js\nx=1\n```\n\n|a|b|\n|---|---|\n|1|2|\n\nText[^1]\n\n[^1]: note', '---\na:2\n---\n# B\n\ntext2\n\n```ts\nx=2\n```\n\n|a|b|\n|---|---|\n|1|3|\n\nText[^2]\n\n[^2]: note'],
     ['MX-004', '# A\n\n' + 'old '.repeat(2000), '# B\n\n' + 'new '.repeat(2000)],
     ['MX-005', '- [ ] task', '- [x] task'],
-  ])('%s mixed complex scenario runs', async (_id, oldMarkdown, newMarkdown) => {
+  ])('%s mixed complex change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown, { maxInlineDiffMatrixCost: 0 })
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(true)
   })
 
   it.each([
@@ -455,8 +466,25 @@ describe('testing philosophy remaining batch', () => {
     ['RG-008', 'old '.repeat(6000)],
     ['RG-009', '- [ ] Render visual diff'],
     ['RG-010', '```js\nconst x = 1\n```'],
-  ])('%s regression anchor is represented in executable tests', async (_id, markdown) => {
+  ])('%s regression anchor has no spurious changes', async (_id, markdown) => {
     const result = await diffMarkdown(markdown)
-    expect(result.root).toBeDefined()
+    expect(anyChange(result)).toBe(false)
+  })
+
+  it.each([
+    ['HD-007', '## X\n\ntext'],
+    ['HD-013', '## Note\n\nbody\n\n# Note\n\nbody'],
+    ['PG-012', ''],
+    ['CD-013', '```\n```inner```\n```'],
+    ['CD-015', `\`\`\`\n${'x'.repeat(10000)}\n\`\`\``],
+    ['TB-009', '| A |\n| -- |'],
+    ['HM-001', '<div>x</div>'],
+    ['HM-003', '$$x=1$$'],
+    ['HM-006', '```toml\na = 1\n```'],
+    ['LR-003', '[id]: url'],
+    ['QS-001', '# Intro\n\ntext'],
+  ])('%s identity diff has no changes', async (_id, markdown) => {
+    const result = await diffMarkdown(markdown)
+    expect(anyChange(result)).toBe(false)
   })
 })

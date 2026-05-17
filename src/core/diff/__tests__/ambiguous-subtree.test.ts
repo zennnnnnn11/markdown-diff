@@ -66,6 +66,8 @@ describe('ambiguous subtree resolution', () => {
       const changes = flatten(result.root)
       const nonEqual = changes.filter((c) => c.primaryOp !== 'equal')
       expect(nonEqual.length).toBeGreaterThan(0)
+      const listItems = changes.filter((c) => c.kind === 'listItem')
+      expect(listItems.some((c) => c.primaryOp === 'replace')).toBe(true)
     })
 
     it('handles sections with identical headings but different body', async () => {
@@ -95,6 +97,8 @@ describe('ambiguous subtree resolution', () => {
 
       const result = await diffMarkdown(oldMd, newMd)
       expect(result.root).toBeDefined()
+      const changes = flatten(result.root)
+      expect(changes.some((c) => c.primaryOp !== 'equal')).toBe(true)
     })
   })
 })

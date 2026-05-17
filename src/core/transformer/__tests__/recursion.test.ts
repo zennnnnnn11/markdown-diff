@@ -34,7 +34,7 @@ describe('listItemToSection', () => {
     const md = '- para1\n\n  para2'
     const tree = transformMarkdown(await parseMarkdown(md))
     const li = sectionByKind(tree, 'listItem')[0]!
-    expect(li.items.length).toBeGreaterThanOrEqual(2)
+    expect(li.items.length).toBe(2)
   })
 
   it('R03: listItem with code block → items has code block', async () => {
@@ -89,7 +89,7 @@ describe('listItemToSection', () => {
   it('R09: definition inside listItem → not in items', async () => {
     const md = '- before\n\n  [foo]: /url\n\n  after'
     const tree = transformMarkdown(await parseMarkdown(md))
-    expect(tree.definitions!.length).toBeGreaterThanOrEqual(1)
+    expect(tree.definitions!.length).toBe(1)
     const li = sectionByKind(tree, 'listItem')[0]!
     const hasDefInItems = li.items.some((i: any) => i.type === 'definition')
     expect(hasDefInItems).toBe(false)
@@ -100,7 +100,7 @@ describe('listItemToSection', () => {
     const tree = transformMarkdown(await parseMarkdown(md))
     const li = sectionByKind(tree, 'listItem')[0]!
     const paraTexts = li.items.filter((i: any) => i.type === 'paragraph')
-    expect(paraTexts.length).toBeGreaterThanOrEqual(1)
+    expect(paraTexts.length).toBe(2)
   })
 
   it('R11: definition in listItem before/after → items have both paras, definition collected', async () => {
@@ -109,7 +109,7 @@ describe('listItemToSection', () => {
     const li = sectionByKind(tree, 'listItem')[0]!
     const paraTypes = li.items.filter((i) => !('kind' in i)).map((b: any) => b.type)
     expect(paraTypes.filter((t: string) => t === 'paragraph').length).toBe(2)
-    expect(tree.definitions!.length).toBeGreaterThanOrEqual(1)
+    expect(tree.definitions!.length).toBe(1)
   })
 
   it('R11b: listItem preserves later paragraphs after nested blockquotes and collected definitions', async () => {
@@ -122,7 +122,7 @@ describe('listItemToSection', () => {
 
     expect(li.children.some((child) => child.kind === 'blockquote')).toBe(true)
     expect(paragraphTexts).toEqual(['intro', 'outro'])
-    expect(tree.definitions!.length).toBeGreaterThanOrEqual(1)
+    expect(tree.definitions!.length).toBe(1)
   })
 
   it('R12: empty listItem → items=[], title=""', async () => {
@@ -180,14 +180,14 @@ describe('blockquoteToSection', () => {
     const tree = transformMarkdown(await parseMarkdown(md))
     const bq = sectionByKind(tree, 'blockquote')[0]!
     expect(bq.kind).toBe('blockquote')
-    expect(bq.items.length).toBeGreaterThanOrEqual(1)
+    expect(bq.items.length).toBe(1)
   })
 
   it('R19: blockquote with multiple paragraphs → items 2+ blocks', async () => {
     const md = '> p1\n>\n> p2'
     const tree = transformMarkdown(await parseMarkdown(md))
     const bq = sectionByKind(tree, 'blockquote')[0]!
-    expect(bq.items.length).toBeGreaterThanOrEqual(2)
+    expect(bq.items.length).toBe(2)
   })
 
   it('R20: nested blockquote (1 level) → children has 1 blockquote Section', async () => {
@@ -201,7 +201,7 @@ describe('blockquoteToSection', () => {
     const md = '> a\n>> b\n>>> c'
     const tree = transformMarkdown(await parseMarkdown(md))
     const bqs = sectionByKind(tree, 'blockquote')
-    expect(bqs.length).toBeGreaterThanOrEqual(3)
+    expect(bqs.length).toBe(3)
   })
 
   it('R22: blockquote with list → listItemToSection called, listItem in children', async () => {
@@ -231,7 +231,7 @@ describe('blockquoteToSection', () => {
   it('R25: definition inside blockquote → not in items', async () => {
     const md = '> [ref]: /url\n> text'
     const tree = transformMarkdown(await parseMarkdown(md))
-    expect(tree.definitions!.length).toBeGreaterThanOrEqual(1)
+    expect(tree.definitions!.length).toBe(1)
   })
 
   it('R25b: blockquote containing only a definition stays structurally empty while still collecting the definition', async () => {
@@ -265,14 +265,14 @@ describe('mutual recursion', () => {
     const md = '- item\n  > - nested'
     const tree = transformMarkdown(await parseMarkdown(md))
     const items = sectionByKind(tree, 'listItem')
-    expect(items.length).toBeGreaterThanOrEqual(2)
+    expect(items.length).toBe(2)
   })
 
   it('R29: blockquote → listItem → blockquote (3 levels expanded)', async () => {
     const md = '> - item\n>   > nested'
     const tree = transformMarkdown(await parseMarkdown(md))
     const bqs = sectionByKind(tree, 'blockquote')
-    expect(bqs.length).toBeGreaterThanOrEqual(2)
+    expect(bqs.length).toBe(2)
   })
 
   it('R30: listItem → blockquote → listItem → blockquote (4 levels)', async () => {

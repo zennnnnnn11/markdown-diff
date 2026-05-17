@@ -96,11 +96,10 @@ describe('DiffProjectionTable virtual scroll', () => {
 
     await nextTick()
     const interactiveRows = wrapper.findAll('.projection-row.interactive')
-    if (interactiveRows.length > 0) {
-      await interactiveRows[0]!.trigger('click')
-      expect(wrapper.emitted('select')).toBeTruthy()
-      expect(wrapper.emitted('select')![0]).toEqual(['change:1', 'new'])
-    }
+    expect(interactiveRows.length).toBeGreaterThan(0)
+    await interactiveRows[0]!.trigger('click')
+    expect(wrapper.emitted('select')).toBeTruthy()
+    expect(wrapper.emitted('select')![0]).toEqual(['change:1', 'new'])
   })
 
   it('applies active filter class to matching lines', async () => {
@@ -118,7 +117,7 @@ describe('DiffProjectionTable virtual scroll', () => {
 
     await nextTick()
     const activeRows = wrapper.findAll('.projection-row.active')
-    expect(activeRows.length).toBeGreaterThanOrEqual(0)
+    expect(activeRows.length).toBeGreaterThan(0)
   })
 
   it('handles empty projectionLines', async () => {
@@ -149,7 +148,7 @@ describe('DiffProjectionTable virtual scroll', () => {
 
     await nextTick()
     const highlighted = wrapper.findAll('.peer-highlight')
-    expect(highlighted.length).toBeGreaterThanOrEqual(0)
+    expect(highlighted.length).toBeGreaterThan(0)
   })
 })
 
@@ -214,10 +213,9 @@ describe('UnifiedDiffTable virtual scroll', () => {
 
     await nextTick()
     const interactiveGutters = wrapper.findAll('.gutter.interactive')
-    if (interactiveGutters.length > 0) {
-      await interactiveGutters[0]!.trigger('click')
-      expect(wrapper.emitted('select')).toBeTruthy()
-    }
+    expect(interactiveGutters.length).toBeGreaterThan(0)
+    await interactiveGutters[0]!.trigger('click')
+    expect(wrapper.emitted('select')).toBeTruthy()
   })
 
   it('renders placeholder text when one side is null', async () => {
@@ -236,7 +234,7 @@ describe('UnifiedDiffTable virtual scroll', () => {
 
     await nextTick()
     const placeholders = wrapper.findAll('.placeholder-text')
-    expect(placeholders.length).toBeGreaterThanOrEqual(0)
+    expect(placeholders.length).toBeGreaterThan(0)
   })
 
   it('handles empty mergedRows', async () => {
@@ -262,8 +260,7 @@ describe('UnifiedDiffTable virtual scroll', () => {
 
     await nextTick()
     const rowIndices = wrapper.findAll('.unified-row .row-index')
-    if (rowIndices.length > 0) {
-      expect(rowIndices[0]!.text()).toBe('1')
-    }
+    expect(rowIndices.length).toBeGreaterThan(0)
+    expect(rowIndices[0]!.text()).toBe('1')
   })
 })

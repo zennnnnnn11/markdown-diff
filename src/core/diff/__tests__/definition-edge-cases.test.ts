@@ -81,7 +81,7 @@ describe('definition edge cases', () => {
 
     expect(definition?.pairKind).toBe('match')
     expect(definition?.primaryOp).toBe('meta-update')
-    expect(result.stats.metaUpdates).toBeGreaterThanOrEqual(1)
+    expect(result.stats.metaUpdates).toBe(1)
   })
 
   it('classifies a same-identifier semantic replacement as a meta-update rather than delete plus insert', async () => {

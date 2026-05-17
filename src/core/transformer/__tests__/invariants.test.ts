@@ -105,7 +105,7 @@ describe('metadata completeness', () => {
       expect(typeof s.id).toBe('string')
       ids.add(s.id)
     }
-    expect(ids.size).toBeGreaterThanOrEqual(allSections(tree).length - 1)
+    expect(ids.size).toBe(allSections(tree).length)
   })
 
   it('I09: all Sections have kind', async () => {

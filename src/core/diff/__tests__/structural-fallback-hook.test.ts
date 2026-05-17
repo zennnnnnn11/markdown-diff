@@ -84,52 +84,21 @@ describe('structural fallback hook via DiffContext', () => {
   })
 
   describe('context.structuralFallback field', () => {
-    it('is set when enhancedLocalRecovery is true', async () => {
-      const { parseMarkdown } = await import('../../parser')
-      const { transformMarkdown } = await import('../../transformer')
-      const { buildSemanticIndex } = await import('../indexer')
-      const { resolveDiffOptions } = await import('../options')
-      const { maybeApplyStructuralFallback } = await import(
-        '../engine/structural-fallback'
+    it('enhancedLocalRecovery controls whether structural fallback runs', async () => {
+      const withRecovery = await diffMarkdown(
+        '# A\n\nOld text.\n',
+        '# A\n\nNew text.\n',
+        { enhancedLocalRecovery: true },
       )
-
-      const md = '# Test\n\nContent.\n'
-      const tree = transformMarkdown(await parseMarkdown(md))
-      const index = await buildSemanticIndex(tree, 'old')
-
-      const options = resolveDiffOptions({ enhancedLocalRecovery: true })
-      const context = {
-        options,
-        oldIndex: index,
-        newIndex: index,
-        matchesByOld: new Map(),
-        matchesByNew: new Map(),
-        warnings: [],
-        structuralFallback: options.enhancedLocalRecovery
-          ? maybeApplyStructuralFallback
-          : undefined,
-      }
-
-      expect(context.structuralFallback).toBe(maybeApplyStructuralFallback)
-    })
-
-    it('is undefined when enhancedLocalRecovery is false', async () => {
-      const { resolveDiffOptions } = await import('../options')
-      const options = resolveDiffOptions({ enhancedLocalRecovery: false })
-
-      const context = {
-        options,
-        oldIndex: null,
-        newIndex: null,
-        matchesByOld: new Map(),
-        matchesByNew: new Map(),
-        warnings: [],
-        structuralFallback: options.enhancedLocalRecovery
-          ? () => Promise.resolve()
-          : undefined,
-      }
-
-      expect(context.structuralFallback).toBeUndefined()
+      const withoutRecovery = await diffMarkdown(
+        '# A\n\nOld text.\n',
+        '# A\n\nNew text.\n',
+        { enhancedLocalRecovery: false },
+      )
+      expect(withRecovery.root).toBeDefined()
+      expect(withoutRecovery.root).toBeDefined()
+      expect(flatten(withRecovery.root).some((c) => c.primaryOp === 'replace')).toBe(true)
+      expect(flatten(withoutRecovery.root).some((c) => c.primaryOp === 'replace')).toBe(true)
     })
   })
 
@@ -176,6 +145,8 @@ describe('structural fallback hook via DiffContext', () => {
 
       expect(result.root).toBeDefined()
       expect(result.stats).toBeDefined()
+      const changes = flatten(result.root)
+      expect(changes.some((c) => c.primaryOp === 'replace')).toBe(true)
     })
 
     it('insert-only diff works correctly with hook', async () => {
@@ -305,6 +276,8 @@ describe('structural fallback hook via DiffContext', () => {
       const result = await diffMarkdown(oldMd, newMd)
       expect(result.root).toBeDefined()
       expect(result.stats).toBeDefined()
+      const changes = flatten(result.root)
+      expect(changes.some((c) => c.primaryOp === 'replace')).toBe(true)
     })
   })
 

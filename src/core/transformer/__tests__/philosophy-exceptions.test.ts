@@ -123,7 +123,7 @@ describe('testing philosophy exception matrix', () => {
     const tree = transformMarkdown(await parseMarkdown('---\na:1\n'))
 
     expect(tree.kind).toBe('root')
-    expect(tree.items.length + tree.children.length).toBeGreaterThanOrEqual(0)
+    expect(tree.items.length + tree.children.length).toBeGreaterThan(0)
   })
 
   it('EX-017: documents containing null bytes are tolerated as text input', async () => {

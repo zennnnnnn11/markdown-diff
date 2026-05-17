@@ -96,7 +96,7 @@ describe('containers', () => {
   it('U12: nested blockquote (3 levels) → all expanded', async () => {
     const md = '> a\n>> b\n>>> c'
     const tree = transformMarkdown(await parseMarkdown(md))
-    expect(byKind(tree, 'blockquote').length).toBeGreaterThanOrEqual(3)
+    expect(byKind(tree, 'blockquote').length).toBe(3)
   })
 })
 

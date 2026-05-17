@@ -43,7 +43,7 @@ describe('collector', () => {
       const md = '> [ref]: url\n> text'
       const tree = transformMarkdown(await parseMarkdown(md))
       expect(tree.definitions).toBeDefined()
-      expect(tree.definitions!.length).toBeGreaterThanOrEqual(1)
+      expect(tree.definitions!.length).toBe(1)
     })
   })
 
@@ -59,7 +59,7 @@ describe('collector', () => {
       const md = 'text[^1]\n\n[^1]: fn text'
       const tree = transformMarkdown(await parseMarkdown(md))
       expect(tree.footnoteRefs).toBeDefined()
-      expect(tree.footnoteRefs!.length).toBeGreaterThanOrEqual(1)
+      expect(tree.footnoteRefs!.length).toBe(1)
       const ref = tree.footnoteRefs![0]!
       expect(ref.identifier).toBe('1')
       expect(ref.sectionId).toBeTruthy()
@@ -74,7 +74,7 @@ describe('collector', () => {
       expect(tree.footnotes).toHaveLength(2)
       expect(tree.footnoteRefs).toBeDefined()
       const refs = tree.footnoteRefs!.filter((r) => r.identifier === '2')
-      expect(refs.length).toBeGreaterThanOrEqual(1)
+      expect(refs.length).toBe(1)
       const ref = refs[0]!
       expect(ref.sectionId).toBeTruthy()
       expect(ref.sectionId).not.toBe('')
