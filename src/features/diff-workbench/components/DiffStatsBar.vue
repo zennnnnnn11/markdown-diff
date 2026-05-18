@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { HighlightFilter } from '../view-model'
 import type { StatCardModel } from '../types'
-import { toneLabels } from '../view-model'
 
 defineProps<{
   visible: boolean
@@ -15,18 +14,6 @@ const emit = defineEmits<{
 
 <template>
   <section v-if="visible" class="panel">
-    <div class="panel-header">
-      <h2>统计条</h2>
-      <details class="legend">
-        <summary>图例</summary>
-        <ul>
-          <li v-for="(label, tone) in toneLabels" :key="tone">
-            {{ tone }} = {{ label }}
-          </li>
-        </ul>
-      </details>
-    </div>
-
     <div class="stats-grid">
       <button
         v-for="card in statsCards"
@@ -57,29 +44,6 @@ const emit = defineEmits<{
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
   box-shadow: var(--glass-shadow);
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.panel-header h2 {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin: 0;
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
-}
-
-.panel-header details summary {
-  font-size: 13px;
-  color: var(--text-muted);
-  cursor: pointer;
 }
 
 .stats-grid {
