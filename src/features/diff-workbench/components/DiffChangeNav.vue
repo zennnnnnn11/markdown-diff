@@ -15,7 +15,7 @@ function label(current: number): string {
 </script>
 
 <template>
-  <nav class="change-nav">
+  <nav class="change-nav" data-testid="change-nav">
     <button
       type="button"
       class="nav-button"

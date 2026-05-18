@@ -1,0 +1,5 @@
+This is a plain text import test file.
+
+It has no markdown formatting, just plain text across multiple lines.
+
+Line three here.

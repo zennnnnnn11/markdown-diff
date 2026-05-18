@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { ref } from 'vue'
+
+import { readTextFile } from '@/core/io/read-text-file'
+
 import MarkdownEditor from './MarkdownEditor.vue'
 
 defineProps<{
@@ -17,6 +21,34 @@ const emit = defineEmits<{
   clear: [side: 'old' | 'new']
   'toggle-collapse': []
 }>()
+
+const fileInput = ref<HTMLInputElement>()
+const importError = ref('')
+let pendingSide: 'old' | 'new' = 'old'
+let errorTimer = 0
+
+function triggerImport(side: 'old' | 'new'): void {
+  pendingSide = side
+  fileInput.value?.click()
+}
+
+async function onFileSelected(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  input.value = ''
+
+  try {
+    const text = await readTextFile(file)
+    if (pendingSide === 'old') emit('update:oldMarkdown', text)
+    else emit('update:newMarkdown', text)
+    importError.value = ''
+  } catch (err) {
+    importError.value = err instanceof Error ? err.message : '文件读取失败'
+    window.clearTimeout(errorTimer)
+    errorTimer = window.setTimeout(() => { importError.value = '' }, 3000)
+  }
+}
 </script>
 
 <template>
@@ -40,10 +72,13 @@ const emit = defineEmits<{
     <div class="editor-body" :class="{ collapsed }">
       <div class="editor-body-inner">
         <div class="editor-grid">
-          <div class="editor-pane">
+          <div class="editor-pane" data-testid="editor-pane-old">
             <div class="editor-toolbar">
               <label>旧文档</label>
-              <button type="button" class="secondary-button" @click="emit('clear', 'old')">清空</button>
+              <div class="toolbar-actions">
+                <button type="button" class="secondary-button" @click="triggerImport('old')">导入</button>
+                <button type="button" class="secondary-button" @click="emit('clear', 'old')">清空</button>
+              </div>
             </div>
             <MarkdownEditor
               :model-value="oldMarkdown"
@@ -52,10 +87,13 @@ const emit = defineEmits<{
             />
           </div>
 
-          <div class="editor-pane">
+          <div class="editor-pane" data-testid="editor-pane-new">
             <div class="editor-toolbar">
               <label>新文档</label>
-              <button type="button" class="secondary-button" @click="emit('clear', 'new')">清空</button>
+              <div class="toolbar-actions">
+                <button type="button" class="secondary-button" @click="triggerImport('new')">导入</button>
+                <button type="button" class="secondary-button" @click="emit('clear', 'new')">清空</button>
+              </div>
             </div>
             <MarkdownEditor
               :model-value="newMarkdown"
@@ -65,13 +103,22 @@ const emit = defineEmits<{
           </div>
         </div>
 
-        <div v-if="isRunning" class="loading-state">
+        <div v-if="isRunning" class="loading-state" data-testid="diff-loading">
           <span class="spinner" aria-hidden="true"></span>
           <p class="hint">正在解析 Markdown、构建 Section 树并执行 diff。</p>
         </div>
-        <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
+        <p v-if="errorMessage" class="error-text" data-testid="diff-error">{{ errorMessage }}</p>
+        <p v-if="importError" class="import-error" data-testid="import-error">{{ importError }}</p>
       </div>
     </div>
+
+    <input
+      ref="fileInput"
+      type="file"
+      accept=".md,.markdown,.mdx,.txt"
+      hidden
+      @change="onFileSelected"
+    />
   </section>
 </template>
 
@@ -226,6 +273,21 @@ const emit = defineEmits<{
   color: var(--tone-delete-text);
   font-size: 13px;
   margin-top: 8px;
+}
+
+.import-error {
+  color: var(--warning-text);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  padding: 6px 12px;
+  margin-top: 8px;
+}
+
+.toolbar-actions {
+  display: flex;
+  gap: 6px;
 }
 
 @media (max-width: 960px) {
