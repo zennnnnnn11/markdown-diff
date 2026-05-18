@@ -22,19 +22,19 @@ let view: EditorView | undefined
 let ignoreNextUpdate = false
 
 const highlightStyle = HighlightStyle.define([
-  { tag: tags.heading1, fontWeight: 'bold', color: '#1A1918', fontSize: '1.2em' },
-  { tag: tags.heading2, fontWeight: 'bold', color: '#1A1918', fontSize: '1.1em' },
-  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], fontWeight: 'bold', color: '#1A1918' },
+  { tag: tags.heading1, fontWeight: 'bold', color: '#171717', fontSize: '1.2em' },
+  { tag: tags.heading2, fontWeight: 'bold', color: '#171717', fontSize: '1.1em' },
+  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], fontWeight: 'bold', color: '#171717' },
   { tag: tags.strong, fontWeight: 'bold' },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
-  { tag: tags.monospace, color: '#D97757', backgroundColor: '#F5F3F0' },
-  { tag: tags.link, color: '#2B4A8D', textDecoration: 'underline' },
-  { tag: tags.url, color: '#9E9892' },
-  { tag: tags.quote, color: '#5B3A9B' },
-  { tag: tags.contentSeparator, color: '#9E9892' },
-  { tag: tags.processingInstruction, color: '#6B6560' },
-  { tag: tags.list, color: '#D97757' },
+  { tag: tags.monospace, color: '#0070F3', backgroundColor: '#F5F5F5' },
+  { tag: tags.link, color: '#0070F3', textDecoration: 'underline' },
+  { tag: tags.url, color: '#999999' },
+  { tag: tags.quote, color: '#6639BA' },
+  { tag: tags.contentSeparator, color: '#999999' },
+  { tag: tags.processingInstruction, color: '#666666' },
+  { tag: tags.list, color: '#0070F3' },
 ])
 
 const editorTheme = EditorView.theme({
@@ -48,7 +48,7 @@ const editorTheme = EditorView.theme({
   },
   '&.cm-focused': {
     borderColor: 'var(--accent)',
-    boxShadow: '0 0 0 3px rgb(217 119 87 / 12%)',
+    boxShadow: '0 0 0 3px rgba(0, 112, 243, 0.12)',
     outline: 'none',
     backgroundColor: 'var(--bg-surface)',
   },
@@ -60,7 +60,7 @@ const editorTheme = EditorView.theme({
   },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent)' },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
-    backgroundColor: 'rgb(217 119 87 / 15%) !important',
+    backgroundColor: 'rgba(0, 112, 243, 0.15) !important',
   },
   '.cm-activeLine': { backgroundColor: 'transparent' },
   '.cm-placeholder': { color: 'var(--text-muted)' },

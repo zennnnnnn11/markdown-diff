@@ -50,10 +50,13 @@ const emit = defineEmits<{
 
 <style scoped>
 .panel {
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: 16px;
-  background: var(--bg-surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow);
 }
 
 .panel-header {
@@ -70,7 +73,7 @@ const emit = defineEmits<{
   color: var(--text-secondary);
   margin: 0;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 .panel-header details summary {
@@ -97,12 +100,16 @@ const emit = defineEmits<{
   cursor: pointer;
   text-align: left;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 150ms, transform 150ms;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-smooth), transform var(--transition-fast);
 }
 
 .stat-card:hover {
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
+  border-color: rgba(0, 112, 243, 0.3);
+  box-shadow: var(--glow-accent);
+}
+
+.stat-card:active {
+  transform: scale(0.98);
 }
 
 .stat-card strong {
@@ -110,6 +117,7 @@ const emit = defineEmits<{
   font-weight: 700;
   color: var(--text-primary);
   line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .stat-card span {

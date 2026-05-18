@@ -319,6 +319,7 @@ function onKeyDown(e: KeyboardEvent): void {
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+  letter-spacing: -0.02em;
 }
 
 .page-header p {
@@ -342,7 +343,7 @@ function onKeyDown(e: KeyboardEvent): void {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms, border-color 120ms, color 120ms;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-smooth), transform var(--transition-fast);
 }
 
 .secondary-button:hover {
@@ -350,10 +351,15 @@ function onKeyDown(e: KeyboardEvent): void {
   border-color: var(--border);
 }
 
+.secondary-button:active {
+  transform: scale(0.97);
+}
+
 .secondary-button.active {
   border-color: var(--accent);
   background: var(--accent-subtle);
   color: var(--accent);
+  box-shadow: var(--glow-accent);
 }
 
 .projection-layout {

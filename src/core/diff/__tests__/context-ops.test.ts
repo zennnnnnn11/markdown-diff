@@ -19,11 +19,11 @@ describe('context-ops module', () => {
   describe('addMatch', () => {
     it('creates a new match pair and registers in both maps', () => {
       const context = makeMinimalContext()
-      const pair = addMatch(context, 'old-1', 'new-1', 'identity')
+      const pair = addMatch(context, 'old-1', 'new-1', 'local-identity')
       expect(pair).toBeDefined()
       expect(pair!.oldId).toBe('old-1')
       expect(pair!.newId).toBe('new-1')
-      expect(pair!.matchKind).toBe('identity')
+      expect(pair!.matchKind).toBe('local-identity')
       expect(pair!.pairKind).toBe('match')
       expect(pair!.pairKey).toBe('match:old-1:new-1')
       expect(context.matchesByOld.get('old-1')).toBe(pair)
@@ -32,49 +32,49 @@ describe('context-ops module', () => {
 
     it('returns undefined when oldId is already matched to a different newId', () => {
       const context = makeMinimalContext()
-      addMatch(context, 'old-1', 'new-1', 'identity')
-      const result = addMatch(context, 'old-1', 'new-2', 'similarity')
+      addMatch(context, 'old-1', 'new-1', 'local-identity')
+      const result = addMatch(context, 'old-1', 'new-2', 'local-similarity')
       expect(result).toBeUndefined()
     })
 
     it('returns undefined when newId is already matched', () => {
       const context = makeMinimalContext()
-      addMatch(context, 'old-1', 'new-1', 'identity')
-      const result = addMatch(context, 'old-2', 'new-1', 'similarity')
+      addMatch(context, 'old-1', 'new-1', 'local-identity')
+      const result = addMatch(context, 'old-2', 'new-1', 'local-similarity')
       expect(result).toBeUndefined()
     })
 
     it('returns existing pair when re-adding same old-new combination', () => {
       const context = makeMinimalContext()
-      const first = addMatch(context, 'old-1', 'new-1', 'identity')
-      const second = addMatch(context, 'old-1', 'new-1', 'identity')
+      const first = addMatch(context, 'old-1', 'new-1', 'local-identity')
+      const second = addMatch(context, 'old-1', 'new-1', 'local-identity')
       expect(second).toBe(first)
     })
 
     it('augments logicalMoveId on re-add if not already set', () => {
       const context = makeMinimalContext()
-      const first = addMatch(context, 'old-1', 'new-1', 'identity')
-      addMatch(context, 'old-1', 'new-1', 'identity', 'move-1')
+      const first = addMatch(context, 'old-1', 'new-1', 'local-identity')
+      addMatch(context, 'old-1', 'new-1', 'local-identity', 'move-1')
       expect(first!.logicalMoveId).toBe('move-1')
     })
 
     it('does not overwrite existing logicalMoveId', () => {
       const context = makeMinimalContext()
-      addMatch(context, 'old-1', 'new-1', 'identity', 'move-1')
-      const result = addMatch(context, 'old-1', 'new-1', 'identity', 'move-2')
+      addMatch(context, 'old-1', 'new-1', 'local-identity', 'move-1')
+      const result = addMatch(context, 'old-1', 'new-1', 'local-identity', 'move-2')
       expect(result!.logicalMoveId).toBe('move-1')
     })
 
     it('updates score on re-add', () => {
       const context = makeMinimalContext()
-      addMatch(context, 'old-1', 'new-1', 'identity', undefined, 0.5)
-      const result = addMatch(context, 'old-1', 'new-1', 'identity', undefined, 0.9)
+      addMatch(context, 'old-1', 'new-1', 'local-identity', undefined, 0.5)
+      const result = addMatch(context, 'old-1', 'new-1', 'local-identity', undefined, 0.9)
       expect(result!.score).toBe(0.9)
     })
 
     it('stores optional logicalMoveId and score', () => {
       const context = makeMinimalContext()
-      const pair = addMatch(context, 'old-1', 'new-1', 'similarity', 'mv-1', 0.85)
+      const pair = addMatch(context, 'old-1', 'new-1', 'local-similarity', 'mv-1', 0.85)
       expect(pair!.logicalMoveId).toBe('mv-1')
       expect(pair!.score).toBe(0.85)
     })
@@ -93,7 +93,7 @@ describe('context-ops module', () => {
         newId: 'new-1',
         pairKind: 'match',
         pairKey: 'match:old-1:new-1',
-        matchKind: 'identity',
+        matchKind: 'local-identity',
         logicalMoveId: 'mv-1',
       }
 
@@ -102,7 +102,7 @@ describe('context-ops module', () => {
       expect(change.primaryOp).toBe('move')
       expect(change.pairKind).toBe('match')
       expect(change.pairKey).toBe('match:old-1:new-1')
-      expect(change.matchKind).toBe('identity')
+      expect(change.matchKind).toBe('local-identity')
       expect(change.logicalMoveId).toBe('mv-1')
       expect(change.moveRole).toBe('source')
       expect(change.movePeerKey).toBe('mv-1')
@@ -123,7 +123,7 @@ describe('context-ops module', () => {
         newId: 'new-1',
         pairKind: 'match',
         pairKey: 'match:old-1:new-1',
-        matchKind: 'similarity',
+        matchKind: 'local-similarity',
       }
 
       convertChangeToMove(change, pair, 'target')
@@ -143,7 +143,7 @@ describe('context-ops module', () => {
         newId: 'new-1',
         pairKind: 'match',
         pairKey: 'match:old-1:new-1',
-        matchKind: 'identity',
+        matchKind: 'local-identity',
       }
 
       convertChangeToMove(change, pair, 'source')

@@ -647,7 +647,7 @@ describe('useDiffWorkbench', () => {
     }
 
     for (const card of workbench.statsCards.value) {
-      expect(() => card.onClick()).not.toThrow()
+      expect(() => card.onClick?.()).not.toThrow()
     }
   })
 

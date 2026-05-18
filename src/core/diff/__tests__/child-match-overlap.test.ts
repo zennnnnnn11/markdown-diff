@@ -56,8 +56,8 @@ describe('childMatchOverlap', () => {
       oldChildren: new Map([['old-1', ['oc-1', 'oc-2', 'oc-3']]]),
       newChildren: new Map([['new-1', ['nc-1', 'nc-2', 'nc-3']]]),
       matchesByOld: new Map([
-        ['oc-1', { oldId: 'oc-1', newId: 'nc-1', matchKind: 'exact-self', score: 1 }],
-        ['oc-2', { oldId: 'oc-2', newId: 'nc-2', matchKind: 'exact-self', score: 1 }],
+        ['oc-1', { oldId: 'oc-1', newId: 'nc-1', matchKind: 'exact-self', score: 1, pairKind: 'match' as const, pairKey: 'match:oc-1:nc-1' }],
+        ['oc-2', { oldId: 'oc-2', newId: 'nc-2', matchKind: 'exact-self', score: 1, pairKind: 'match' as const, pairKey: 'match:oc-2:nc-2' }],
       ]),
     })
     expect(childMatchOverlap(context, 'old-1', 'new-1')).toBeCloseTo(2 / 3)
@@ -68,7 +68,7 @@ describe('childMatchOverlap', () => {
       oldChildren: new Map([['old-1', ['oc-1', 'oc-2']]]),
       newChildren: new Map([['new-1', ['nc-1', 'nc-2']]]),
       matchesByOld: new Map([
-        ['oc-1', { oldId: 'oc-1', newId: 'nc-other', matchKind: 'exact-self', score: 1 }],
+        ['oc-1', { oldId: 'oc-1', newId: 'nc-other', matchKind: 'exact-self', score: 1, pairKind: 'match' as const, pairKey: 'match:oc-1:nc-other' }],
       ]),
     })
     expect(childMatchOverlap(context, 'old-1', 'new-1')).toBe(0)
@@ -79,8 +79,8 @@ describe('childMatchOverlap', () => {
       oldChildren: new Map([['old-1', ['oc-1', 'oc-2']]]),
       newChildren: new Map([['new-1', ['nc-1', 'nc-2']]]),
       matchesByOld: new Map([
-        ['oc-1', { oldId: 'oc-1', newId: 'nc-1', matchKind: 'exact-self', score: 1 }],
-        ['oc-2', { oldId: 'oc-2', newId: 'nc-2', matchKind: 'exact-self', score: 1 }],
+        ['oc-1', { oldId: 'oc-1', newId: 'nc-1', matchKind: 'exact-self', score: 1, pairKind: 'match' as const, pairKey: 'match:oc-1:nc-1' }],
+        ['oc-2', { oldId: 'oc-2', newId: 'nc-2', matchKind: 'exact-self', score: 1, pairKind: 'match' as const, pairKey: 'match:oc-2:nc-2' }],
       ]),
     })
     expect(childMatchOverlap(context, 'old-1', 'new-1')).toBe(1)
@@ -91,7 +91,7 @@ describe('childMatchOverlap', () => {
       oldChildren: new Map([['old-1', ['oc-1', 'oc-2']]]),
       newChildren: new Map([['new-1', ['nc-1', 'nc-2', 'nc-3']]]),
       matchesByOld: new Map([
-        ['oc-1', { oldId: 'oc-1', newId: 'nc-1', matchKind: 'exact-self', score: 1 }],
+        ['oc-1', { oldId: 'oc-1', newId: 'nc-1', matchKind: 'exact-self', score: 1, pairKind: 'match' as const, pairKey: 'match:oc-1:nc-1' }],
       ]),
     })
     expect(childMatchOverlap(context, 'old-1', 'new-1')).toBeCloseTo(1 / 3)

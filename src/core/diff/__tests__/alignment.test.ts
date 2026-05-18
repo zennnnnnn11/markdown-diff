@@ -336,8 +336,8 @@ describe('alignment module', () => {
         { oldId: 'o2', newId: 'n2', status: makeStatus({ isMatchPair: true }), primaryOp: 'equal' as const, entity: 'block' as const, summary: '', children: [], warnings: [] },
       ]
       markReorderedChildren(context, changes as any)
-      expect(changes[0]!.reordered).toBeUndefined()
-      expect(changes[1]!.reordered).toBeUndefined()
+      expect((changes[0] as any).reordered).toBeUndefined()
+      expect((changes[1] as any).reordered).toBeUndefined()
     })
 
     it('marks reordered changes outside the LIS', () => {

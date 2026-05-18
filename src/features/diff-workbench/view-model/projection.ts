@@ -34,7 +34,9 @@ function buildProjectionLinesFromMarkdown(
 
   const changesByLine = new Map<number, typeof changeEntries>()
   for (const entry of changeEntries) {
-    for (let ln = entry.range.start.line; ln <= entry.range.end.line; ln++) {
+    const startLine = entry.range.start!.line!
+    const endLine = entry.range.end!.line!
+    for (let ln = startLine; ln <= endLine; ln++) {
       let arr = changesByLine.get(ln)
       if (!arr) { arr = []; changesByLine.set(ln, arr) }
       arr.push(entry)

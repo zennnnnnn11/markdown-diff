@@ -242,10 +242,13 @@ function segmentClass(segment: ProjectionSegment): string {
 
 <style scoped>
 .panel {
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: 16px;
-  background: var(--bg-surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow);
 }
 
 .panel-header {
@@ -262,7 +265,7 @@ function segmentClass(segment: ProjectionSegment): string {
   color: var(--text-secondary);
   margin: 0;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 .unified-table {
@@ -290,7 +293,7 @@ function segmentClass(segment: ProjectionSegment): string {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 .unified-header-row > * {
@@ -404,6 +407,11 @@ function segmentClass(segment: ProjectionSegment): string {
 
 .cell.interactive {
   cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.cell.interactive:hover {
+  filter: brightness(0.97);
 }
 
 .cell.active {

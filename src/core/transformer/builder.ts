@@ -43,7 +43,7 @@ export function buildSections(root: Root): Section {
       continue
     } else if (isFrontmatter(child)) {
       const fm = child as Literal
-      const section = createFrontmatterSection(child.type as 'yaml' | 'toml', fm.value, 1, fm.position)
+      const section = createFrontmatterSection(child.type as 'yaml' | 'toml', fm.value as string, 1, fm.position)
       section.id = generateId(ctx)
       addToParent(ctx.root, section)
     } else if (isHeading(child)) {

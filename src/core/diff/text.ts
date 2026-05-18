@@ -90,8 +90,8 @@ export async function buildInlineToken(node: InlineContent): Promise<InlineToken
     type: node.type,
     value: node.value,
     url: node.url,
-    alt: node.alt,
-    title: node.title,
+    alt: node.alt ?? undefined,
+    title: node.title ?? undefined,
     normalizedIdentifier:
       node.identifier !== undefined ? normalizeIdentifier(node.identifier) : undefined,
     children: children?.map((child) => ({ ...child, source: undefined })),

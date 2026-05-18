@@ -43,9 +43,12 @@ function label(current: number): string {
   justify-content: center;
   gap: 12px;
   padding: 8px 14px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  background: var(--bg-surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow);
 }
 
 .nav-button {
@@ -57,11 +60,15 @@ function label(current: number): string {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms, border-color 120ms, color 120ms;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .nav-button:hover:not(:disabled) {
   background: var(--bg-subtle);
+}
+
+.nav-button:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .nav-button:disabled {

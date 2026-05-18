@@ -1,70 +1,87 @@
-/* ─── Design Tokens ─────────────────────────────────────── */
+/* ─── Design Tokens (Vercel / Geist) ────────────────────── */
 :root {
   /* Surfaces */
-  --bg-page:    #FAF9F7;
+  --bg-page:    #FAFAFA;
   --bg-surface: #FFFFFF;
-  --bg-subtle:  #F5F3F0;
-  --bg-muted:   #EDEAE5;
+  --bg-subtle:  #F5F5F5;
+  --bg-muted:   #EBEBEB;
 
   /* Borders */
-  --border:        #E5E0D8;
-  --border-subtle: #EDE9E3;
+  --border:        #EAEAEA;
+  --border-subtle: #F0F0F0;
 
   /* Text */
-  --text-primary:   #1A1918;
-  --text-secondary: #6B6560;
-  --text-muted:     #9E9892;
+  --text-primary:   #171717;
+  --text-secondary: #666666;
+  --text-muted:     #999999;
 
-  /* Accent (Claude coral) */
-  --accent:        #D97757;
-  --accent-subtle: #FDF4F0;
+  /* Accent (Vercel blue) */
+  --accent:        #0070F3;
+  --accent-subtle: #EBF5FF;
 
   /* Diff tone backgrounds */
-  --tone-insert-bg:  #E4F4EB;
-  --tone-delete-bg:  #FDEEF1;
-  --tone-replace-bg: #FEF3E2;
-  --tone-move-bg:    #EAF0FB;
-  --tone-meta-bg:    #F3EDFB;
-  --tone-rename-bg:  #FDFAE0;
-  --tone-reorder-bg: #F0EDE8;
-  --tone-blank-bg:   #F5F3F0;
+  --tone-insert-bg:  #DAFBE8;
+  --tone-delete-bg:  #FEE9E9;
+  --tone-replace-bg: #FFF4CC;
+  --tone-move-bg:    #E0EDFF;
+  --tone-meta-bg:    #F0E8FF;
+  --tone-rename-bg:  #FFFACD;
+  --tone-reorder-bg: #F0F0F0;
+  --tone-blank-bg:   #F5F5F5;
 
   /* Diff tone text */
-  --tone-insert-text:  #1B5E36;
-  --tone-delete-text:  #8E1B27;
-  --tone-replace-text: #7A4B10;
-  --tone-move-text:    #2B4A8D;
-  --tone-meta-text:    #5B3A9B;
-  --tone-rename-text:  #786A10;
-  --tone-reorder-text: #4A5568;
+  --tone-insert-text:  #116329;
+  --tone-delete-text:  #CF222E;
+  --tone-replace-text: #9A6700;
+  --tone-move-text:    #0550AE;
+  --tone-meta-text:    #6639BA;
+  --tone-rename-text:  #7D6600;
+  --tone-reorder-text: #57606A;
 
   /* Diff tone borders (annotation chips) */
-  --tone-insert-border:  #7DC99A;
-  --tone-delete-border:  #E8A0B2;
-  --tone-replace-border: #DEAF72;
-  --tone-move-border:    #95B0E8;
-  --tone-meta-border:    #BBA8E8;
-  --tone-rename-border:  #CCC090;
-  --tone-reorder-border: #B8C2D4;
+  --tone-insert-border:  #4AC26B;
+  --tone-delete-border:  #FF8182;
+  --tone-replace-border: #DBAB09;
+  --tone-move-border:    #79B8FF;
+  --tone-meta-border:    #A371F7;
+  --tone-rename-border:  #C4A000;
+  --tone-reorder-border: #AFB8C1;
 
   /* Warnings */
-  --warning-bg:     #FFFBF0;
-  --warning-border: #D4A84B;
-  --warning-text:   #8A6000;
+  --warning-bg:     #FFF9E6;
+  --warning-border: #F5A623;
+  --warning-text:   #AD5700;
 
   /* Shape */
   --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
 
-  /* Shadow */
-  --shadow-sm: 0 1px 3px rgb(0 0 0 / 8%), 0 1px 2px rgb(0 0 0 / 5%);
-  --shadow-md: 0 4px 16px rgb(0 0 0 / 10%), 0 2px 6px rgb(0 0 0 / 6%);
-  --shadow-lg: 0 12px 40px rgb(0 0 0 / 14%), 0 4px 12px rgb(0 0 0 / 8%);
+  /* Shadow (flattened — Vercel prefers borders over shadows) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
 
   /* Typography */
-  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Berkeley Mono", ui-monospace, "Cascadia Code", "Fira Code", monospace;
+  --font-sans: "Geist Sans", -apple-system, BlinkMacSystemFont, "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "Cascadia Code", "Fira Code", monospace;
+
+  /* Motion */
+  --transition-fast: 150ms ease-out;
+  --transition-spring: 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-smooth: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Glass */
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.5);
+  --glass-blur: 16px;
+  --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.04);
+
+  /* Glow */
+  --glow-accent: 0 0 20px rgba(0, 112, 243, 0.15);
+
+  /* Spacing */
+  --letter-spacing-wide: 0.1em;
 }
 
 /* ─── Global Reset ───────────────────────────────────────── */
@@ -97,9 +114,10 @@ body {
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 1px 8px;
+  border-radius: 4px;
+  padding: 2px 6px;
   font-size: 11px;
+  font-weight: 500;
   line-height: 1.5;
   white-space: nowrap;
   background: var(--bg-surface);

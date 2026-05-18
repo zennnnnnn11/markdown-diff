@@ -2,6 +2,8 @@ import type { DiffResult, ProjectionLine, Tone } from './types'
 import type { MergedRow } from './types'
 import { buildOldProjectionLines, buildProjectionLines } from './projection'
 
+type RawRow = { oldLine: ProjectionLine | null; newLine: ProjectionLine | null }
+
 interface ProjectionBlock {
   side: 'old' | 'new'
   lines: ProjectionLine[]
@@ -60,7 +62,7 @@ export function buildMergedRows(
 
   const rawRows = mergedBlocks.flatMap(({ oldBlock, newBlock }) => alignBlockRows(oldBlock, newBlock))
   resolveMovePeerRowIndices(rawRows)
-  return rawRows.map((row) => ({
+  return rawRows.map((row): MergedRow => ({
     key: `${row.oldLine?.key ?? '_'}|${row.newLine?.key ?? '_'}`,
     oldLine: row.oldLine,
     newLine: row.newLine,
@@ -71,7 +73,7 @@ export function tokenizeForSimilarity(text: string): string[] {
   return text.match(/[一-鿿㐀-䶿豈-﫿]|[^\s一-鿿㐀-䶿豈-﫿]+/g) ?? []
 }
 
-function resolveMovePeerRowIndices(rows: Array<{ oldLine: ProjectionLine | null; newLine: ProjectionLine | null }>): void {
+function resolveMovePeerRowIndices(rows: RawRow[]): void {
   const byAlignmentKey = new Map<string, { oldIndices: number[]; newIndices: number[] }>()
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!
@@ -164,14 +166,14 @@ function findInsertionIndexForOldBlock(
 function alignBlockRows(
   oldBlock?: ProjectionBlock,
   newBlock?: ProjectionBlock,
-): MergedRow[] {
-  if (!oldBlock) return newBlock?.lines.map((line) => ({ oldLine: null, newLine: line })) ?? []
-  if (!newBlock) return oldBlock.lines.map((line) => ({ oldLine: line, newLine: null }))
+): RawRow[] {
+  if (!oldBlock) return newBlock?.lines.map((line): RawRow => ({ oldLine: null, newLine: line })) ?? []
+  if (!newBlock) return oldBlock.lines.map((line): RawRow => ({ oldLine: line, newLine: null }))
 
   const oldLines = oldBlock.lines
   const newLines = newBlock.lines
   if (oldLines.length === newLines.length) {
-    return oldLines.map((oldLine, index) => ({ oldLine, newLine: newLines[index] ?? null }))
+    return oldLines.map((oldLine, index): RawRow => ({ oldLine, newLine: newLines[index] ?? null }))
   }
 
   const matches = computeLineMatches(oldLines, newLines)
@@ -179,7 +181,7 @@ function alignBlockRows(
     return zipWithResiduals(oldLines, newLines)
   }
 
-  const merged: MergedRow[] = []
+  const merged: RawRow[] = []
   let oldIdx = 0
   let newIdx = 0
 
@@ -219,8 +221,8 @@ function alignBlockRows(
   return merged
 }
 
-function zipWithResiduals(oldLines: ProjectionLine[], newLines: ProjectionLine[]): MergedRow[] {
-  const rows: MergedRow[] = []
+function zipWithResiduals(oldLines: ProjectionLine[], newLines: ProjectionLine[]): RawRow[] {
+  const rows: RawRow[] = []
   const length = Math.max(oldLines.length, newLines.length)
   for (let index = 0; index < length; index++) {
     rows.push({

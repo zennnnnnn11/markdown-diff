@@ -276,8 +276,16 @@ function lineClassName(baseTone: Tone): string {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgb(15 18 25 / 50%);
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   z-index: 1000;
+  animation: backdrop-in var(--transition-smooth) both;
+}
+
+@keyframes backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .modal-card {
@@ -285,10 +293,24 @@ function lineClassName(baseTone: Tone): string {
   max-height: calc(100vh - 48px);
   overflow: auto;
   border-radius: var(--radius-lg);
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-lg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-lg), var(--glass-shadow);
   padding: 24px;
+  animation: modal-slide-in var(--transition-spring) both;
+}
+
+@keyframes modal-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .modal-header {
@@ -386,7 +408,7 @@ function lineClassName(baseTone: Tone): string {
   font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--letter-spacing-wide);
   color: var(--text-muted);
   margin: 0 0 8px;
 }
@@ -462,17 +484,21 @@ pre {
 .secondary-button {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-subtle);
+  background: var(--bg-surface);
   color: var(--text-secondary);
   padding: 7px 14px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms;
+  transition: background var(--transition-fast), transform var(--transition-fast);
 }
 
 .secondary-button:hover {
-  background: var(--bg-muted);
+  background: var(--bg-subtle);
+}
+
+.secondary-button:active {
+  transform: scale(0.97);
 }
 
 @media (max-width: 960px) {

@@ -124,10 +124,13 @@ async function onFileSelected(e: Event): Promise<void> {
 
 <style scoped>
 .panel {
-  border: 1px solid var(--border);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   padding: 16px;
-  background: var(--bg-surface);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--glass-shadow);
 }
 
 .panel-header,
@@ -144,7 +147,7 @@ async function onFileSelected(e: Event): Promise<void> {
   color: var(--text-secondary);
   margin: 0;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--letter-spacing-wide);
 }
 
 .panel-actions {
@@ -160,9 +163,9 @@ async function onFileSelected(e: Event): Promise<void> {
   max-height: 0;
   opacity: 0;
   overflow: hidden;
-  transition: max-height 300ms cubic-bezier(0.25, 0.8, 0.25, 1),
-              opacity 250ms ease,
-              margin 300ms cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition: max-height 200ms ease-out,
+              opacity 200ms ease-out,
+              margin 200ms ease-out;
 }
 
 .collapsed-summary.visible {
@@ -174,7 +177,7 @@ async function onFileSelected(e: Event): Promise<void> {
 .editor-body {
   display: grid;
   grid-template-rows: 1fr;
-  transition: grid-template-rows 400ms cubic-bezier(0.25, 0.8, 0.25, 1);
+  transition: grid-template-rows 200ms ease-out;
 }
 
 .editor-body.collapsed {
@@ -210,7 +213,7 @@ async function onFileSelected(e: Event): Promise<void> {
 }
 
 .primary-button {
-  border: none;
+  border: 1px solid var(--accent);
   border-radius: var(--radius-md);
   background: var(--accent);
   color: var(--bg-surface);
@@ -218,7 +221,7 @@ async function onFileSelected(e: Event): Promise<void> {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: opacity 150ms;
+  transition: opacity var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .primary-button:disabled {
@@ -228,22 +231,31 @@ async function onFileSelected(e: Event): Promise<void> {
 
 .primary-button:not(:disabled):hover {
   opacity: 0.88;
+  box-shadow: var(--glow-accent);
+}
+
+.primary-button:not(:disabled):active {
+  transform: scale(0.97);
 }
 
 .secondary-button {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-subtle);
+  background: var(--bg-surface);
   color: var(--text-secondary);
   padding: 7px 14px;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms;
+  transition: background var(--transition-fast), transform var(--transition-fast);
 }
 
 .secondary-button:hover {
-  background: var(--bg-muted);
+  background: var(--bg-subtle);
+}
+
+.secondary-button:active {
+  transform: scale(0.97);
 }
 
 .loading-state {
