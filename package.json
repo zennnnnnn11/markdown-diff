@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "run-p type-check \"build-only {@}\" --",
-    "preview": "vite preview",
+    "preview": "pnpm run build-only && wrangler dev",
     "test:unit": "vitest",
     "test:e2e": "playwright test",
     "build-only": "vite build",
@@ -13,7 +13,8 @@
     "lint": "run-s lint:*",
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",
-    "format": "prettier --write --experimental-cli src/"
+    "format": "prettier --write --experimental-cli src/",
+    "deploy": "pnpm run build-only && wrangler deploy"
   },
   "dependencies": {
     "@codemirror/commands": "^6.10.3",
@@ -39,6 +40,7 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.37.1",
     "@playwright/test": "^1.59.1",
     "@tsconfig/node24": "^24.0.4",
     "@types/jsdom": "^28.0.1",
@@ -65,7 +67,8 @@
     "vite": "^8.0.8",
     "vite-plugin-vue-devtools": "^8.1.1",
     "vitest": "^4.1.4",
-    "vue-tsc": "^3.2.6"
+    "vue-tsc": "^3.2.6",
+    "wrangler": "^4.92.0"
   },
   "engines": {
     "node": "^20.19.0 || >=22.12.0"
