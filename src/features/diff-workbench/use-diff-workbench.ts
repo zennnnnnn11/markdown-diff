@@ -27,7 +27,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
   const newMarkdown = ref(initialNewMarkdown)
   const isRunning = ref(false)
   const errorMessage = ref('')
-  const viewMode = ref<'unified' | 'source' | 'debug'>('unified')
+  const viewMode = ref<'unified' | 'debug'>('unified')
   const activeFilter = ref<HighlightFilter | null>(null)
   const selectedChangeKey = ref<string | null>(null)
   const result = shallowRef<DiffResult | null>(null)

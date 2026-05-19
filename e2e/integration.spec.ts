@@ -33,16 +33,10 @@ test.describe('Cross-component integration', () => {
     await expect(page.locator(SEL.unifiedTable)).toBeVisible()
   })
 
-  test('change navigation works in source view', async ({ page }) => {
-    await switchView(page, 'source')
-    await nextChangeBtn(page).click()
-    await expect(page.locator(SEL.changePosition)).toContainText('1 /')
-  })
-
   test('view switch preserves change state', async ({ page }) => {
     await nextChangeBtn(page).click()
     const text = await page.locator(SEL.changePosition).textContent()
-    await switchView(page, 'source')
+    await switchView(page, 'debug')
     await switchView(page, 'unified')
     const afterText = await page.locator(SEL.changePosition).textContent()
     expect(afterText).toBe(text)

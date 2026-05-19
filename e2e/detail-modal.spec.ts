@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import {
   SEL, gotoAndWaitForDiff, openFirstDetailModal, closeModal,
-  switchView, closeModalBtn, setEditorContent, runDiffAndWait,
+  closeModalBtn, setEditorContent, runDiffAndWait,
   scrollToFind,
 } from './helpers/diff-workbench'
 
@@ -13,14 +13,6 @@ test.describe('Detail modal open/close', () => {
   test('opens from unified view interactive cell', async ({ page }) => {
     await openFirstDetailModal(page)
     await expect(page.locator(SEL.modalBackdrop)).toBeVisible()
-    await expect(page.locator(SEL.modalDialog)).toBeVisible()
-    await closeModal(page)
-  })
-
-  test('opens from source view interactive row', async ({ page }) => {
-    await switchView(page, 'source')
-    await page.locator(SEL.projectionInteractive).first().click()
-    await page.locator(SEL.modalBackdrop).waitFor({ state: 'visible' })
     await expect(page.locator(SEL.modalDialog)).toBeVisible()
     await closeModal(page)
   })

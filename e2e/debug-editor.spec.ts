@@ -116,7 +116,7 @@ test.describe('CodeMirror editor', () => {
     const { expandInput } = await import('./helpers/diff-workbench')
     await expandInput(page)
     const originalText = await page.locator(SEL.oldEditorCM).textContent()
-    await switchView(page, 'source')
+    await switchView(page, 'debug')
     await switchView(page, 'unified')
     await expandInput(page)
     const afterText = await page.locator(SEL.oldEditorCM).textContent()

@@ -49,19 +49,6 @@ describe('DiffWorkbench', () => {
     expect(activeTab?.text()).toBe('左右对齐')
   })
 
-  it('switches to source view mode', async () => {
-    wrapper = mount(DiffWorkbench, {
-      props: { initialOldMarkdown: OLD_MD, initialNewMarkdown: NEW_MD },
-      attachTo: document.body,
-    })
-    await waitFor(() => wrapper!.text().includes('统计条') && !wrapper!.text().includes('比对中...'))
-    const tabs = wrapper.findAll('.view-tabs .secondary-button')
-    const sourceTab = tabs.find((tab) => tab.text() === '单侧源码')!
-    await sourceTab.trigger('click')
-    await flushPromises()
-    expect(sourceTab.classes()).toContain('active')
-  })
-
   it('switches to debug view mode', async () => {
     wrapper = mount(DiffWorkbench, {
       props: { initialOldMarkdown: OLD_MD, initialNewMarkdown: NEW_MD },

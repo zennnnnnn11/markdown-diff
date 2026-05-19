@@ -5,7 +5,6 @@ import DiffChangeNav from './components/DiffChangeNav.vue'
 import DiffDebugPanel from './components/DiffDebugPanel.vue'
 import DiffDetailModal from './components/DiffDetailModal.vue'
 import DiffInputPanel from './components/DiffInputPanel.vue'
-import DiffProjectionTable from './components/DiffProjectionTable.vue'
 import DiffStatsBar from './components/DiffStatsBar.vue'
 import UnifiedDiffTable from './components/UnifiedDiffTable.vue'
 import { useDiffWorkbench } from './use-diff-workbench'
@@ -57,57 +56,12 @@ const displayWarnings = computed(() => {
   return [...new Set([...globalWarnings, ...perChangeWarnings].map((warning) => formatWarningLabel(warning)))]
 })
 const unifiedTableRef = ref<InstanceType<typeof UnifiedDiffTable> | null>(null)
-const leftProjectionRef = ref<InstanceType<typeof DiffProjectionTable> | null>(null)
-const rightProjectionRef = ref<InstanceType<typeof DiffProjectionTable> | null>(null)
-
-watch(
-  [() => leftProjectionRef.value, () => rightProjectionRef.value],
-  ([leftRef, rightRef], _previous, onCleanup) => {
-    const left = getScrollBody(leftRef)
-    const right = getScrollBody(rightRef)
-    if (!left || !right) return
-
-    let frame = 0
-    let syncingFrom: 'left' | 'right' | null = null
-    const sync = (source: HTMLElement, target: HTMLElement, side: 'left' | 'right') => () => {
-      if (syncingFrom && syncingFrom !== side) return
-      syncingFrom = side
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => {
-        target.scrollTop = source.scrollTop
-        syncingFrom = null
-      })
-    }
-
-    const onLeftScroll = sync(left, right, 'left')
-    const onRightScroll = sync(right, left, 'right')
-    left.addEventListener('scroll', onLeftScroll, { passive: true })
-    right.addEventListener('scroll', onRightScroll, { passive: true })
-
-    onCleanup(() => {
-      cancelAnimationFrame(frame)
-      left.removeEventListener('scroll', onLeftScroll)
-      right.removeEventListener('scroll', onRightScroll)
-    })
-  },
-  { flush: 'post' },
-)
 
 watch(
   [peerHighlightKey, peerSide],
   async ([nextKey, nextSide]) => {
     if (!nextKey || !nextSide) return
     await nextTick()
-    if (workbench.viewMode.value === 'source') {
-      const lines = nextSide === 'old' ? workbench.oldProjectionLines.value : workbench.projectionLines.value
-      const targetIndex = lines.findIndex((line) => line.changeKey === nextKey)
-      if (targetIndex >= 0) {
-        const tableRef = nextSide === 'old' ? leftProjectionRef.value : rightProjectionRef.value
-        const exposed = tableRef as unknown as ScrollableExposed | null
-        exposed?.scrollToIndex?.(targetIndex)
-      }
-      return
-    }
     if (workbench.viewMode.value === 'unified') {
       const targetIndex = mergedRows.value.findIndex((row) =>
         (nextSide === 'old' && row.oldLine?.changeKey === nextKey) ||
@@ -129,19 +83,13 @@ watch(
     workbench.pendingScrollTarget.value = null
     await nextTick()
 
-    if (workbench.viewMode.value === 'source') {
-      const tableRef = target.side === 'old' ? leftProjectionRef.value : rightProjectionRef.value
-      const exposed = tableRef as unknown as ScrollableExposed | null
-      exposed?.scrollToIndex?.(target.index)
-    } else if (workbench.viewMode.value === 'unified') {
-      const rowIndex = mergedRows.value.findIndex((row) => {
-        const line = target.side === 'old' ? row.oldLine : row.newLine
-        return line?.changeKey === target.changeKey
-      })
-      if (rowIndex >= 0) {
-        const exposed = unifiedTableRef.value as unknown as ScrollableExposed | null
-        exposed?.scrollToIndex?.(rowIndex)
-      }
+    const rowIndex = mergedRows.value.findIndex((row) => {
+      const line = target.side === 'old' ? row.oldLine : row.newLine
+      return line?.changeKey === target.changeKey
+    })
+    if (rowIndex >= 0) {
+      const exposed = unifiedTableRef.value as unknown as ScrollableExposed | null
+      exposed?.scrollToIndex?.(rowIndex)
     }
   },
   { flush: 'post' },
@@ -155,8 +103,6 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onKeyDown)
   unifiedTableRef.value = null
-  leftProjectionRef.value = null
-  rightProjectionRef.value = null
 })
 
 function updateOldMarkdown(value: string): void {
@@ -175,17 +121,8 @@ function selectLine(changeKey?: string, _side?: 'old' | 'new'): void { // eslint
   workbench.selectLine(changeKey)
 }
 
-function setViewMode(mode: 'source' | 'unified' | 'debug'): void {
+function setViewMode(mode: 'unified' | 'debug'): void {
   workbench.viewMode.value = mode
-}
-
-function getScrollBody(
-  tableRef: InstanceType<typeof DiffProjectionTable> | null,
-): HTMLElement | null {
-  const exposed = tableRef as { scrollBody?: HTMLElement | { value?: HTMLElement | null } | null } | null
-  const body = exposed?.scrollBody
-  if (body instanceof HTMLElement) return body
-  return body?.value ?? null
 }
 
 function toggleCollapse(): void {
@@ -209,7 +146,6 @@ function onKeyDown(e: KeyboardEvent): void {
       </div>
       <div class="view-tabs" role="tablist" aria-label="视图切换">
         <button type="button" class="secondary-button" :class="{ active: viewMode === 'unified' }" @click="setViewMode('unified')">左右对齐</button>
-        <button type="button" class="secondary-button" :class="{ active: viewMode === 'source' }" @click="setViewMode('source')">单侧源码</button>
         <button type="button" class="secondary-button" :class="{ active: viewMode === 'debug' }" @click="setViewMode('debug')">调试视图</button>
       </div>
     </header>
@@ -269,25 +205,6 @@ function onKeyDown(e: KeyboardEvent): void {
       :peer-highlight-key="peerHighlightKey"
       @select="selectLine"
     />
-
-    <div v-else-if="resultVisible && viewMode === 'source'" class="projection-layout">
-      <DiffProjectionTable
-        ref="leftProjectionRef"
-        side="old"
-        :projection-lines="workbench.oldProjectionLines.value"
-        :active-filter="activeFilter"
-        :peer-highlight-key="peerSide === 'old' ? peerHighlightKey : undefined"
-        @select="selectLine"
-      />
-      <DiffProjectionTable
-        ref="rightProjectionRef"
-        side="new"
-        :projection-lines="workbench.projectionLines.value"
-        :active-filter="activeFilter"
-        :peer-highlight-key="peerSide === 'new' ? peerHighlightKey : undefined"
-        @select="selectLine"
-      />
-    </div>
 
     <DiffDetailModal :detail="detail" @close="workbench.closeDetail" />
 
@@ -362,12 +279,6 @@ function onKeyDown(e: KeyboardEvent): void {
   box-shadow: var(--glow-accent);
 }
 
-.projection-layout {
-  display: grid;
-  gap: 16px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
 .warnings-banner {
   border: 1px solid var(--warning-border);
   border-radius: var(--radius-md);
@@ -416,9 +327,4 @@ function onKeyDown(e: KeyboardEvent): void {
   padding: 2px 8px;
 }
 
-@media (max-width: 960px) {
-  .projection-layout {
-    grid-template-columns: 1fr;
-  }
-}
 </style>

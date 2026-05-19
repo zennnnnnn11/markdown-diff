@@ -11,10 +11,8 @@ test.describe('ARIA attributes', () => {
 
   test('view switcher buttons form a button group', async ({ page }) => {
     const unifiedBtn = page.getByRole('button', { name: '左右对齐' })
-    const sourceBtn = page.getByRole('button', { name: '单侧源码' })
     const debugBtn = page.getByRole('button', { name: '调试视图' })
     await expect(unifiedBtn).toBeVisible()
-    await expect(sourceBtn).toBeVisible()
     await expect(debugBtn).toBeVisible()
   })
 
@@ -49,12 +47,6 @@ test.describe('ARIA attributes', () => {
     const isDisabled = await prevChangeBtn(page).isDisabled()
     expect(isDisabled).toBe(true)
   })
-
-  test('projection tables have role="table"', async ({ page }) => {
-    await switchView(page, 'source')
-    await expect(page.locator(SEL.oldProjection)).toHaveAttribute('role', 'table')
-    await expect(page.locator(SEL.newProjection)).toHaveAttribute('role', 'table')
-  })
 })
 
 test.describe('Responsive layout', () => {
@@ -62,14 +54,6 @@ test.describe('Responsive layout', () => {
     await page.setViewportSize({ width: 800, height: 600 })
     await gotoAndWaitForDiff(page)
     await expect(page.locator(SEL.unifiedTable)).toBeVisible()
-  })
-
-  test('projection view adapts at narrow viewport', async ({ page }) => {
-    await page.setViewportSize({ width: 800, height: 600 })
-    await gotoAndWaitForDiff(page)
-    await switchView(page, 'source')
-    await expect(page.locator(SEL.oldProjection)).toBeVisible()
-    await expect(page.locator(SEL.newProjection)).toBeVisible()
   })
 
   test('debug panel adapts at narrow viewport', async ({ page }) => {

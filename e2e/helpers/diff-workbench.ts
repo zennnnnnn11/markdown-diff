@@ -2,8 +2,6 @@ import type { Page } from '@playwright/test'
 
 export const SEL = {
   unifiedTable: '[role="table"][aria-label="左右对齐视图"]',
-  oldProjection: '[role="table"][aria-label="旧文档源码投射"]',
-  newProjection: '[role="table"][aria-label="新文档源码投射"]',
   modalBackdrop: '[data-testid="detail-modal-backdrop"]',
   modalDialog: 'section[role="dialog"]',
   staleBanner: '.stale-banner',
@@ -20,8 +18,6 @@ export const SEL = {
   cellNew: '.cell-new',
   interactiveCell: '.cell.interactive',
   annotationChip: '.annotation-chip',
-  projectionRow: '.projection-row',
-  projectionInteractive: '.projection-row.interactive',
   fileInput: 'input[type="file"][accept]',
   diffLoading: '[data-testid="diff-loading"]',
   diffError: '[data-testid="diff-error"]',
@@ -44,9 +40,6 @@ export function closeModalBtn(page: Page) {
 }
 export function viewUnified(page: Page) {
   return page.getByRole('button', { name: '左右对齐' })
-}
-export function viewSource(page: Page) {
-  return page.getByRole('button', { name: '单侧源码' })
 }
 export function viewDebug(page: Page) {
   return page.getByRole('button', { name: '调试视图' })
@@ -108,9 +101,8 @@ export async function runDiffAndWait(page: Page): Promise<void> {
   await page.locator(SEL.unifiedTable).waitFor({ state: 'visible', timeout: 15_000 })
 }
 
-export async function switchView(page: Page, mode: 'unified' | 'source' | 'debug'): Promise<void> {
+export async function switchView(page: Page, mode: 'unified' | 'debug'): Promise<void> {
   if (mode === 'unified') await viewUnified(page).click()
-  else if (mode === 'source') await viewSource(page).click()
   else await viewDebug(page).click()
 }
 
