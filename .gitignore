@@ -43,3 +43,10 @@ playwright-report/
 
 # Rust
 target/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
