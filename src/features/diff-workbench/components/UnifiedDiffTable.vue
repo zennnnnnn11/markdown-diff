@@ -1,14 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
-import type {
-  HighlightFilter,
-  MergedRow,
-  ProjectionAnnotation,
-  ProjectionLine,
-  ProjectionSegment,
-} from '../view-model'
-import { lineMatchesFilter } from '../view-model'
+import type { HighlightFilter, MergedRow } from '../view-model'
+import UnifiedDiffRow from './UnifiedDiffRow.vue'
 
 const scrollBody = ref<HTMLElement | null>(null)
 
@@ -21,12 +15,18 @@ const props = defineProps<{
 const rowVirtualizer = useVirtualizer(computed(() => ({
   count: props.mergedRows.length,
   getScrollElement: () => scrollBody.value,
-  estimateSize: () => 28,
-  overscan: 20,
+  estimateSize: () => 44,
+  overscan: 8,
 })))
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
+
+const measure = (el: any) => {
+  if (!el || el.getBoundingClientRect().height > 0) {
+    rowVirtualizer.value.measureElement(el)
+  }
+}
 
 defineExpose({ scrollBody, scrollToIndex: (index: number) => rowVirtualizer.value.scrollToIndex(index, { align: 'center' }) })
 
@@ -34,40 +34,19 @@ const emit = defineEmits<{
   (e: 'select', changeKey: string | undefined, side: 'old' | 'new'): void
 }>()
 
-function toneClass(line: ProjectionLine | null): string {
-  return line ? `tone-${line.baseTone}` : 'tone-blank'
+function onSelect(changeKey: string | undefined, side: 'old' | 'new'): void {
+  emit('select', changeKey, side)
 }
 
-function pairClass(line: ProjectionLine | null): string | undefined {
-  if (!line?.pairKind) return undefined
-  return line.pairKind === 'match' ? 'pair-match' : 'pair-align'
-}
-
-function peerClass(line: ProjectionLine | null, peerHighlightKey?: string): boolean {
-  return !!(peerHighlightKey && line?.changeKey === peerHighlightKey)
-}
-
-function filterClass(line: ProjectionLine | null, activeFilter: HighlightFilter | null): boolean {
-  return !!(activeFilter && line && lineMatchesFilter(line, activeFilter))
-}
-
-function isInteractive(line: ProjectionLine | null): boolean {
-  return !!line?.changeKey
-}
-
-function onClick(line: ProjectionLine | null, side: 'old' | 'new'): void {
-  if (line?.changeKey) emit('select', line.changeKey, side)
-}
-
-function annotationClass(annotation: ProjectionAnnotation): string {
-  if (annotation.kind === 'warning') return 'annotation-warning'
-  if (annotation.kind === 'overlap') return 'annotation-overlap'
-  return annotation.tone ? `annotation-${annotation.tone}` : 'annotation-tone'
-}
-
-function segmentClass(segment: ProjectionSegment): string {
-  return `tone-${segment.tone}`
-}
+watch(() => props.peerHighlightKey, (newKey, oldKey) => {
+  if (!scrollBody.value) return
+  if (oldKey) {
+    scrollBody.value.querySelectorAll('.cell.peer-highlight').forEach((el) => el.classList.remove('peer-highlight'))
+  }
+  if (newKey) {
+    scrollBody.value.querySelectorAll(`.cell[data-change-key="${CSS.escape(newKey)}"]`).forEach((el) => el.classList.add('peer-highlight'))
+  }
+})
 </script>
 
 <template>
@@ -77,7 +56,13 @@ function segmentClass(segment: ProjectionSegment): string {
       <p>旧文档和新文档按同一行号并排呈现，缺失侧保留灰度空白。</p>
     </div>
 
-    <div ref="scrollBody" class="unified-table" role="table" aria-label="左右对齐视图">
+    <div
+      ref="scrollBody"
+      class="unified-table"
+      role="table"
+      aria-label="左右对齐视图"
+      :data-active-filter="activeFilter ?? undefined"
+    >
       <div class="unified-header-row" role="row">
         <div class="row-index row-index-header" role="columnheader">行</div>
         <div class="side-heading side-heading-old" role="columnheader">旧文档</div>
@@ -87,8 +72,8 @@ function segmentClass(segment: ProjectionSegment): string {
       <div :style="{ height: `${totalSize}px`, width: '100%', position: 'relative' }">
         <div
           v-for="vRow in virtualRows"
-          :key="props.mergedRows[vRow.index]?.key ?? vRow.index"
-          :ref="(el: any) => { if (el?.getBoundingClientRect?.().height) rowVirtualizer.measureElement(el) }"
+          :key="mergedRows[vRow.index]?.key ?? vRow.index"
+          :ref="measure"
           :data-index="vRow.index"
           class="unified-row"
           :style="{
@@ -99,141 +84,11 @@ function segmentClass(segment: ProjectionSegment): string {
             transform: `translateY(${vRow.start}px)`,
           }"
         >
-          <div class="row-index" role="cell">{{ vRow.index + 1 }}</div>
-
-          <!-- Old gutter -->
-          <div
-            class="gutter gutter-old"
-            :class="{ interactive: isInteractive(props.mergedRows[vRow.index]?.oldLine ?? null) }"
-            role="cell"
-            @click="onClick(props.mergedRows[vRow.index]?.oldLine ?? null, 'old')"
-          >
-            <template v-if="props.mergedRows[vRow.index]?.oldLine">
-              <span class="line-number">{{ props.mergedRows[vRow.index]!.oldLine!.lineNumber }}</span>
-              <span class="gutter-badges">
-                <span v-if="props.mergedRows[vRow.index]!.oldLine!.hasDescendantChange && props.mergedRows[vRow.index]!.oldLine!.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
-                <span v-if="props.mergedRows[vRow.index]!.oldLine!.changeKeys.length > 1" class="overlap-flag" :title="`旧侧命中 ${props.mergedRows[vRow.index]!.oldLine!.changeKeys.length} 个变更`">+{{ props.mergedRows[vRow.index]!.oldLine!.changeKeys.length - 1 }}</span>
-                <span v-if="props.mergedRows[vRow.index]!.oldLine!.warnings.length" class="warning-flag" title="存在告警">⚠</span>
-                <span
-                  v-if="props.mergedRows[vRow.index]!.oldLine!.baseTone === 'move' && props.mergedRows[vRow.index]!.oldLine!.movePeerLineNumber"
-                  class="move-peer-flag"
-                  :title="`移动目标：第 ${props.mergedRows[vRow.index]!.oldLine!.movePeerLineNumber} 行`"
-                >{{ (props.mergedRows[vRow.index]!.oldLine!.movePeerRowIndex ?? vRow.index) > vRow.index ? '↓' : '↑' }}{{ props.mergedRows[vRow.index]!.oldLine!.movePeerLineNumber }}</span>
-              </span>
-            </template>
-          </div>
-
-          <!-- Old content -->
-          <div
-            class="cell cell-old"
-            :class="[
-              toneClass(props.mergedRows[vRow.index]?.oldLine ?? null),
-              pairClass(props.mergedRows[vRow.index]?.oldLine ?? null),
-              {
-                active: filterClass(props.mergedRows[vRow.index]?.oldLine ?? null, activeFilter),
-                'peer-highlight': peerClass(props.mergedRows[vRow.index]?.oldLine ?? null, peerHighlightKey),
-                interactive: isInteractive(props.mergedRows[vRow.index]?.oldLine ?? null),
-              },
-            ]"
-            :data-change-key="props.mergedRows[vRow.index]?.oldLine?.changeKey"
-            :title="props.mergedRows[vRow.index]?.oldLine?.changeTooltip"
-            data-side="old"
-            role="cell"
-            @click="onClick(props.mergedRows[vRow.index]?.oldLine ?? null, 'old')"
-          >
-            <template v-if="props.mergedRows[vRow.index]?.oldLine">
-              <span class="line-text">
-                <template v-if="props.mergedRows[vRow.index]!.oldLine!.segments?.length">
-                  <span
-                    v-for="(segment, segmentIndex) in props.mergedRows[vRow.index]!.oldLine!.segments"
-                    :key="`${props.mergedRows[vRow.index]!.oldLine!.key}:segment:${segmentIndex}`"
-                    class="segment"
-                    :class="segmentClass(segment)"
-                  >{{ segment.text || ' ' }}</span>
-                </template>
-                <template v-else>{{ props.mergedRows[vRow.index]!.oldLine!.text || ' ' }}</template>
-              </span>
-              <span v-if="props.mergedRows[vRow.index]!.oldLine!.annotations.length" class="cell-annotations">
-                <span
-                  v-for="(annotation, annotationIndex) in props.mergedRows[vRow.index]!.oldLine!.annotations"
-                  :key="`${props.mergedRows[vRow.index]!.oldLine!.key}:annotation:${annotationIndex}`"
-                  class="annotation-chip"
-                  :class="annotationClass(annotation)"
-                >
-                  {{ annotation.label }}
-                </span>
-              </span>
-            </template>
-            <span v-else class="placeholder-text" aria-hidden="true">{{ props.mergedRows[vRow.index]?.newLine?.text || ' ' }}</span>
-          </div>
-
-          <div class="center-gap" aria-hidden="true"></div>
-
-          <!-- New gutter -->
-          <div
-            class="gutter gutter-new"
-            :class="{ interactive: isInteractive(props.mergedRows[vRow.index]?.newLine ?? null) }"
-            role="cell"
-            @click="onClick(props.mergedRows[vRow.index]?.newLine ?? null, 'new')"
-          >
-            <template v-if="props.mergedRows[vRow.index]?.newLine">
-              <span class="line-number">{{ props.mergedRows[vRow.index]!.newLine!.lineNumber }}</span>
-              <span class="gutter-badges">
-                <span v-if="props.mergedRows[vRow.index]!.newLine!.hasDescendantChange && props.mergedRows[vRow.index]!.newLine!.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
-                <span v-if="props.mergedRows[vRow.index]!.newLine!.changeKeys.length > 1" class="overlap-flag" :title="`新侧命中 ${props.mergedRows[vRow.index]!.newLine!.changeKeys.length} 个变更`">+{{ props.mergedRows[vRow.index]!.newLine!.changeKeys.length - 1 }}</span>
-                <span v-if="props.mergedRows[vRow.index]!.newLine!.warnings.length" class="warning-flag" title="存在告警">⚠</span>
-                <span
-                  v-if="props.mergedRows[vRow.index]!.newLine!.baseTone === 'move' && props.mergedRows[vRow.index]!.newLine!.movePeerLineNumber"
-                  class="move-peer-flag"
-                  :title="`移动来源：第 ${props.mergedRows[vRow.index]!.newLine!.movePeerLineNumber} 行`"
-                >{{ (props.mergedRows[vRow.index]!.newLine!.movePeerRowIndex ?? vRow.index) > vRow.index ? '↓' : '↑' }}{{ props.mergedRows[vRow.index]!.newLine!.movePeerLineNumber }}</span>
-              </span>
-            </template>
-          </div>
-
-          <!-- New content -->
-          <div
-            class="cell cell-new"
-            :class="[
-              toneClass(props.mergedRows[vRow.index]?.newLine ?? null),
-              pairClass(props.mergedRows[vRow.index]?.newLine ?? null),
-              {
-                active: filterClass(props.mergedRows[vRow.index]?.newLine ?? null, activeFilter),
-                'peer-highlight': peerClass(props.mergedRows[vRow.index]?.newLine ?? null, peerHighlightKey),
-                interactive: isInteractive(props.mergedRows[vRow.index]?.newLine ?? null),
-              },
-            ]"
-            :data-change-key="props.mergedRows[vRow.index]?.newLine?.changeKey"
-            :title="props.mergedRows[vRow.index]?.newLine?.changeTooltip"
-            data-side="new"
-            role="cell"
-            @click="onClick(props.mergedRows[vRow.index]?.newLine ?? null, 'new')"
-          >
-            <template v-if="props.mergedRows[vRow.index]?.newLine">
-              <span class="line-text">
-                <template v-if="props.mergedRows[vRow.index]!.newLine!.segments?.length">
-                  <span
-                    v-for="(segment, segmentIndex) in props.mergedRows[vRow.index]!.newLine!.segments"
-                    :key="`${props.mergedRows[vRow.index]!.newLine!.key}:segment:${segmentIndex}`"
-                    class="segment"
-                    :class="segmentClass(segment)"
-                  >{{ segment.text || ' ' }}</span>
-                </template>
-                <template v-else>{{ props.mergedRows[vRow.index]!.newLine!.text || ' ' }}</template>
-              </span>
-              <span v-if="props.mergedRows[vRow.index]!.newLine!.annotations.length" class="cell-annotations">
-                <span
-                  v-for="(annotation, annotationIndex) in props.mergedRows[vRow.index]!.newLine!.annotations"
-                  :key="`${props.mergedRows[vRow.index]!.newLine!.key}:annotation:${annotationIndex}`"
-                  class="annotation-chip"
-                  :class="annotationClass(annotation)"
-                >
-                  {{ annotation.label }}
-                </span>
-              </span>
-            </template>
-            <span v-else class="placeholder-text" aria-hidden="true">{{ props.mergedRows[vRow.index]?.oldLine?.text || ' ' }}</span>
-          </div>
+          <UnifiedDiffRow
+            :row="mergedRows[vRow.index]!"
+            :row-index="vRow.index"
+            @select="onSelect"
+          />
         </div>
       </div>
     </div>
@@ -281,7 +136,7 @@ function segmentClass(segment: ProjectionSegment): string {
 }
 
 .unified-header-row,
-.unified-row {
+:deep(.unified-row) {
   display: grid;
   grid-template-columns: 48px 84px minmax(0, 1fr) 20px 84px minmax(0, 1fr);
   transition: background-color var(--transition-fast);
@@ -315,7 +170,16 @@ function segmentClass(segment: ProjectionSegment): string {
   grid-column: 5 / 7;
 }
 
-.row-index {
+.unified-row {
+  border-top: 1px solid var(--border-subtle);
+  min-height: 28px;
+}
+
+.unified-row:hover {
+  background: var(--bg-subtle);
+}
+
+:deep(.row-index) {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -334,7 +198,7 @@ function segmentClass(segment: ProjectionSegment): string {
   justify-content: center;
 }
 
-.center-gap {
+:deep(.center-gap) {
   background:
     linear-gradient(90deg, var(--border) 0 1px, transparent 1px),
     linear-gradient(90deg, transparent calc(100% - 1px), var(--border) calc(100% - 1px));
@@ -344,16 +208,7 @@ function segmentClass(segment: ProjectionSegment): string {
   padding: 0;
 }
 
-.unified-row {
-  border-top: 1px solid var(--border-subtle);
-  min-height: 28px;
-}
-
-.unified-row:hover {
-  background: var(--bg-subtle);
-}
-
-.gutter {
+:deep(.gutter) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -365,32 +220,32 @@ function segmentClass(segment: ProjectionSegment): string {
   font-variant-numeric: tabular-nums;
 }
 
-.gutter-old {
+:deep(.gutter-old) {
   border-right: 1px solid var(--border-subtle);
 }
 
-.gutter.interactive {
+:deep(.gutter.interactive) {
   cursor: pointer;
 }
 
-.gutter-badges {
+:deep(.gutter-badges) {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.line-number {
+:deep(.line-number) {
   min-width: 24px;
   text-align: right;
   font-weight: 500;
 }
 
-.descendant-flag {
+:deep(.descendant-flag) {
   color: var(--text-muted);
   font-size: 11px;
 }
 
-.overlap-flag {
+:deep(.overlap-flag) {
   color: var(--text-secondary);
   background: var(--bg-muted);
   border: 1px solid var(--border);
@@ -400,12 +255,12 @@ function segmentClass(segment: ProjectionSegment): string {
   font-weight: 500;
 }
 
-.warning-flag {
+:deep(.warning-flag) {
   color: var(--warning-text);
   font-size: 11px;
 }
 
-.move-peer-flag {
+:deep(.move-peer-flag) {
   color: var(--tone-move-text);
   background: var(--tone-move-bg);
   border: 1px solid var(--tone-move-border);
@@ -413,15 +268,15 @@ function segmentClass(segment: ProjectionSegment): string {
   border-radius: var(--radius-sm);
   font-size: 9px;
   font-weight: 600;
-  transition: all var(--transition-fast);
+  transition: color var(--transition-fast), background-color var(--transition-fast);
 }
 
-.move-peer-flag:hover {
+:deep(.move-peer-flag:hover) {
   background: var(--tone-move-border);
   color: var(--text-primary);
 }
 
-.cell {
+:deep(.cell) {
   padding: 6px 12px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -430,30 +285,26 @@ function segmentClass(segment: ProjectionSegment): string {
   justify-content: space-between;
   gap: 8px;
   line-height: 1.5;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-.cell-old {
+:deep(.cell-old) {
   border-right: 1px solid var(--border-subtle);
 }
 
-.cell.interactive {
+:deep(.cell.interactive) {
   cursor: pointer;
 }
 
-.cell.interactive:hover {
+:deep(.cell.interactive:hover) {
   background: rgba(0, 0, 0, 0.02);
 }
 
-.dark .cell.interactive:hover {
+:deep(.dark .cell.interactive:hover) {
   background: rgba(255, 255, 255, 0.02);
 }
 
-.cell.active {
-  box-shadow: inset 0 0 0 2px var(--accent-blue);
-}
-
-.cell.peer-highlight {
+:deep(.cell.peer-highlight) {
   box-shadow: inset 0 0 0 2px var(--accent-blue);
   background: var(--accent-blue-subtle);
   animation: pulse-glow 2.5s infinite alternate ease-in-out;
@@ -469,37 +320,54 @@ function segmentClass(segment: ProjectionSegment): string {
   }
 }
 
-.cell.pair-match {
+:deep(.cell.pair-match) {
   border-left: 3px solid var(--text-primary);
 }
 
-.cell.pair-align {
+:deep(.cell.pair-align) {
   border-left: 3px dashed var(--text-muted);
 }
 
-.placeholder-text {
+:deep(.placeholder-text) {
   visibility: hidden;
 }
 
-.line-text {
+:deep(.line-text) {
   min-width: 0;
   flex: 1;
 }
 
-.segment {
+:deep(.segment) {
   white-space: pre-wrap;
 }
 
-.cell-annotations {
+:deep(.cell-annotations) {
   display: inline-flex;
   justify-content: flex-end;
   gap: 6px;
   flex-wrap: wrap;
 }
 
+/* CSS-driven activeFilter highlighting */
+.unified-table[data-active-filter="insert"] :deep(.cell[data-base-tone="insert"]),
+.unified-table[data-active-filter="insert"] :deep(.cell[data-matched-tones~="insert"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
+.unified-table[data-active-filter="delete"] :deep(.cell[data-base-tone="delete"]),
+.unified-table[data-active-filter="delete"] :deep(.cell[data-matched-tones~="delete"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
+.unified-table[data-active-filter="replace"] :deep(.cell[data-base-tone="replace"]),
+.unified-table[data-active-filter="replace"] :deep(.cell[data-matched-tones~="replace"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
+.unified-table[data-active-filter="move"] :deep(.cell[data-base-tone="move"]),
+.unified-table[data-active-filter="move"] :deep(.cell[data-matched-tones~="move"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
+.unified-table[data-active-filter="meta"] :deep(.cell[data-base-tone="meta"]),
+.unified-table[data-active-filter="meta"] :deep(.cell[data-matched-tones~="meta"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
+.unified-table[data-active-filter="rename"] :deep(.cell[data-base-tone="rename"]),
+.unified-table[data-active-filter="rename"] :deep(.cell[data-matched-tones~="rename"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
+.unified-table[data-active-filter="reorder"] :deep(.cell[data-base-tone="reorder"]),
+.unified-table[data-active-filter="reorder"] :deep(.cell[data-matched-tones~="reorder"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
+.unified-table[data-active-filter="warning"] :deep(.cell[data-has-warning]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
+
 @media (max-width: 960px) {
   .unified-header-row,
-  .unified-row {
+  :deep(.unified-row) {
     grid-template-columns: 40px 68px minmax(0, 1fr) 12px 68px minmax(0, 1fr);
   }
 }

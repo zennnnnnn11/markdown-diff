@@ -49,12 +49,12 @@ describe('App', () => {
       await waitFor(() => wrapper.findAll('.stat-card').length > 0 && !wrapper.text().includes('比对中...'))
 
       const statButton = wrapper.find('.stat-card')
-      expect(wrapper.findAll('.cell.active')).toHaveLength(0)
+      expect(wrapper.find('.unified-table').attributes('data-active-filter')).toBeUndefined()
 
       await statButton.trigger('focus')
-      expect(wrapper.findAll('.cell.active').length).toBeGreaterThan(0)
+      expect(wrapper.find('.unified-table').attributes('data-active-filter')).toBeDefined()
       await statButton.trigger('blur')
-      expect(wrapper.findAll('.cell.active')).toHaveLength(0)
+      expect(wrapper.find('.unified-table').attributes('data-active-filter')).toBeUndefined()
 
       const interactiveRow = wrapper.find('.cell.interactive')
       await interactiveRow.trigger('click')
