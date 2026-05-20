@@ -322,8 +322,8 @@ function lineClassName(baseTone: Tone): string {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  display: grid;
-  place-items: center;
+  display: flex;
+  justify-content: center;
   padding: 40px 24px;
   background: rgba(255, 255, 255, 0.4);
   backdrop-filter: blur(20px) saturate(190%);
@@ -338,11 +338,12 @@ function lineClassName(baseTone: Tone): string {
 
 .modal-card {
   width: min(960px, 100%);
+  margin: auto 0;
   border-radius: var(--radius-lg);
   background: rgba(255, 255, 255, 0.85);
   border: 1px solid var(--border);
   padding: 32px;
-  box-shadow: 
+  box-shadow:
     0 30px 60px rgba(0, 0, 0, 0.12),
     0 0 0 1px rgba(0, 0, 0, 0.02);
   display: flex;
@@ -350,6 +351,7 @@ function lineClassName(baseTone: Tone): string {
   gap: 20px;
   position: relative;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 .dark .modal-card {
