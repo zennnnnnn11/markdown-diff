@@ -1,3 +1,5 @@
+import { vi } from 'vitest'
+
 if (typeof globalThis.CSS === 'undefined') {
   globalThis.CSS = {} as typeof CSS
 }
@@ -5,6 +7,13 @@ if (typeof globalThis.CSS.escape !== 'function') {
   globalThis.CSS.escape = (value: string) =>
     value.replace(/[!"#$%&'()*+,./:;<=>?@[\\\]^`{|}~]/g, '\\$&')
 }
+
+vi.mock('@chenglou/pretext', () => ({
+  prepare: () => ({}),
+  layout: () => ({ height: 18, lineCount: 1 }),
+  clearCache: () => {},
+  setLocale: () => {},
+}))
 
 // jsdom does not implement CSS layout — offsetWidth, offsetHeight, and
 // getBoundingClientRect always return 0.  @tanstack/vue-virtual uses

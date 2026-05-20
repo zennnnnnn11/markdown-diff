@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import type { HighlightFilter, MergedRow } from '../view-model'
+import { computeAllRowHeights } from '../view-model/row-height'
 import UnifiedDiffRow from './UnifiedDiffRow.vue'
 
 const scrollBody = ref<HTMLElement | null>(null)
+const tableWidth = ref(0)
+let resizeObserver: ResizeObserver | undefined
 
 const props = defineProps<{
   mergedRows: MergedRow[]
@@ -12,21 +15,33 @@ const props = defineProps<{
   peerHighlightKey?: string
 }>()
 
+const rowHeights = computed(() =>
+  tableWidth.value > 0
+    ? computeAllRowHeights(props.mergedRows, tableWidth.value)
+    : [],
+)
+
 const rowVirtualizer = useVirtualizer(computed(() => ({
   count: props.mergedRows.length,
   getScrollElement: () => scrollBody.value,
-  estimateSize: () => 44,
+  estimateSize: (index: number) => rowHeights.value[index] ?? 44,
   overscan: 8,
 })))
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
 
-const measure = (el: any) => {
-  if (!el || el.getBoundingClientRect().height > 0) {
-    rowVirtualizer.value.measureElement(el)
-  }
-}
+onMounted(() => {
+  if (!scrollBody.value) return
+  resizeObserver = new ResizeObserver(([entry]) => {
+    if (entry) tableWidth.value = entry.contentRect.width
+  })
+  resizeObserver.observe(scrollBody.value)
+})
+
+onBeforeUnmount(() => {
+  resizeObserver?.disconnect()
+})
 
 defineExpose({ scrollBody, scrollToIndex: (index: number) => rowVirtualizer.value.scrollToIndex(index, { align: 'center' }) })
 
@@ -73,7 +88,6 @@ watch(() => props.peerHighlightKey, (newKey, oldKey) => {
         <div
           v-for="vRow in virtualRows"
           :key="mergedRows[vRow.index]?.key ?? vRow.index"
-          :ref="measure"
           :data-index="vRow.index"
           class="unified-row"
           :style="{
