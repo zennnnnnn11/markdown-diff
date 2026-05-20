@@ -32,3 +32,28 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
     disconnect() {}
   }
 }
+
+// CodeMirror selection overlays ask DOM Range for client rects. jsdom exposes
+// Range but does not implement these layout methods.
+if (typeof globalThis.Range !== 'undefined') {
+  if (typeof globalThis.Range.prototype.getBoundingClientRect !== 'function') {
+    globalThis.Range.prototype.getBoundingClientRect = () => ({
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      top: 0,
+      right: 0,
+      bottom: 0,
+      left: 0,
+      toJSON() { return {} },
+    })
+  }
+  if (typeof globalThis.Range.prototype.getClientRects !== 'function') {
+    globalThis.Range.prototype.getClientRects = () => ({
+      length: 0,
+      item: () => null,
+      [Symbol.iterator]: function *iterator() {},
+    }) as DOMRectList
+  }
+}

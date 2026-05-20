@@ -45,13 +45,10 @@ defineProps<{
 
 <style scoped>
 .panel {
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 16px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--glass-shadow);
+  background: var(--bg-surface);
 }
 
 .panel-header {
@@ -65,10 +62,8 @@ defineProps<{
 .panel-header h2 {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   margin: 0;
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
 }
 
 .panel-header p {

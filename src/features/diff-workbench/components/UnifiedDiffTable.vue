@@ -242,13 +242,10 @@ function segmentClass(segment: ProjectionSegment): string {
 
 <style scoped>
 .panel {
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 16px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--glass-shadow);
+  background: var(--bg-surface);
 }
 
 .panel-header {
@@ -262,10 +259,8 @@ function segmentClass(segment: ProjectionSegment): string {
 .panel-header h2 {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   margin: 0;
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
 }
 
 .unified-table {
@@ -289,11 +284,9 @@ function segmentClass(segment: ProjectionSegment): string {
   z-index: 1;
   border-bottom: 1px solid var(--border);
   background: var(--bg-subtle);
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
 }
 
 .unified-header-row > * {
@@ -407,11 +400,10 @@ function segmentClass(segment: ProjectionSegment): string {
 
 .cell.interactive {
   cursor: pointer;
-  transition: background var(--transition-fast);
 }
 
 .cell.interactive:hover {
-  filter: brightness(0.97);
+  background: var(--bg-subtle);
 }
 
 .cell.active {
@@ -422,7 +414,6 @@ function segmentClass(segment: ProjectionSegment): string {
 .cell.peer-highlight {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
-  opacity: 0.85;
 }
 
 .cell.pair-match {

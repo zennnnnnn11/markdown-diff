@@ -34,7 +34,7 @@ describe('DiffWorkbench', () => {
       props: { initialOldMarkdown: OLD_MD, initialNewMarkdown: NEW_MD },
       attachTo: document.body,
     })
-    await waitFor(() => wrapper!.text().includes('统计条') && !wrapper!.text().includes('比对中...'))
+    await waitFor(() => wrapper!.findAll('.stat-card').length > 0 && !wrapper!.text().includes('比对中...'))
     expect(wrapper.text()).toContain('Markdown Diff')
   })
 
@@ -43,7 +43,7 @@ describe('DiffWorkbench', () => {
       props: { initialOldMarkdown: OLD_MD, initialNewMarkdown: NEW_MD },
       attachTo: document.body,
     })
-    await waitFor(() => wrapper!.text().includes('统计条') && !wrapper!.text().includes('比对中...'))
+    await waitFor(() => wrapper!.findAll('.stat-card').length > 0 && !wrapper!.text().includes('比对中...'))
     const tabs = wrapper.findAll('.view-tabs .secondary-button')
     const activeTab = tabs.find((tab) => tab.classes().includes('active'))
     expect(activeTab?.text()).toBe('左右对齐')
@@ -54,7 +54,7 @@ describe('DiffWorkbench', () => {
       props: { initialOldMarkdown: OLD_MD, initialNewMarkdown: NEW_MD },
       attachTo: document.body,
     })
-    await waitFor(() => wrapper!.text().includes('统计条') && !wrapper!.text().includes('比对中...'))
+    await waitFor(() => wrapper!.findAll('.stat-card').length > 0 && !wrapper!.text().includes('比对中...'))
     const tabs = wrapper.findAll('.view-tabs .secondary-button')
     const debugTab = tabs.find((tab) => tab.text() === '调试视图')!
     await debugTab.trigger('click')
@@ -67,7 +67,7 @@ describe('DiffWorkbench', () => {
       props: { initialOldMarkdown: OLD_MD, initialNewMarkdown: NEW_MD },
       attachTo: document.body,
     })
-    await waitFor(() => wrapper!.text().includes('统计条') && !wrapper!.text().includes('比对中...'))
+    await waitFor(() => wrapper!.findAll('.stat-card').length > 0 && !wrapper!.text().includes('比对中...'))
 
     const inputPanel = wrapper.findComponent({ name: 'DiffInputPanel' })
     await inputPanel.vm.$emit('update:old-markdown', 'changed content')
@@ -82,7 +82,7 @@ describe('DiffWorkbench', () => {
       props: { initialOldMarkdown: OLD_MD, initialNewMarkdown: NEW_MD },
       attachTo: document.body,
     })
-    await waitFor(() => wrapper!.text().includes('统计条') && !wrapper!.text().includes('比对中...'))
+    await waitFor(() => wrapper!.findAll('.stat-card').length > 0 && !wrapper!.text().includes('比对中...'))
 
     const inputPanel = wrapper.findComponent({ name: 'DiffInputPanel' })
     await inputPanel.vm.$emit('update:old-markdown', 'changed content')

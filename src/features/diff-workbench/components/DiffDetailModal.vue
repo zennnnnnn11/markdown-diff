@@ -276,41 +276,18 @@ function lineClassName(baseTone: Tone): string {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(255, 255, 255, 0.3);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.25);
   z-index: 1000;
-  animation: backdrop-in var(--transition-smooth) both;
-}
-
-@keyframes backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
 }
 
 .modal-card {
   width: min(960px, 100%);
   max-height: calc(100vh - 48px);
   overflow: auto;
-  border-radius: var(--radius-lg);
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--shadow-lg), var(--glass-shadow);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
   padding: 24px;
-  animation: modal-slide-in var(--transition-spring) both;
-}
-
-@keyframes modal-slide-in {
-  from {
-    opacity: 0;
-    transform: translateY(24px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 
 .modal-header {
@@ -485,20 +462,14 @@ pre {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   padding: 7px 14px;
   font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
-  transition: background var(--transition-fast), transform var(--transition-fast);
 }
 
 .secondary-button:hover {
   background: var(--bg-subtle);
-}
-
-.secondary-button:active {
-  transform: scale(0.97);
 }
 
 @media (max-width: 960px) {

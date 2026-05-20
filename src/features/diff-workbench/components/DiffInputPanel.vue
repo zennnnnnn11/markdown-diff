@@ -124,13 +124,10 @@ async function onFileSelected(e: Event): Promise<void> {
 
 <style scoped>
 .panel {
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   padding: 16px;
-  background: var(--glass-bg);
-  backdrop-filter: blur(var(--glass-blur));
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  box-shadow: var(--glass-shadow);
+  background: var(--bg-surface);
 }
 
 .panel-header,
@@ -144,10 +141,8 @@ async function onFileSelected(e: Event): Promise<void> {
 .panel-header h2 {
   font-size: 14px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   margin: 0;
-  text-transform: uppercase;
-  letter-spacing: var(--letter-spacing-wide);
 }
 
 .panel-actions {
@@ -160,24 +155,17 @@ async function onFileSelected(e: Event): Promise<void> {
   font-size: 13px;
   color: var(--text-muted);
   margin: 0;
-  max-height: 0;
-  opacity: 0;
-  overflow: hidden;
-  transition: max-height 200ms ease-out,
-              opacity 200ms ease-out,
-              margin 200ms ease-out;
+  display: none;
 }
 
 .collapsed-summary.visible {
-  max-height: 2em;
-  opacity: 1;
+  display: block;
   margin: 10px 0 0;
 }
 
 .editor-body {
   display: grid;
   grid-template-rows: 1fr;
-  transition: grid-template-rows 200ms ease-out;
 }
 
 .editor-body.collapsed {
@@ -187,17 +175,10 @@ async function onFileSelected(e: Event): Promise<void> {
 .editor-body-inner {
   overflow: hidden;
   min-height: 0;
-  opacity: 1;
-  transition: opacity 200ms ease;
-}
-
-.editor-body.collapsed .editor-body-inner {
-  opacity: 0;
 }
 
 .editor-toolbar label {
   font-size: 13px;
-  font-weight: 500;
   color: var(--text-secondary);
 }
 
@@ -213,15 +194,13 @@ async function onFileSelected(e: Event): Promise<void> {
 }
 
 .primary-button {
-  border: 1px solid var(--accent);
+  border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--accent);
-  color: var(--bg-surface);
+  background: var(--bg-surface);
+  color: var(--text-primary);
   padding: 8px 16px;
   font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
-  transition: opacity var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .primary-button:disabled {
@@ -230,32 +209,21 @@ async function onFileSelected(e: Event): Promise<void> {
 }
 
 .primary-button:not(:disabled):hover {
-  opacity: 0.88;
-  box-shadow: var(--glow-accent);
-}
-
-.primary-button:not(:disabled):active {
-  transform: scale(0.97);
+  background: var(--bg-subtle);
 }
 
 .secondary-button {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   padding: 7px 14px;
   font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
-  transition: background var(--transition-fast), transform var(--transition-fast);
 }
 
 .secondary-button:hover {
   background: var(--bg-subtle);
-}
-
-.secondary-button:active {
-  transform: scale(0.97);
 }
 
 .loading-state {
@@ -269,9 +237,8 @@ async function onFileSelected(e: Event): Promise<void> {
   width: 16px;
   height: 16px;
   border: 2px solid var(--border);
-  border-top-color: var(--accent);
+  border-right-color: var(--text-primary);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
   flex-shrink: 0;
 }
 
@@ -306,9 +273,5 @@ async function onFileSelected(e: Event): Promise<void> {
   .editor-grid {
     grid-template-columns: 1fr;
   }
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 </style>

@@ -219,8 +219,8 @@ function onKeyDown(e: KeyboardEvent): void {
 .app-shell {
   display: grid;
   gap: 16px;
-  padding: 24px;
-  max-width: 1600px;
+  padding: 16px;
+  max-width: 1440px;
   margin: 0 auto;
 }
 
@@ -234,9 +234,7 @@ function onKeyDown(e: KeyboardEvent): void {
 .page-header h1 {
   font-size: 18px;
   font-weight: 600;
-  color: var(--text-primary);
   margin: 0;
-  letter-spacing: -0.02em;
 }
 
 .page-header p {
@@ -255,28 +253,20 @@ function onKeyDown(e: KeyboardEvent): void {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--bg-surface);
-  color: var(--text-secondary);
+  color: var(--text-primary);
   padding: 7px 14px;
   font-size: 13px;
-  font-weight: 500;
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-smooth), transform var(--transition-fast);
 }
 
 .secondary-button:hover {
   background: var(--bg-subtle);
-  border-color: var(--border);
-}
-
-.secondary-button:active {
-  transform: scale(0.97);
 }
 
 .secondary-button.active {
   border-color: var(--accent);
   background: var(--accent-subtle);
-  color: var(--accent);
-  box-shadow: var(--glow-accent);
+  color: var(--text-primary);
 }
 
 .warnings-banner {
@@ -326,5 +316,4 @@ function onKeyDown(e: KeyboardEvent): void {
   font-size: 12px;
   padding: 2px 8px;
 }
-
 </style>

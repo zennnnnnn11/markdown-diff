@@ -22,46 +22,36 @@ let view: EditorView | undefined
 let ignoreNextUpdate = false
 
 const highlightStyle = HighlightStyle.define([
-  { tag: tags.heading1, fontWeight: 'bold', color: '#171717', fontSize: '1.2em' },
-  { tag: tags.heading2, fontWeight: 'bold', color: '#171717', fontSize: '1.1em' },
-  { tag: [tags.heading3, tags.heading4, tags.heading5, tags.heading6], fontWeight: 'bold', color: '#171717' },
-  { tag: tags.strong, fontWeight: 'bold' },
+  { tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6], fontWeight: '600' },
+  { tag: tags.strong, fontWeight: '600' },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
-  { tag: tags.monospace, color: '#0070F3', backgroundColor: '#F5F5F5' },
-  { tag: tags.link, color: '#0070F3', textDecoration: 'underline' },
-  { tag: tags.url, color: '#999999' },
-  { tag: tags.quote, color: '#6639BA' },
-  { tag: tags.contentSeparator, color: '#999999' },
-  { tag: tags.processingInstruction, color: '#666666' },
-  { tag: tags.list, color: '#0070F3' },
+  { tag: [tags.monospace, tags.processingInstruction], fontFamily: 'var(--font-mono)' },
+  { tag: [tags.link, tags.url], textDecoration: 'underline' },
+  { tag: [tags.quote, tags.contentSeparator], color: 'var(--text-secondary)' },
 ])
 
 const editorTheme = EditorView.theme({
   '&': {
     fontSize: '13px',
-    backgroundColor: 'var(--bg-subtle)',
+    backgroundColor: 'var(--bg-surface)',
     border: '1px solid var(--border)',
     borderRadius: 'var(--radius-md)',
     minHeight: '280px',
     marginTop: '6px',
   },
   '&.cm-focused': {
-    borderColor: 'var(--accent)',
-    boxShadow: '0 0 0 3px rgba(0, 112, 243, 0.12)',
     outline: 'none',
-    backgroundColor: 'var(--bg-surface)',
+    borderColor: 'var(--accent)',
   },
   '.cm-content': {
     fontFamily: 'var(--font-mono)',
     padding: '10px 12px',
-    caretColor: 'var(--accent)',
+    caretColor: 'var(--text-primary)',
     minHeight: '260px',
   },
-  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent)' },
-  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': {
-    backgroundColor: 'rgba(0, 112, 243, 0.15) !important',
-  },
+  '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--text-primary)' },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: '#dcdcdc !important' },
   '.cm-activeLine': { backgroundColor: 'transparent' },
   '.cm-placeholder': { color: 'var(--text-muted)' },
   '.cm-scroller': { overflow: 'auto' },
