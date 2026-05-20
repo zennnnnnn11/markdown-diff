@@ -167,7 +167,6 @@ const emit = defineEmits<{
   50% {
     transform: scale(1.35);
     opacity: 1;
-    filter: brightness(1.2) drop-shadow(0 0 3px currentColor);
   }
 }
 

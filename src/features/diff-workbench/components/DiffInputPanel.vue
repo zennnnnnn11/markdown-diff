@@ -124,7 +124,7 @@ async function onFileSelected(e: Event): Promise<void> {
 
 <style scoped>
 .panel {
-  transition: all var(--transition-normal);
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
 }
 
 .panel-header {
@@ -167,30 +167,20 @@ async function onFileSelected(e: Event): Promise<void> {
 }
 
 .editor-body {
-  display: grid;
-  grid-template-rows: 1fr;
-  transition: grid-template-rows var(--transition-fluid-spring);
-  will-change: grid-template-rows;
-  contain: content; /* Isolate layout & style calculations to ensure maximum framerate (FPS) */
+  opacity: 1;
+  transition: opacity 0.2s ease;
 }
 
 .editor-body.collapsed {
-  grid-template-rows: 0fr;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, height 0s 0.2s, overflow 0s 0.2s;
 }
 
 .editor-body-inner {
-  overflow: hidden;
   min-height: 0;
-  opacity: 1;
-  transform: translateY(0) translateZ(0);
-  transition: opacity 0.35s cubic-bezier(0.25, 1, 0.2, 1),
-              transform 0.38s cubic-bezier(0.25, 1, 0.2, 1);
-  will-change: opacity, transform;
-}
-
-.editor-body.collapsed .editor-body-inner {
-  opacity: 0;
-  transform: translateY(-8px) translateZ(0);
 }
 
 .editor-grid {

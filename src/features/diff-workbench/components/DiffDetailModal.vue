@@ -350,7 +350,6 @@ function lineClassName(baseTone: Tone): string {
   gap: 20px;
   position: relative;
   overflow: hidden;
-  backdrop-filter: blur(8px);
 }
 
 .dark .modal-card {
@@ -368,13 +367,14 @@ function lineClassName(baseTone: Tone): string {
   width: 300px;
   height: 300px;
   border-radius: 50%;
-  filter: blur(80px);
+  filter: blur(40px);
   pointer-events: none;
-  opacity: 0.04;
+  display: none;
   z-index: 0;
 }
 
 .dark .glow-effect {
+  display: block;
   opacity: 0.12;
 }
 
