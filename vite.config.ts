@@ -8,7 +8,6 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/diff/',
   plugins: [vue(), vueDevTools(), cloudflare()],
   resolve: {
     alias: {
