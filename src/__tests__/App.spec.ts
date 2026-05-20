@@ -51,9 +51,9 @@ describe('App', () => {
       const statButton = wrapper.find('.stat-card')
       expect(wrapper.find('.unified-table').attributes('data-active-filter')).toBeUndefined()
 
-      await statButton.trigger('focus')
+      await statButton.trigger('click')
       expect(wrapper.find('.unified-table').attributes('data-active-filter')).toBeDefined()
-      await statButton.trigger('blur')
+      await statButton.trigger('click')
       expect(wrapper.find('.unified-table').attributes('data-active-filter')).toBeUndefined()
 
       const interactiveRow = wrapper.find('.cell.interactive')

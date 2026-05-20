@@ -22,11 +22,7 @@ const emit = defineEmits<{
         type="button"
         :class="['stat-card', `card-${card.key}`, { active: activeFilter === card.filter }]"
         :title="card.description"
-        @click="card.onClick?.()"
-        @mouseenter="emit('highlight', card.filter)"
-        @mouseleave="emit('highlight', null)"
-        @focus="emit('highlight', card.filter)"
-        @blur="emit('highlight', null)"
+        @click="emit('highlight', activeFilter === card.filter ? null : card.filter)"
       >
         <div class="stat-header">
           <span

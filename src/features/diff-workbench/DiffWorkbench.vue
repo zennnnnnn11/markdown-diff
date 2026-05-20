@@ -132,6 +132,7 @@ function updateNewMarkdown(value: string): void {
 
 function setHighlight(filter: HighlightFilter | null): void {
   workbench.activeFilter.value = filter
+  if (filter) workbench.scrollToFirstMatch(filter)
 }
 
 function selectLine(changeKey?: string, _side?: 'old' | 'new'): void { // eslint-disable-line @typescript-eslint/no-unused-vars
