@@ -13,6 +13,11 @@ import {
   tokenizeForSimilarity,
   toneLabels,
 } from '../view-model'
+import type { DiffResult } from '@/core/diff'
+
+function mergedRowsFromMarkdown(oldMd: string, newMd: string, result: DiffResult) {
+  return buildMergedRows(buildOldProjectionLines(oldMd, result), buildProjectionLines(newMd, result))
+}
 
 describe('diff workbench view-model', () => {
   it('projects paragraph replacements into line tones and inline segments', async () => {
@@ -992,7 +997,7 @@ describe('diff workbench view-model', () => {
 
   it('pairs equal content on both sides in merged rows', async () => {
     const result = await runMarkdownDiff('# A\n\nB', '# A\n\nB')
-    const rows = buildMergedRows('# A\n\nB', '# A\n\nB', result)
+    const rows = mergedRowsFromMarkdown('# A\n\nB', '# A\n\nB', result)
 
     expect(rows.length).toBeGreaterThan(0)
     expect(rows.every((row) => row.oldLine !== null && row.newLine !== null)).toBe(true)
@@ -1001,7 +1006,7 @@ describe('diff workbench view-model', () => {
 
   it('places old-only deleted content with null new side', async () => {
     const result = await runMarkdownDiff('# A\n\nold', '# A')
-    const rows = buildMergedRows('# A\n\nold', '# A', result)
+    const rows = mergedRowsFromMarkdown('# A\n\nold', '# A', result)
     const deleteRows = rows.filter((row) => row.oldLine !== null && row.newLine === null)
 
     expect(deleteRows.length).toBeGreaterThan(0)
@@ -1010,7 +1015,7 @@ describe('diff workbench view-model', () => {
 
   it('places new-only inserted content with null old side', async () => {
     const result = await runMarkdownDiff('# A', '# A\n\nnew')
-    const rows = buildMergedRows('# A', '# A\n\nnew', result)
+    const rows = mergedRowsFromMarkdown('# A', '# A\n\nnew', result)
     const insertRows = rows.filter((row) => row.oldLine === null && row.newLine !== null)
 
     expect(insertRows.length).toBeGreaterThan(0)
@@ -1019,7 +1024,7 @@ describe('diff workbench view-model', () => {
 
   it('aligns matched changeKey rows across old and new', async () => {
     const result = await runMarkdownDiff('# Title\n\nold para', '# Title\n\nnew para')
-    const rows = buildMergedRows('# Title\n\nold para', '# Title\n\nnew para', result)
+    const rows = mergedRowsFromMarkdown('# Title\n\nold para', '# Title\n\nnew para', result)
 
     const headingRow = rows.find((row) => row.oldLine?.text === '# Title')
     expect(headingRow).toBeDefined()
@@ -1028,7 +1033,7 @@ describe('diff workbench view-model', () => {
 
   it('handles empty old document with only new content', async () => {
     const result = await runMarkdownDiff('', '# New\n\ncontent')
-    const rows = buildMergedRows('', '# New\n\ncontent', result)
+    const rows = mergedRowsFromMarkdown('', '# New\n\ncontent', result)
 
     expect(rows.length).toBeGreaterThan(0)
     const hasNewContent = rows.some((row) => row.newLine !== null && row.newLine.baseTone !== 'plain')
@@ -1037,7 +1042,7 @@ describe('diff workbench view-model', () => {
 
   it('handles fully deleted document', async () => {
     const result = await runMarkdownDiff('# Gone', '')
-    const rows = buildMergedRows('# Gone', '', result)
+    const rows = mergedRowsFromMarkdown('# Gone', '', result)
 
     expect(rows.length).toBeGreaterThan(0)
     const hasDelete = rows.some((row) => row.oldLine !== null && row.oldLine.baseTone === 'delete')
@@ -1046,7 +1051,7 @@ describe('diff workbench view-model', () => {
 
   it('preserves changeKey across merged rows for matched content', async () => {
     const result = await runMarkdownDiff('# Title\n\nbody', '# Title\n\nbody')
-    const rows = buildMergedRows('# Title\n\nbody', '# Title\n\nbody', result)
+    const rows = mergedRowsFromMarkdown('# Title\n\nbody', '# Title\n\nbody', result)
 
     const paired = rows.filter((row) => row.oldLine?.changeKey && row.newLine?.changeKey)
     expect(paired.some((row) => row.oldLine?.changeKey === row.newLine?.changeKey)).toBe(true)
@@ -1057,7 +1062,7 @@ describe('diff workbench view-model', () => {
       '# Title\n\nline one\nline two',
       '# Title\n\nline one\nline three',
     )
-    const rows = buildMergedRows('# Title\n\nline one\nline two', '# Title\n\nline one\nline three', result)
+    const rows = mergedRowsFromMarkdown('# Title\n\nline one\nline two', '# Title\n\nline one\nline three', result)
     const replaced = rows.filter(
       (row) => row.oldLine?.baseTone === 'replace' || row.newLine?.baseTone === 'replace',
     )
@@ -1069,7 +1074,7 @@ describe('diff workbench view-model', () => {
     const oldMarkdown = '# A\n\n## Moved\n\ncontent\n\n# B'
     const newMarkdown = '# A\n\n# B\n\n## Moved\n\ncontent'
     const result = await runMarkdownDiff(oldMarkdown, newMarkdown)
-    const rows = buildMergedRows(oldMarkdown, newMarkdown, result)
+    const rows = mergedRowsFromMarkdown(oldMarkdown, newMarkdown, result)
 
     const movedOutHeading = rows.find(
       (row) => row.oldLine?.text === '## Moved' && row.oldLine.baseTone === 'move',
@@ -1095,7 +1100,7 @@ describe('diff workbench view-model', () => {
     const oldMarkdown = '# A\n\n## Moved\n\ncontent\n\n# B'
     const newMarkdown = '# A\n\n# B\n\n## Moved\n\ncontent'
     const result = await runMarkdownDiff(oldMarkdown, newMarkdown)
-    const rows = buildMergedRows(oldMarkdown, newMarkdown, result)
+    const rows = mergedRowsFromMarkdown(oldMarkdown, newMarkdown, result)
     const movedOutHeading = rows.find(
       (row) => row.oldLine?.text === '## Moved' && row.oldLine.baseTone === 'move',
     )
@@ -1112,7 +1117,7 @@ describe('diff workbench view-model', () => {
     const oldMarkdown = '# A\n\n## Moved\n\ncontent\n\n# B'
     const newMarkdown = '# A\n\n# B\n\nbrand new\n\n## Moved\n\ncontent'
     const result = await runMarkdownDiff(oldMarkdown, newMarkdown)
-    const rows = buildMergedRows(oldMarkdown, newMarkdown, result)
+    const rows = mergedRowsFromMarkdown(oldMarkdown, newMarkdown, result)
 
     const movedOutHeading = rows.find((row) => row.oldLine?.text === '## Moved')
     const insertedLine = rows.find((row) => row.newLine?.text === 'brand new')
@@ -1124,7 +1129,7 @@ describe('diff workbench view-model', () => {
 
   it('produces no row with both sides null', async () => {
     const result = await runMarkdownDiff('# A\n\ndel\n\n# B', '# A\n\n# B\n\nins')
-    const rows = buildMergedRows('# A\n\ndel\n\n# B', '# A\n\n# B\n\nins', result)
+    const rows = mergedRowsFromMarkdown('# A\n\ndel\n\n# B', '# A\n\n# B\n\nins', result)
 
     expect(rows.every((row) => row.oldLine !== null || row.newLine !== null)).toBe(true)
   })
@@ -1135,7 +1140,7 @@ describe('diff workbench view-model', () => {
     const oldMd = '# A\n\nalpha text\n\n# B\n\nbeta text'
     const newMd = '# A\n\nnew paragraph\n\nalpha text\n\n# B\n\nbeta text'
     const result = await runMarkdownDiff(oldMd, newMd)
-    const rows = buildMergedRows(oldMd, newMd, result)
+    const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     const alphaRow = rows.find(
       (row) => row.oldLine?.text === 'alpha text' && row.newLine?.text === 'alpha text',
@@ -1151,7 +1156,7 @@ describe('diff workbench view-model', () => {
   it('pairs identical content correctly in merged rows (regression)', async () => {
     const md = '# Title\n\nfirst paragraph\n\nsecond paragraph'
     const result = await runMarkdownDiff(md, md)
-    const rows = buildMergedRows(md, md, result)
+    const rows = mergedRowsFromMarkdown(md, md, result)
 
     const contentRows = rows.filter((row) => row.oldLine !== null || row.newLine !== null)
     for (const row of contentRows) {
@@ -1165,7 +1170,7 @@ describe('diff workbench view-model', () => {
     const oldMd = '# H\n\nonly paragraph'
     const newMd = '# H\n\nonly paragraph'
     const result = await runMarkdownDiff(oldMd, newMd)
-    const rows = buildMergedRows(oldMd, newMd, result)
+    const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     const paraRow = rows.find(
       (row) => row.oldLine?.text === 'only paragraph' && row.newLine?.text === 'only paragraph',
@@ -1177,7 +1182,7 @@ describe('diff workbench view-model', () => {
     const oldMd = '# A\n\ncontent block\n\n# B'
     const newMd = '# A\n\ncontent block\n\n# B'
     const result = await runMarkdownDiff(oldMd, newMd)
-    const rows = buildMergedRows(oldMd, newMd, result)
+    const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     const emptyRows = rows.filter(
       (row) =>
@@ -1195,7 +1200,7 @@ describe('diff workbench view-model', () => {
     const oldMd = '# H\n\naaa bbb'
     const newMd = '# H\n\nxxx yyy'
     const result = await runMarkdownDiff(oldMd, newMd)
-    const rows = buildMergedRows(oldMd, newMd, result)
+    const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     const oldParaRow = rows.find((row) => row.oldLine?.text === 'aaa bbb')
     const newParaRow = rows.find((row) => row.newLine?.text === 'xxx yyy')
@@ -1347,7 +1352,7 @@ describe('diff workbench view-model', () => {
     const oldMd = '# H\n\nline one\nshared line\nline three'
     const newMd = '# H\n\nshared line\nline four'
     const result = await runMarkdownDiff(oldMd, newMd)
-    const rows = buildMergedRows(oldMd, newMd, result)
+    const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     const sharedRow = rows.find(
       (row) => row.oldLine?.text === 'shared line' && row.newLine?.text === 'shared line',
@@ -1360,7 +1365,7 @@ describe('diff workbench view-model', () => {
     const oldMd = '# H\n\nalpha beta gamma\nextra old line\nanother old'
     const newMd = '# H\n\nalpha BETA gamma\ncompletely different'
     const result = await runMarkdownDiff(oldMd, newMd)
-    const rows = buildMergedRows(oldMd, newMd, result)
+    const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     const fuzzyRow = rows.find(
       (row) =>
@@ -1375,7 +1380,7 @@ describe('diff workbench view-model', () => {
     const oldMd = '# H\n\nabcdefgh\nextra old'
     const newMd = '# H\n\nxyz12345\nextra new\nmore new'
     const result = await runMarkdownDiff(oldMd, newMd)
-    const rows = buildMergedRows(oldMd, newMd, result)
+    const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     const crossPaired = rows.find(
       (row) => row.oldLine?.text === 'abcdefgh' && row.newLine?.text === 'xyz12345',
@@ -1397,7 +1402,7 @@ describe('diff workbench view-model', () => {
     const oldMd = '# H\n\nold line one\nold line two'
     const newMd = '# H\n\nnew line one\nnew line two'
     const result = await runMarkdownDiff(oldMd, newMd)
-    const rows = buildMergedRows(oldMd, newMd, result)
+    const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     const replaceRows = rows.filter(
       (row) => row.oldLine?.baseTone === 'replace' || row.newLine?.baseTone === 'replace',
@@ -1414,7 +1419,7 @@ describe('diff workbench view-model', () => {
     const oldMd = '# H\n\nalpha bravo\ncharlie delta\nextra old line'
     const newMd = '# H\n\ncharlie DELTA\nalpha BRAVO'
     const result = await runMarkdownDiff(oldMd, newMd)
-    const rows = buildMergedRows(oldMd, newMd, result)
+    const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     // Verify monotonic order: old indices and new indices both increase
     const pairedRows = rows
@@ -1436,7 +1441,7 @@ describe('diff workbench view-model', () => {
     const oldMd = '# H\n\n  \nactual content\nextra old'
     const newMd = '# H\n\n  \ndifferent content'
     const result = await runMarkdownDiff(oldMd, newMd)
-    const rows = buildMergedRows(oldMd, newMd, result)
+    const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     const blankRow = rows.find(
       (row) =>

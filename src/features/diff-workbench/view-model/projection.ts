@@ -7,12 +7,12 @@ import { buildSideSegmentsFromSpans, headingPrefix } from './segments'
 
 type RangeLookup = (change: DiffChange, result: DiffResult) => SourceRange | undefined
 
-export function buildProjectionLines(newMarkdown: string, result: DiffResult): ProjectionLine[] {
-  return buildProjectionLinesFromMarkdown(newMarkdown, result, getProjectionRange, 'new')
+export function buildProjectionLines(newMarkdown: string, result: DiffResult, changes?: DiffChange[]): ProjectionLine[] {
+  return buildProjectionLinesFromMarkdown(newMarkdown, result, getProjectionRange, 'new', changes)
 }
 
-export function buildOldProjectionLines(oldMarkdown: string, result: DiffResult): ProjectionLine[] {
-  return buildProjectionLinesFromMarkdown(oldMarkdown, result, getOldProjectionRange, 'old')
+export function buildOldProjectionLines(oldMarkdown: string, result: DiffResult, changes?: DiffChange[]): ProjectionLine[] {
+  return buildProjectionLinesFromMarkdown(oldMarkdown, result, getOldProjectionRange, 'old', changes)
 }
 
 function buildProjectionLinesFromMarkdown(
@@ -20,9 +20,10 @@ function buildProjectionLinesFromMarkdown(
   result: DiffResult,
   getRange: RangeLookup,
   side: 'old' | 'new',
+  prebuiltChanges?: DiffChange[],
 ): ProjectionLine[] {
   const lines = markdown.split(/\r?\n/)
-  const changes = flattenChanges(result.root)
+  const changes = prebuiltChanges ?? flattenChanges(result.root)
 
   const changeEntries = changes
     .map((change) => {

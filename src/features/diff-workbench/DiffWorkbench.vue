@@ -41,7 +41,7 @@ const currentChangeIndex = computed(() => workbench.currentChangeIndex.value)
 const totalChangeCount = computed(() => workbench.totalChangeCount.value)
 const mergedRows = computed(() =>
   workbench.result.value
-    ? buildMergedRows(workbench.oldMarkdown.value, workbench.newMarkdown.value, workbench.result.value)
+    ? buildMergedRows(workbench.oldProjectionLines.value, workbench.projectionLines.value)
     : [],
 )
 const displayWarnings = computed(() => {

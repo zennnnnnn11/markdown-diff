@@ -1,6 +1,5 @@
-import type { DiffResult, ProjectionLine, Tone } from './types'
+import type { ProjectionLine, Tone } from './types'
 import type { MergedRow } from './types'
-import { buildOldProjectionLines, buildProjectionLines } from './projection'
 
 type RawRow = { oldLine: ProjectionLine | null; newLine: ProjectionLine | null }
 
@@ -13,12 +12,9 @@ interface ProjectionBlock {
 }
 
 export function buildMergedRows(
-  oldMarkdown: string,
-  newMarkdown: string,
-  result: DiffResult,
+  oldLines: ProjectionLine[],
+  newLines: ProjectionLine[],
 ): MergedRow[] {
-  const oldLines = buildOldProjectionLines(oldMarkdown, result)
-  const newLines = buildProjectionLines(newMarkdown, result)
   const oldBlocks = buildProjectionBlocks(oldLines, 'old')
   const newBlocks = buildProjectionBlocks(newLines, 'new')
   const consumedOld = new Set<number>()

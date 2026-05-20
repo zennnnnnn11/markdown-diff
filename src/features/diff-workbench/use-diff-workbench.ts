@@ -43,10 +43,10 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     return new Map<string, DiffChange>(pairs)
   })
   const projectionLines = computed<ProjectionLine[]>(() =>
-    result.value ? buildProjectionLines(newMarkdown.value, result.value) : buildEmptyLines(newMarkdown.value),
+    result.value ? buildProjectionLines(newMarkdown.value, result.value, flatChanges.value) : buildEmptyLines(newMarkdown.value),
   )
   const oldProjectionLines = computed<ProjectionLine[]>(() =>
-    result.value ? buildOldProjectionLines(oldMarkdown.value, result.value) : buildEmptyLines(oldMarkdown.value),
+    result.value ? buildOldProjectionLines(oldMarkdown.value, result.value, flatChanges.value) : buildEmptyLines(oldMarkdown.value),
   )
   const peerSide = computed<'old' | 'new' | undefined>(() => {
     const role = detail.value?.moveInfo?.role

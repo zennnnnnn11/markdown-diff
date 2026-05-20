@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { buildMergedRows, removeNewIndexCrossings, tokenizeForSimilarity } from '../view-model/merged-rows'
 import { runMarkdownDiff } from '../view-model/utils'
+import { buildOldProjectionLines, buildProjectionLines } from '../view-model/projection'
+import type { DiffResult } from '@/core/diff'
+
+function mergedRowsFromMarkdown(oldMd: string, newMd: string, result: DiffResult) {
+  return buildMergedRows(buildOldProjectionLines(oldMd, result), buildProjectionLines(newMd, result))
+}
 
 describe('merged-rows module', () => {
   describe('tokenizeForSimilarity', () => {
@@ -48,7 +54,7 @@ describe('merged-rows module', () => {
     it('produces merged rows for identical content', async () => {
       const md = '# Title\n\nContent here.'
       const result = await runMarkdownDiff(md, md)
-      const rows = buildMergedRows(md, md, result)
+      const rows = mergedRowsFromMarkdown(md, md, result)
       expect(rows.length).toBeGreaterThan(0)
       expect(rows.every((r) => r.key.length > 0)).toBe(true)
     })
@@ -57,7 +63,7 @@ describe('merged-rows module', () => {
       const oldMd = '# Title\n\nOld content.'
       const newMd = '# Title\n\nNew content.'
       const result = await runMarkdownDiff(oldMd, newMd)
-      const rows = buildMergedRows(oldMd, newMd, result)
+      const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
       const keys = rows.map((r) => r.key)
       const uniqueKeys = new Set(keys)
       expect(uniqueKeys.size).toBe(keys.length)
@@ -67,7 +73,7 @@ describe('merged-rows module', () => {
       const oldMd = '# Title\n\nParagraph one.\n\nParagraph two.'
       const newMd = '# Title\n\nParagraph one.\n\nParagraph two.'
       const result = await runMarkdownDiff(oldMd, newMd)
-      const rows = buildMergedRows(oldMd, newMd, result)
+      const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
       const bothSides = rows.filter((r) => r.oldLine !== null && r.newLine !== null)
       expect(bothSides.length).toBeGreaterThan(0)
     })
@@ -76,7 +82,7 @@ describe('merged-rows module', () => {
       const oldMd = '# Title\n\nKeep this.\n\nDelete this.'
       const newMd = '# Title\n\nKeep this.'
       const result = await runMarkdownDiff(oldMd, newMd)
-      const rows = buildMergedRows(oldMd, newMd, result)
+      const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
       const oldOnly = rows.filter((r) => r.oldLine !== null && r.newLine === null)
       expect(oldOnly.length).toBeGreaterThan(0)
     })
@@ -85,7 +91,7 @@ describe('merged-rows module', () => {
       const oldMd = '# Title\n\nExisting.'
       const newMd = '# Title\n\nExisting.\n\nNew paragraph added.'
       const result = await runMarkdownDiff(oldMd, newMd)
-      const rows = buildMergedRows(oldMd, newMd, result)
+      const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
       const newOnly = rows.filter((r) => r.oldLine === null && r.newLine !== null)
       expect(newOnly.length).toBeGreaterThan(0)
     })
@@ -94,7 +100,7 @@ describe('merged-rows module', () => {
       const oldMd = ''
       const newMd = '# Title\n\nContent.'
       const result = await runMarkdownDiff(oldMd, newMd)
-      const rows = buildMergedRows(oldMd, newMd, result)
+      const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
       expect(rows.length).toBeGreaterThan(0)
     })
 
@@ -102,7 +108,7 @@ describe('merged-rows module', () => {
       const oldMd = '# Title\n\nContent.'
       const newMd = ''
       const result = await runMarkdownDiff(oldMd, newMd)
-      const rows = buildMergedRows(oldMd, newMd, result)
+      const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
       expect(rows.length).toBeGreaterThan(0)
     })
 
@@ -110,7 +116,7 @@ describe('merged-rows module', () => {
       const oldMd = '# A\n\nFirst.\n\n# B\n\nSecond.\n\n# C\n\nThird.'
       const newMd = '# C\n\nThird.\n\n# A\n\nFirst.\n\n# B\n\nSecond.'
       const result = await runMarkdownDiff(oldMd, newMd)
-      const rows = buildMergedRows(oldMd, newMd, result)
+      const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
       expect(rows.length).toBeGreaterThan(0)
     })
   })
@@ -166,7 +172,7 @@ describe('merged-rows module', () => {
       const oldMd = '# A\n\nParagraph one.\n\nParagraph two.\n\n# B\n\nParagraph three.'
       const newMd = '# B\n\nParagraph three.\n\n# A\n\nParagraph one.\n\nParagraph two.'
       const result = await runMarkdownDiff(oldMd, newMd)
-      const rows = buildMergedRows(oldMd, newMd, result)
+      const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
       const oldKeys = rows.filter((r) => r.oldLine).map((r) => r.oldLine!.key)
       const newKeys = rows.filter((r) => r.newLine).map((r) => r.newLine!.key)

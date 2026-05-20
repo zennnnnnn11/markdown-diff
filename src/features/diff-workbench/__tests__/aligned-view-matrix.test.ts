@@ -4,6 +4,7 @@ import type { DiffChange, DiffResult, DiffStatus, SemanticIndex, SourceRange } f
 
 import {
   buildMergedRows,
+  buildOldProjectionLines,
   buildProjectionLines,
   formatWarningLabel,
   type MergedRow,
@@ -51,7 +52,7 @@ const overlapCases = buildOverlapCases()
 describe('aligned diff view matrix', () => {
   it.each(pairedCases)('$name', (testCase) => {
     const fixture = buildPairedFixture(testCase)
-    const rows = buildMergedRows(fixture.oldMarkdown, fixture.newMarkdown, fixture.result)
+    const rows = buildMergedRows(buildOldProjectionLines(fixture.oldMarkdown, fixture.result), buildProjectionLines(fixture.newMarkdown, fixture.result))
     const expectedTone = toneForScenario(testCase.scenario)
     const changedRows = rows.filter(
       (row) => row.oldLine?.baseTone === expectedTone || row.newLine?.baseTone === expectedTone,
@@ -68,7 +69,7 @@ describe('aligned diff view matrix', () => {
 
   it.each(deleteCases)('$name', (testCase) => {
     const fixture = buildOneSidedFixture(testCase)
-    const rows = buildMergedRows(fixture.oldMarkdown, fixture.newMarkdown, fixture.result)
+    const rows = buildMergedRows(buildOldProjectionLines(fixture.oldMarkdown, fixture.result), buildProjectionLines(fixture.newMarkdown, fixture.result))
     const removedRows = rows.filter((row) => row.oldLine?.text.startsWith('removed-'))
 
     expectValidRows(rows)
@@ -79,7 +80,7 @@ describe('aligned diff view matrix', () => {
 
   it.each(insertCases)('$name', (testCase) => {
     const fixture = buildOneSidedFixture(testCase)
-    const rows = buildMergedRows(fixture.oldMarkdown, fixture.newMarkdown, fixture.result)
+    const rows = buildMergedRows(buildOldProjectionLines(fixture.oldMarkdown, fixture.result), buildProjectionLines(fixture.newMarkdown, fixture.result))
     const insertedRows = rows.filter((row) => row.newLine?.text.startsWith('inserted-'))
 
     expectValidRows(rows)
@@ -90,7 +91,7 @@ describe('aligned diff view matrix', () => {
 
   it.each(moveCases)('$name', (testCase) => {
     const fixture = buildMoveFixture(testCase)
-    const rows = buildMergedRows(fixture.oldMarkdown, fixture.newMarkdown, fixture.result)
+    const rows = buildMergedRows(buildOldProjectionLines(fixture.oldMarkdown, fixture.result), buildProjectionLines(fixture.newMarkdown, fixture.result))
     const movedOutRows = rows.filter((row) => row.oldLine?.text.startsWith('moved-'))
     const movedInRows = rows.filter((row) => row.newLine?.text.startsWith('moved-'))
 
