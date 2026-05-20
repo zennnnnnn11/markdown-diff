@@ -1,67 +1,158 @@
-/* Minimal visual tokens */
+/* Vercel Geist Design System & Global Styles */
+
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap');
+
 :root {
-  --bg-page: #ffffff;
+  /* --- LIGHT THEME (Vercel Light) --- */
+  --bg-page: #fafafa;
   --bg-surface: #ffffff;
   --bg-subtle: #f5f5f5;
-  --bg-muted: #efefef;
+  --bg-muted: #eaeaea;
 
-  --border: #c8c8c8;
-  --border-subtle: #dddddd;
+  --border: #eaeaea;
+  --border-subtle: #f3f3f3;
+  --border-focus: #000000;
 
-  --text-primary: #111111;
-  --text-secondary: #444444;
-  --text-muted: #666666;
+  --text-primary: #000000;
+  --text-secondary: #666666;
+  --text-muted: #888888;
 
-  --accent: #222222;
-  --accent-subtle: #ededed;
+  --accent: #000000;
+  --accent-text: #ffffff;
+  --accent-subtle: #fafafa;
+  --accent-hover: #111111;
+  --accent-blue: #0070f3;
+  --accent-blue-subtle: #e6f2ff;
 
-  --tone-insert-bg: #eaf6ea;
-  --tone-delete-bg: #f9e8e8;
-  --tone-replace-bg: #f8f1d9;
-  --tone-move-bg: #e8eef8;
-  --tone-meta-bg: #f0ebf7;
-  --tone-rename-bg: #f7f2d9;
-  --tone-reorder-bg: #efefef;
-  --tone-blank-bg: #f7f7f7;
+  /* Semantic Diff Colors - Light Mode */
+  --tone-insert-bg: #e6f6ec;
+  --tone-insert-text: #166534;
+  --tone-insert-border: #bbf7d0;
 
-  --tone-insert-text: #1f5f2c;
-  --tone-delete-text: #8f1f1f;
-  --tone-replace-text: #6f5600;
-  --tone-move-text: #234b7a;
-  --tone-meta-text: #5a3d7a;
-  --tone-rename-text: #6f5600;
-  --tone-reorder-text: #4c4c4c;
+  --tone-delete-bg: #fdf2f2;
+  --tone-delete-text: #9b1c1c;
+  --tone-delete-border: #fde8e8;
 
-  --tone-insert-border: #9bc59b;
-  --tone-delete-border: #d4a5a5;
-  --tone-replace-border: #d8c272;
-  --tone-move-border: #a7bdd8;
-  --tone-meta-border: #c1b2d8;
-  --tone-rename-border: #d8c272;
-  --tone-reorder-border: #c8c8c8;
+  --tone-replace-bg: #fefcf0;
+  --tone-replace-text: #723b11;
+  --tone-replace-border: #fef08a;
 
-  --warning-bg: #fff7dd;
-  --warning-border: #c9a436;
-  --warning-text: #6f5600;
+  --tone-move-bg: #eff6ff;
+  --tone-move-text: #1e40af;
+  --tone-move-border: #bfdbfe;
 
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 4px;
+  --tone-meta-bg: #faf5ff;
+  --tone-meta-text: #6b21a8;
+  --tone-meta-border: #e9d5ff;
 
-  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  --tone-rename-bg: #fffbeb;
+  --tone-rename-text: #92400e;
+  --tone-rename-border: #fde68a;
 
-  --letter-spacing-wide: 0.04em;
+  --tone-reorder-bg: #f9fafb;
+  --tone-reorder-text: #374151;
+  --tone-reorder-border: #e5e7eb;
+
+  --tone-blank-bg: #f3f4f6;
+
+  /* Warnings */
+  --warning-bg: #fffbeb;
+  --warning-border: #fcd34d;
+  --warning-text: #78350f;
+
+  /* Border Radii */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Typography */
+  --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.08);
+
+  /* Animation transitions */
+  --transition-fast: 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-normal: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-elastic: 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-fluid-spring: 0.42s cubic-bezier(0.25, 1, 0.2, 1);
 }
 
-*,
-*::before,
-*::after {
+/* --- DARK THEME (Vercel Dark) --- */
+.dark {
+  --bg-page: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-subtle: #111111;
+  --bg-muted: #1f1f1f;
+
+  --border: #333333;
+  --border-subtle: #1f1f1f;
+  --border-focus: #ffffff;
+
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+
+  --accent: #ffffff;
+  --accent-text: #000000;
+  --accent-subtle: #0d0d0d;
+  --accent-hover: #eaeaea;
+  --accent-blue: #0070f3;
+  --accent-blue-subtle: #002244;
+
+  /* Semantic Diff Colors - Dark Mode (Premium soft neon/glowing gradients) */
+  --tone-insert-bg: rgba(0, 224, 150, 0.1);
+  --tone-insert-text: #00e096;
+  --tone-insert-border: rgba(0, 224, 150, 0.25);
+
+  --tone-delete-bg: rgba(255, 77, 79, 0.1);
+  --tone-delete-text: #ff4d4f;
+  --tone-delete-border: rgba(255, 77, 79, 0.25);
+
+  --tone-replace-bg: rgba(245, 166, 35, 0.08);
+  --tone-replace-text: #f5a623;
+  --tone-replace-border: rgba(245, 166, 35, 0.22);
+
+  --tone-move-bg: rgba(0, 112, 243, 0.1);
+  --tone-move-text: #3291ff;
+  --tone-move-border: rgba(0, 112, 243, 0.25);
+
+  --tone-meta-bg: rgba(121, 40, 202, 0.1);
+  --tone-meta-text: #f81ce5;
+  --tone-meta-border: rgba(121, 40, 202, 0.25);
+
+  --tone-rename-bg: rgba(245, 166, 35, 0.08);
+  --tone-rename-text: #f5a623;
+  --tone-rename-border: rgba(245, 166, 35, 0.22);
+
+  --tone-reorder-bg: rgba(255, 255, 255, 0.04);
+  --tone-reorder-text: #a0a0a0;
+  --tone-reorder-border: rgba(255, 255, 255, 0.08);
+
+  --tone-blank-bg: #050505;
+
+  /* Warnings */
+  --warning-bg: rgba(245, 166, 35, 0.08);
+  --warning-border: rgba(245, 166, 35, 0.3);
+  --warning-text: #f5a623;
+
+  /* Shadows for Dark Mode */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.8);
+}
+
+/* --- RESET & BASICS --- */
+*, *::before, *::after {
   box-sizing: border-box;
 }
 
 html {
   font-size: 16px;
+  scroll-behavior: smooth;
 }
 
 body {
@@ -69,98 +160,274 @@ body {
   font-family: var(--font-sans);
   background: var(--bg-page);
   color: var(--text-primary);
-  line-height: 1.4;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-elastic), color var(--transition-elastic);
 }
 
-a,
-button,
-input,
-select,
-textarea {
-  font: inherit;
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
+::-webkit-scrollbar-track {
+  background: var(--bg-page);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-sm);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* --- TYPOGRAPHY --- */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+p {
+  margin: 0;
+}
+
+/* --- INTERACTIVE BASE COMPONENTS --- */
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  outline: none;
+}
+
+/* Stark Primary Button (Vercel Black/White Pill) */
+.primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: 8px 16px;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.primary-button:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.primary-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.primary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Secondary Button (Minimal Border Line) */
+.secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 14px;
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.secondary-button:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--text-primary);
+  background: var(--bg-subtle);
+}
+
+.secondary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Tab Group (Vercel Style Segmented Control) */
+.view-tabs {
+  display: inline-flex;
+  padding: 2px;
+  background: var(--bg-muted);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+}
+
+.view-tabs .secondary-button {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+}
+
+.view-tabs .secondary-button.active {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.view-tabs .secondary-button:hover:not(.active) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* --- PANELS (Cards) --- */
+.panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 24px;
+  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+}
+
+.panel:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.panel-header h2 {
+  font-size: 15px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.panel-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* --- DIFF SEMANTIC STYLES (Fine-Line Highlights) --- */
 .tone-plain {
   background: transparent;
 }
 
 .tone-insert {
   background: var(--tone-insert-bg);
+  border-left: 2px solid var(--tone-insert-text);
 }
 
 .tone-delete {
   background: var(--tone-delete-bg);
+  border-left: 2px solid var(--tone-delete-text);
+  text-decoration: line-through;
+  opacity: 0.85;
 }
 
 .tone-replace {
   background: var(--tone-replace-bg);
+  border-left: 2px solid var(--tone-replace-text);
 }
 
 .tone-move {
   background: var(--tone-move-bg);
+  border-left: 2px solid var(--tone-move-text);
 }
 
 .tone-meta {
   background: var(--tone-meta-bg);
+  border-left: 2px solid var(--tone-meta-text);
 }
 
 .tone-rename {
   background: var(--tone-rename-bg);
+  border-left: 2px solid var(--tone-rename-text);
 }
 
 .tone-reorder {
   background: var(--tone-reorder-bg);
+  border-left: 2px solid var(--tone-reorder-text);
 }
 
 .tone-blank {
   background: var(--tone-blank-bg);
 }
 
+/* --- ANNOTATIONS AND BADGES --- */
 .annotation-chip {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 2px 6px;
   font-size: 11px;
-  line-height: 1.5;
+  font-weight: 500;
+  line-height: 1.4;
   white-space: nowrap;
   background: var(--bg-surface);
   color: var(--text-secondary);
+  transition: all var(--transition-fast);
 }
 
 .annotation-insert {
   border-color: var(--tone-insert-border);
+  background: var(--tone-insert-bg);
   color: var(--tone-insert-text);
 }
 
 .annotation-delete {
   border-color: var(--tone-delete-border);
+  background: var(--tone-delete-bg);
   color: var(--tone-delete-text);
 }
 
 .annotation-replace {
   border-color: var(--tone-replace-border);
+  background: var(--tone-replace-bg);
   color: var(--tone-replace-text);
 }
 
 .annotation-move {
   border-color: var(--tone-move-border);
+  background: var(--tone-move-bg);
   color: var(--tone-move-text);
 }
 
 .annotation-reorder {
   border-color: var(--tone-reorder-border);
+  background: var(--tone-reorder-bg);
   color: var(--tone-reorder-text);
 }
 
 .annotation-meta {
   border-color: var(--tone-meta-border);
+  background: var(--tone-meta-bg);
   color: var(--tone-meta-text);
 }
 
 .annotation-rename {
   border-color: var(--tone-rename-border);
+  background: var(--tone-rename-bg);
   color: var(--tone-rename-text);
 }
 
@@ -174,4 +441,71 @@ textarea {
   border-color: var(--border);
   background: var(--bg-subtle);
   color: var(--text-secondary);
+}
+
+/* Segment highlighting for inline characters */
+.segment {
+  border-radius: 3px;
+  padding: 1px 2px;
+  margin: 0 1px;
+  transition: background-color var(--transition-fast);
+}
+
+.segment.tone-insert {
+  background: rgba(0, 224, 150, 0.22);
+  border-left: none;
+  border-bottom: 1px dashed var(--tone-insert-text);
+}
+
+.segment.tone-delete {
+  background: rgba(255, 77, 79, 0.22);
+  border-left: none;
+  border-bottom: 1px dashed var(--tone-delete-text);
+  text-decoration: line-through;
+}
+
+.segment.tone-replace {
+  background: rgba(245, 166, 35, 0.18);
+  border-left: none;
+  border-bottom: 1px dashed var(--tone-replace-text);
+}
+
+/* Stale Banner & Global Warnings */
+.stale-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--warning-text);
+}
+
+.warnings-banner {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+
+.warnings-banner summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.warnings-list {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }

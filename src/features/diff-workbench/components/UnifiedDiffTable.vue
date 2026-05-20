@@ -242,10 +242,8 @@ function segmentClass(segment: ProjectionSegment): string {
 
 <style scoped>
 .panel {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 16px;
-  background: var(--bg-surface);
+  padding: 20px;
+  transition: all var(--transition-normal);
 }
 
 .panel-header {
@@ -253,49 +251,64 @@ function segmentClass(segment: ProjectionSegment): string {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .panel-header h2 {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.panel-header p {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 2px 0 0;
 }
 
 .unified-table {
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   overflow-y: auto;
   max-height: 70vh;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12px;
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--transition-normal);
 }
 
 .unified-header-row,
 .unified-row {
   display: grid;
-  grid-template-columns: 52px 64px minmax(0, 1fr) 20px 64px minmax(0, 1fr);
+  grid-template-columns: 48px 84px minmax(0, 1fr) 20px 84px minmax(0, 1fr);
+  transition: background-color var(--transition-fast);
 }
 
 .unified-header-row {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 10;
   border-bottom: 1px solid var(--border);
-  background: var(--bg-subtle);
+  background: var(--bg-page);
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .unified-header-row > * {
-  padding: 7px 10px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
 }
 
 .side-heading-old {
   grid-column: 2 / 4;
-  border-right: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border);
 }
 
 .side-heading-new {
@@ -306,12 +319,15 @@ function segmentClass(segment: ProjectionSegment): string {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-right: 1px solid var(--border);
   background: var(--bg-subtle);
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 500;
   user-select: none;
+  font-variant-numeric: tabular-nums;
+  transition: background-color var(--transition-normal);
 }
 
 .row-index-header {
@@ -320,7 +336,7 @@ function segmentClass(segment: ProjectionSegment): string {
 
 .center-gap {
   background:
-    linear-gradient(90deg, var(--border-subtle) 0 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 0 1px, transparent 1px),
     linear-gradient(90deg, transparent calc(100% - 1px), var(--border) calc(100% - 1px));
 }
 
@@ -333,15 +349,20 @@ function segmentClass(segment: ProjectionSegment): string {
   min-height: 28px;
 }
 
+.unified-row:hover {
+  background: var(--bg-subtle);
+}
+
 .gutter {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 4px;
-  padding: 4px 8px;
+  padding: 4px 6px;
   font-size: 11px;
   color: var(--text-muted);
   user-select: none;
+  font-variant-numeric: tabular-nums;
 }
 
 .gutter-old {
@@ -361,6 +382,7 @@ function segmentClass(segment: ProjectionSegment): string {
 .line-number {
   min-width: 24px;
   text-align: right;
+  font-weight: 500;
 }
 
 .descendant-flag {
@@ -370,28 +392,45 @@ function segmentClass(segment: ProjectionSegment): string {
 
 .overlap-flag {
   color: var(--text-secondary);
-  font-size: 10px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  font-size: 9px;
+  font-weight: 500;
 }
 
 .warning-flag {
   color: var(--warning-text);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .move-peer-flag {
   color: var(--tone-move-text);
-  font-size: 10px;
+  background: var(--tone-move-bg);
+  border: 1px solid var(--tone-move-border);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm);
+  font-size: 9px;
   font-weight: 600;
+  transition: all var(--transition-fast);
+}
+
+.move-peer-flag:hover {
+  background: var(--tone-move-border);
+  color: var(--text-primary);
 }
 
 .cell {
-  padding: 4px 10px;
+  padding: 6px 12px;
   white-space: pre-wrap;
   word-break: break-word;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+  line-height: 1.5;
+  transition: all var(--transition-fast);
 }
 
 .cell-old {
@@ -403,25 +442,39 @@ function segmentClass(segment: ProjectionSegment): string {
 }
 
 .cell.interactive:hover {
-  background: var(--bg-subtle);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.dark .cell.interactive:hover {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .cell.active {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
 }
 
 .cell.peer-highlight {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
+  background: var(--accent-blue-subtle);
+  animation: pulse-glow 2.5s infinite alternate ease-in-out;
+}
+
+@keyframes pulse-glow {
+  0% {
+    box-shadow: inset 0 0 0 2px var(--accent-blue), 0 0 4px rgba(0, 112, 243, 0.2);
+  }
+  100% {
+    box-shadow: inset 0 0 0 2.5px var(--accent-blue), 0 0 12px rgba(0, 112, 243, 0.45);
+    background: rgba(0, 112, 243, 0.15);
+  }
 }
 
 .cell.pair-match {
-  border-left: 2px solid var(--text-primary);
+  border-left: 3px solid var(--text-primary);
 }
 
 .cell.pair-align {
-  border-left: 2px dashed var(--text-muted);
+  border-left: 3px dashed var(--text-muted);
 }
 
 .placeholder-text {
@@ -447,7 +500,7 @@ function segmentClass(segment: ProjectionSegment): string {
 @media (max-width: 960px) {
   .unified-header-row,
   .unified-row {
-    grid-template-columns: 44px 48px minmax(0, 1fr) 12px 48px minmax(0, 1fr);
+    grid-template-columns: 40px 68px minmax(0, 1fr) 12px 68px minmax(0, 1fr);
   }
 }
 </style>

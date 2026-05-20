@@ -22,13 +22,13 @@ let view: EditorView | undefined
 let ignoreNextUpdate = false
 
 const highlightStyle = HighlightStyle.define([
-  { tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6], fontWeight: '600' },
-  { tag: tags.strong, fontWeight: '600' },
+  { tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6], fontWeight: '600', color: 'var(--text-primary)' },
+  { tag: tags.strong, fontWeight: '600', color: 'var(--text-primary)' },
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
-  { tag: [tags.monospace, tags.processingInstruction], fontFamily: 'var(--font-mono)' },
-  { tag: [tags.link, tags.url], textDecoration: 'underline' },
-  { tag: [tags.quote, tags.contentSeparator], color: 'var(--text-secondary)' },
+  { tag: [tags.monospace, tags.processingInstruction], fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' },
+  { tag: [tags.link, tags.url], textDecoration: 'underline', color: 'var(--accent-blue)' },
+  { tag: [tags.quote, tags.contentSeparator], color: 'var(--text-secondary)', fontStyle: 'italic' },
 ])
 
 const editorTheme = EditorView.theme({
@@ -39,19 +39,22 @@ const editorTheme = EditorView.theme({
     borderRadius: 'var(--radius-md)',
     minHeight: '280px',
     marginTop: '6px',
+    transition: 'background-color var(--transition-elastic), border-color var(--transition-elastic)',
   },
   '&.cm-focused': {
     outline: 'none',
-    borderColor: 'var(--accent)',
+    borderColor: 'var(--text-primary)',
+    boxShadow: '0 0 0 1px var(--text-primary)',
   },
   '.cm-content': {
     fontFamily: 'var(--font-mono)',
-    padding: '10px 12px',
+    padding: '14px 16px',
     caretColor: 'var(--text-primary)',
     minHeight: '260px',
+    color: 'var(--text-primary)',
   },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--text-primary)' },
-  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: '#dcdcdc !important' },
+  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: 'var(--bg-muted) !important' },
   '.cm-activeLine': { backgroundColor: 'transparent' },
   '.cm-placeholder': { color: 'var(--text-muted)' },
   '.cm-scroller': { overflow: 'auto' },

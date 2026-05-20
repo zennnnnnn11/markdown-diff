@@ -89,7 +89,7 @@ describe('DiffWorkbench', () => {
     await flushPromises()
     expect(wrapper.find('.stale-banner').exists()).toBe(true)
 
-    const rerunButton = wrapper.find('.stale-banner .secondary-button')
+    const rerunButton = wrapper.find('.stale-banner .primary-button')
     await rerunButton.trigger('click')
     await waitFor(() => !wrapper!.find('.stale-banner').exists(), 8000)
     expect(wrapper.find('.stale-banner').exists()).toBe(false)

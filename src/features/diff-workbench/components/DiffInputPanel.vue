@@ -124,14 +124,10 @@ async function onFileSelected(e: Event): Promise<void> {
 
 <style scoped>
 .panel {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 16px;
-  background: var(--bg-surface);
+  transition: all var(--transition-normal);
 }
 
-.panel-header,
-.editor-toolbar {
+.panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -139,10 +135,11 @@ async function onFileSelected(e: Event): Promise<void> {
 }
 
 .panel-header h2 {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  color: var(--text-primary);
-  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
 }
 
 .panel-actions {
@@ -156,16 +153,25 @@ async function onFileSelected(e: Event): Promise<void> {
   color: var(--text-muted);
   margin: 0;
   display: none;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  width: fit-content;
 }
 
 .collapsed-summary.visible {
   display: block;
-  margin: 10px 0 0;
+  margin: 14px 0 0;
+  animation: fadeIn var(--transition-normal);
 }
 
 .editor-body {
   display: grid;
   grid-template-rows: 1fr;
+  transition: grid-template-rows var(--transition-fluid-spring);
+  will-change: grid-template-rows;
+  contain: content; /* Isolate layout & style calculations to ensure maximum framerate (FPS) */
 }
 
 .editor-body.collapsed {
@@ -175,62 +181,66 @@ async function onFileSelected(e: Event): Promise<void> {
 .editor-body-inner {
   overflow: hidden;
   min-height: 0;
+  opacity: 1;
+  transform: translateY(0) translateZ(0);
+  transition: opacity 0.35s cubic-bezier(0.25, 1, 0.2, 1),
+              transform 0.38s cubic-bezier(0.25, 1, 0.2, 1);
+  will-change: opacity, transform;
 }
 
-.editor-toolbar label {
-  font-size: 13px;
-  color: var(--text-secondary);
+.editor-body.collapsed .editor-body-inner {
+  opacity: 0;
+  transform: translateY(-8px) translateZ(0);
 }
 
 .editor-grid {
   display: grid;
-  gap: 16px;
+  gap: 20px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  margin-top: 12px;
+  margin-top: 18px;
 }
 
 .editor-pane {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.primary-button {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  padding: 8px 16px;
-  font-size: 13px;
-  cursor: pointer;
+.editor-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  padding: 0 4px;
 }
 
-.primary-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.editor-toolbar label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
-.primary-button:not(:disabled):hover {
-  background: var(--bg-subtle);
+.toolbar-actions {
+  display: flex;
+  gap: 6px;
 }
 
-.secondary-button {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  padding: 7px 14px;
-  font-size: 13px;
-  cursor: pointer;
-}
-
-.secondary-button:hover {
-  background: var(--bg-subtle);
+.toolbar-actions .secondary-button {
+  padding: 4px 10px;
+  font-size: 11px;
 }
 
 .loading-state {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .spinner {
@@ -240,18 +250,23 @@ async function onFileSelected(e: Event): Promise<void> {
   border-right-color: var(--text-primary);
   border-radius: 50%;
   flex-shrink: 0;
+  animation: spin 0.6s linear infinite;
 }
 
 .hint {
-  color: var(--text-muted);
-  font-size: 13px;
+  color: var(--text-secondary);
+  font-size: 12px;
   margin: 0;
 }
 
 .error-text {
   color: var(--tone-delete-text);
-  font-size: 13px;
-  margin-top: 8px;
+  font-size: 12px;
+  margin-top: 10px;
+  padding: 8px 14px;
+  background: var(--tone-delete-bg);
+  border: 1px solid var(--tone-delete-border);
+  border-radius: var(--radius-md);
 }
 
 .import-error {
@@ -259,19 +274,25 @@ async function onFileSelected(e: Event): Promise<void> {
   background: var(--warning-bg);
   border: 1px solid var(--warning-border);
   border-radius: var(--radius-md);
-  font-size: 13px;
-  padding: 6px 12px;
-  margin-top: 8px;
+  font-size: 12px;
+  padding: 8px 14px;
+  margin-top: 10px;
 }
 
-.toolbar-actions {
-  display: flex;
-  gap: 6px;
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (max-width: 960px) {
   .editor-grid {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
 }
 </style>
