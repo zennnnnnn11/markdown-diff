@@ -3,6 +3,15 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { EditorView } from '@codemirror/view'
 import MarkdownEditor from '../MarkdownEditor.vue'
 
+async function waitForEditor(wrapper: ReturnType<typeof mount>, timeoutMs = 5000): Promise<void> {
+  const start = Date.now()
+  while (!wrapper.find('.cm-editor').exists()) {
+    if (Date.now() - start > timeoutMs) throw new Error('timed out waiting for editor to load')
+    await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+}
+
 function getEditorView(wrapper: ReturnType<typeof mount>): EditorView {
   const cmEl = wrapper.find('.cm-editor').element as HTMLElement
   return EditorView.findFromDOM(cmEl)!
@@ -16,19 +25,21 @@ describe('MarkdownEditor', () => {
     wrapper = undefined
   })
 
-  it('creates EditorView on mount', () => {
+  it('creates EditorView on mount', async () => {
     wrapper = mount(MarkdownEditor, {
       props: { modelValue: '' },
       attachTo: document.body,
     })
+    await waitForEditor(wrapper)
     expect(wrapper.find('.cm-editor').exists()).toBe(true)
   })
 
-  it('reflects initial modelValue in CM state', () => {
+  it('reflects initial modelValue in CM state', async () => {
     wrapper = mount(MarkdownEditor, {
       props: { modelValue: 'hello world' },
       attachTo: document.body,
     })
+    await waitForEditor(wrapper)
     const view = getEditorView(wrapper)
     expect(view.state.doc.toString()).toBe('hello world')
   })
@@ -38,6 +49,7 @@ describe('MarkdownEditor', () => {
       props: { modelValue: 'initial' },
       attachTo: document.body,
     })
+    await waitForEditor(wrapper)
     await wrapper.setProps({ modelValue: 'updated' })
     await flushPromises()
     const view = getEditorView(wrapper)
@@ -49,6 +61,7 @@ describe('MarkdownEditor', () => {
       props: { modelValue: 'same' },
       attachTo: document.body,
     })
+    await waitForEditor(wrapper)
     const view = getEditorView(wrapper)
     const initialVersion = view.state.doc.length
     await wrapper.setProps({ modelValue: 'same' })
@@ -57,11 +70,12 @@ describe('MarkdownEditor', () => {
     expect(view.state.doc.length).toBe(initialVersion)
   })
 
-  it('CM dispatch emits update:modelValue', () => {
+  it('CM dispatch emits update:modelValue', async () => {
     wrapper = mount(MarkdownEditor, {
       props: { modelValue: '' },
       attachTo: document.body,
     })
+    await waitForEditor(wrapper)
     const view = getEditorView(wrapper)
     view.dispatch({ changes: { from: 0, to: 0, insert: 'typed' } })
     const emitted = wrapper.emitted('update:modelValue') as string[][]
@@ -74,6 +88,7 @@ describe('MarkdownEditor', () => {
       props: { modelValue: '' },
       attachTo: document.body,
     })
+    await waitForEditor(wrapper)
     const view = getEditorView(wrapper)
     view.dispatch({ changes: { from: 0, to: 0, insert: 'from-cm' } })
     const emitted = wrapper.emitted('update:modelValue') as string[][]
@@ -84,21 +99,23 @@ describe('MarkdownEditor', () => {
     expect(view.state.doc.toString()).toBe('from-cm')
   })
 
-  it('uses default placeholder when no placeholder prop', () => {
+  it('uses default placeholder when no placeholder prop', async () => {
     wrapper = mount(MarkdownEditor, {
       props: { modelValue: '' },
       attachTo: document.body,
     })
+    await waitForEditor(wrapper)
     const placeholder = wrapper.find('.cm-placeholder')
     expect(placeholder.exists()).toBe(true)
     expect(placeholder.text()).toContain('Markdown')
   })
 
-  it('destroys EditorView on unmount', () => {
+  it('destroys EditorView on unmount', async () => {
     wrapper = mount(MarkdownEditor, {
       props: { modelValue: 'test' },
       attachTo: document.body,
     })
+    await waitForEditor(wrapper)
     expect(wrapper.find('.cm-editor').exists()).toBe(true)
     wrapper.unmount()
     wrapper = undefined

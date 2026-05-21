@@ -1,7 +1,5 @@
-import { parseMarkdown } from '@/core/parser'
-import { diffMarkdownTrees, forEachChange } from '@/core/diff'
-import { transformMarkdown } from '@/core/transformer'
-import type { DiffChange, DiffResult, PrimaryOp, SourceRange, Tone } from './types'
+import { forEachChange } from '@/core/diff/summary'
+import type { DiffChange, PrimaryOp, SourceRange, Tone } from './types'
 
 const TONE_PRIORITY: Record<Tone, number> = {
   delete: 0,
@@ -12,13 +10,6 @@ const TONE_PRIORITY: Record<Tone, number> = {
   rename: 5,
   reorder: 6,
   plain: 7,
-}
-
-export async function runMarkdownDiff(oldMarkdown: string, newMarkdown: string): Promise<DiffResult> {
-  const [oldAst, newAst] = await Promise.all([parseMarkdown(oldMarkdown), parseMarkdown(newMarkdown)])
-  const oldTree = transformMarkdown(oldAst)
-  const newTree = transformMarkdown(newAst)
-  return diffMarkdownTrees(oldTree, newTree)
 }
 
 export function flattenChanges(root: DiffChange): DiffChange[] {

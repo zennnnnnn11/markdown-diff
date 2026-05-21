@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import DiffChangeNav from './components/DiffChangeNav.vue'
-import DiffDebugPanel from './components/DiffDebugPanel.vue'
-import DiffDetailModal from './components/DiffDetailModal.vue'
 import DiffInputPanel from './components/DiffInputPanel.vue'
 import DiffStatsBar from './components/DiffStatsBar.vue'
 import UnifiedDiffTable from './components/UnifiedDiffTable.vue'
@@ -14,6 +12,9 @@ import type { HighlightFilter } from './view-model'
 interface ScrollableExposed {
   scrollToIndex?: (index: number) => void
 }
+
+const DiffDebugPanel = defineAsyncComponent(() => import('./components/DiffDebugPanel.vue'))
+const DiffDetailModal = defineAsyncComponent(() => import('./components/DiffDetailModal.vue'))
 
 const props = defineProps<{
   initialOldMarkdown: string
@@ -247,9 +248,14 @@ function onKeyDown(e: KeyboardEvent): void {
       @select="selectLine"
     />
 
-    <DiffDetailModal :detail="detail" @close="workbench.closeDetail" />
+    <DiffDetailModal
+      v-if="detail"
+      :detail="detail"
+      @close="workbench.closeDetail"
+    />
 
     <DiffDebugPanel
+      v-if="debugVisible && debugSnapshot"
       :visible="debugVisible"
       :debug-snapshot="debugSnapshot"
     />

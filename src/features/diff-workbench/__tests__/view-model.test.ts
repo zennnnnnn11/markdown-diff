@@ -9,11 +9,11 @@ import {
   flattenChanges,
   lineMatchesFilter,
   matchKindLabels,
-  runMarkdownDiff,
   tokenizeForSimilarity,
   toneLabels,
 } from '../view-model'
 import type { DiffResult } from '@/core/diff'
+import { runMarkdownDiff } from '../view-model/run-markdown-diff'
 
 function mergedRowsFromMarkdown(oldMd: string, newMd: string, result: DiffResult) {
   return buildMergedRows(buildOldProjectionLines(oldMd, result), buildProjectionLines(newMd, result))

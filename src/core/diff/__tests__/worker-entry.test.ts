@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { runMarkdownDiffInWorker } from '../worker-entry'
-import { runMarkdownDiff } from '@/features/diff-workbench/view-model/utils'
+import { runMarkdownDiff } from '@/features/diff-workbench/view-model/run-markdown-diff'
 
 describe('runMarkdownDiffInWorker', () => {
   it('produces same result as main-thread runMarkdownDiff', async () => {

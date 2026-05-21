@@ -13,7 +13,6 @@ import {
   flattenChanges,
   getChangeReference,
   lineMatchesFilter,
-  runMarkdownDiff,
 } from './view-model'
 
 export interface ChangePosition {
@@ -21,6 +20,8 @@ export interface ChangePosition {
   index: number
   side: 'old' | 'new'
 }
+
+let fallbackDiffPromise: Promise<typeof import('./view-model/run-markdown-diff').runMarkdownDiff> | undefined
 
 export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown: string) {
   const oldMarkdown = ref(initialOldMarkdown)
@@ -139,7 +140,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
       lastDiffedNew.value = newMarkdown.value
       const raw = typeof Worker !== 'undefined'
         ? await runDiffInWorker(oldMarkdown.value, newMarkdown.value)
-        : await runMarkdownDiff(oldMarkdown.value, newMarkdown.value)
+        : await (await loadRunMarkdownDiff())(oldMarkdown.value, newMarkdown.value)
       result.value = markRaw(raw)
       inputCollapsed.value = true
       currentChangeIndex.value = -1
@@ -227,6 +228,11 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     scrollToFirstMatch,
     navigateChange,
   }
+}
+
+async function loadRunMarkdownDiff(): Promise<typeof import('./view-model/run-markdown-diff').runMarkdownDiff> {
+  fallbackDiffPromise ??= import('./view-model/run-markdown-diff').then((module) => module.runMarkdownDiff)
+  return fallbackDiffPromise
 }
 
 function buildEmptyLines(markdown: string): ProjectionLine[] {

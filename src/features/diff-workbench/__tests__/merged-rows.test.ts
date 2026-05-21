@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildMergedRows, removeNewIndexCrossings, tokenizeForSimilarity } from '../view-model/merged-rows'
-import { runMarkdownDiff } from '../view-model/utils'
+import { runMarkdownDiff } from '../view-model/run-markdown-diff'
 import { buildOldProjectionLines, buildProjectionLines } from '../view-model/projection'
 import type { DiffResult } from '@/core/diff'
 
