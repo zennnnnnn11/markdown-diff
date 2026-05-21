@@ -1,6 +1,20 @@
 # Markdown Diff
 
-结构感知的 Markdown 差异分析工具。基于语义树比对而非逐行文本 diff，能够精确识别移动、重命名、重排序等高层变更，并提供行级 / 词级 / 字符级三层精度的 inline 差异高亮。
+结构感知的 Markdown 差异分析工具。当前项目形态是一个在线单页 diff 工作台：基于语义树比对而非逐行文本 diff，能够识别移动、重命名、重排序等高层变更，并提供行级 / 词级 / 字符级三层精度的 inline 差异高亮。
+
+## 在线演示
+
+- Demo: https://diff.nezz.ccwu.cc/
+
+## 截图
+
+### 浅色模式
+
+![浅色模式截图](./浅色模式截图.png)
+
+### 深色模式
+
+![深色模式截图](./深色模式截图.png)
 
 ## 特性亮点
 
@@ -37,10 +51,6 @@
 - 点击变更行打开详情弹窗（含匹配证据、相似度、inline diff）
 - Vercel/Geist 设计语言 + 毛玻璃效果 + 弹性微交互
 
-## 截图
-
-> 截图占位 — 可在此处添加项目截图或 GIF 演示。
-
 ## 快速开始
 
 ### 前置要求
@@ -63,6 +73,8 @@ pnpm dev
 ```
 
 浏览器打开 `http://localhost:5173`，页面会加载内置的示例文档并自动执行一次 diff。
+
+也可以直接访问在线演示：<https://diff.nezz.ccwu.cc/>
 
 ### 生产构建
 
@@ -149,7 +161,7 @@ markdowndiff2/
 │   │   ├── diff/              # 阶段 3：Diff Engine（项目核心）
 │   │   │   ├── engine/        #   确定性匹配、递归对齐、移动恢复、
 │   │   │   │                  #   重命名检测、内联 diff、结构后备
-│   │   │   ├── __tests__/     #   ~40 个测试文件
+│   │   │   ├── __tests__/     #   核心 diff 测试
 │   │   │   ├── sequence.ts    #   Myers / Heckel / Histogram 序列对齐
 │   │   │   ├── similarity.ts  #   节点相似度评分（按类型加权）
 │   │   │   ├── hungarian.ts   #   Kuhn-Munkres 最优二分匹配
@@ -159,7 +171,7 @@ markdowndiff2/
 │   │   │   └── worker-client.ts  # Web Worker 客户端
 │   │   └── io/                # 文件读取
 │   ├── features/
-│   │   └── diff-workbench/    # 阶段 4 + UI
+│   │   └── diff-workbench/    # 阶段 4 + 单页工作台 UI
 │   │       ├── components/    #   8 个 Vue 组件
 │   │       ├── view-model/    #   投射、合并行、分段、标签、详情
 │   │       └── __tests__/     #   UI / 视图模型测试
@@ -232,7 +244,6 @@ markdowndiff2/
 | 依赖 | 用途 |
 |------|------|
 | Vue 3 | UI 框架 |
-| Vue Router | 路由 |
 | CodeMirror 6 | Markdown 编辑器 |
 | @tanstack/vue-virtual | 虚拟滚动 |
 | unified / remark-* | Markdown 解析 |
@@ -251,17 +262,18 @@ markdowndiff2/
 | ESLint + oxlint + Prettier | 代码质量 |
 | vue-tsc | Vue 类型检查 |
 | Rust / Cargo | WASM 模块编译 |
+| Wrangler / Cloudflare | 本地预览与部署 |
 
 ## 测试
 
 ```bash
-# 单元测试（2265 tests，66 个文件）
+# 单元测试
 pnpm test:unit
 
 # 带覆盖率
 pnpm vitest run --coverage
 
-# E2E 测试（165 tests，11 个 spec）
+# E2E 测试
 pnpm test:e2e
 
 # 仅 Chromium
@@ -280,18 +292,21 @@ pnpm type-check
 - Vue 组件行为
 - 完整 E2E 用户流程（输入、比对、视图切换、详情弹窗、导航、无障碍）
 
+> 注：测试规模会持续变化，以上命令与覆盖范围比固定数字更可信。
+
 ## 可用脚本
 
 | 命令 | 说明 |
 |------|------|
 | `pnpm dev` | 启动 Vite 开发服务器 |
 | `pnpm build` | 类型检查 + 生产构建（并行） |
-| `pnpm preview` | 预览构建产物 |
+| `pnpm preview` | 使用 Wrangler 本地预览构建产物 |
 | `pnpm test:unit` | 运行 Vitest 单元测试 |
 | `pnpm test:e2e` | 运行 Playwright E2E 测试 |
 | `pnpm type-check` | vue-tsc 类型检查 |
 | `pnpm lint` | oxlint + ESLint 代码检查 |
 | `pnpm format` | Prettier 格式化 |
+| `pnpm deploy` | 部署到 Cloudflare |
 
 ## License
 
