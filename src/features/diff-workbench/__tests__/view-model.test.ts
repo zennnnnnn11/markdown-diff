@@ -1413,6 +1413,26 @@ describe('diff workbench view-model', () => {
     expect(moveSourceLine?.movePeerLineNumber).toBe(5)
   })
 
+  it('resolves movePeerLineNumber for nodes with colon-containing synthetic IDs', async () => {
+    const oldMd = '# A\n\nParagraph\n\n[foo]: http://example.com'
+    const newMd = '[foo]: http://example.com\n\n# A\n\nParagraph'
+    const result = await runMarkdownDiff(oldMd, newMd)
+
+    const newLines = buildProjectionLines(newMd, result)
+    const newMoveLine = newLines.find((l) => l.baseTone === 'move')
+    if (newMoveLine) {
+      expect(newMoveLine.movePeerLineNumber).toBeDefined()
+      expect(typeof newMoveLine.movePeerLineNumber).toBe('number')
+    }
+
+    const oldLines = buildOldProjectionLines(oldMd, result)
+    const oldMoveLine = oldLines.find((l) => l.baseTone === 'move')
+    if (oldMoveLine) {
+      expect(oldMoveLine.movePeerLineNumber).toBeDefined()
+      expect(typeof oldMoveLine.movePeerLineNumber).toBe('number')
+    }
+  })
+
   it('leaves movePeerLineNumber undefined for non-move lines', async () => {
     const result = await runMarkdownDiff('# Title\n\nold', '# Title\n\nnew')
     const lines = buildProjectionLines('# Title\n\nnew', result)

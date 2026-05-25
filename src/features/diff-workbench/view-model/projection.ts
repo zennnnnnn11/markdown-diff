@@ -238,22 +238,17 @@ function getHeadingRange(node: Section | Block | undefined): SourceRange | undef
 }
 
 function resolvePeerLineNumber(change: DiffChange, result: DiffResult): number | undefined {
-  const pairKey = change.pairKey
-  if (!pairKey) return undefined
-
-  const colonAfterKind = pairKey.indexOf(':')
-  if (colonAfterKind < 0) return undefined
-  const rest = pairKey.slice(colonAfterKind + 1)
-  const colonBetween = rest.indexOf(':')
-  if (colonBetween < 0) return undefined
-  const oldId = rest.slice(0, colonBetween)
-  const newId = rest.slice(colonBetween + 1)
+  if (!change.logicalMoveId) return undefined
+  const peers = result.changeIndex.byLogicalMoveId.get(change.logicalMoveId)
+  if (!peers) return undefined
+  const peer = peers.find((p) => p.moveRole !== change.moveRole)
+  if (!peer) return undefined
 
   if (change.moveRole === 'source') {
-    if (!newId) return undefined
-    return result.newIndex.byId.get(newId)?.sourceRange?.start?.line
+    if (!peer.newId) return undefined
+    return result.newIndex.byId.get(peer.newId)?.sourceRange?.start?.line
   } else {
-    if (!oldId) return undefined
-    return result.oldIndex.byId.get(oldId)?.sourceRange?.start?.line
+    if (!peer.oldId) return undefined
+    return result.oldIndex.byId.get(peer.oldId)?.sourceRange?.start?.line
   }
 }
