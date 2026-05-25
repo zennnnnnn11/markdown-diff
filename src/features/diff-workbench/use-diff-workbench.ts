@@ -10,6 +10,7 @@ import {
   buildDetailPanel,
   buildOldProjectionLines,
   buildProjectionLines,
+  clearPretextCache,
   flattenChanges,
   getChangeReference,
   lineMatchesFilter,
@@ -218,6 +219,7 @@ export function useDiffWorkbench(initialOldMarkdown: string, initialNewMarkdown:
     errorMessage.value = ''
     selectedChangeKey.value = null
     activeFilter.value = null
+    clearPretextCache()
 
     try {
       lastDiffedOld.value = oldMarkdown.value

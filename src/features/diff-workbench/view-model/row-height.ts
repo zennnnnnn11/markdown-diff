@@ -7,7 +7,8 @@ const LINE_HEIGHT = 18
 const CELL_PADDING_V = 12
 const ROW_BORDER = 1
 const MIN_ROW_HEIGHT = 28
-const GRID_FIXED_WIDTH = 236
+const GRID_FIXED_DESKTOP = 236
+const GRID_FIXED_MOBILE = 188
 const CELL_PADDING_H = 24
 
 type PreparedHandle = ReturnType<typeof prepare>
@@ -37,11 +38,16 @@ export function computeRowHeight(row: MergedRow, cellWidth: number): number {
   return Math.max(oldH, newH, MIN_ROW_HEIGHT) + ROW_BORDER
 }
 
-export function computeAllRowHeights(rows: MergedRow[], tableWidth: number): number[] {
-  const cellWidth = (tableWidth - GRID_FIXED_WIDTH) / 2
+export function computeAllRowHeights(
+  rows: MergedRow[],
+  tableWidth: number,
+  gridFixedWidth = GRID_FIXED_DESKTOP,
+): number[] {
+  const cellWidth = (tableWidth - gridFixedWidth) / 2
   return rows.map((row) => computeRowHeight(row, cellWidth))
 }
 
+export { GRID_FIXED_DESKTOP, GRID_FIXED_MOBILE }
 export function clearPretextCache(): void {
   cache.clear()
 }

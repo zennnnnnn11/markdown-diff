@@ -21,3 +21,4 @@ export { flattenChanges, getChangeReference, getAlignmentReference } from './vie
 export { buildProjectionLines, buildOldProjectionLines } from './view-model/projection'
 export { buildMergedRows, tokenizeForSimilarity } from './view-model/merged-rows'
 export { buildDetailPanel, buildDebugSnapshot, lineMatchesFilter } from './view-model/detail'
+export { clearPretextCache } from './view-model/row-height'

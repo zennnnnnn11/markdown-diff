@@ -9,6 +9,7 @@ import type {
 const props = defineProps<{
   row: MergedRow
   rowIndex: number
+  peerHighlightKey?: string
 }>()
 
 const emit = defineEmits<{
@@ -36,6 +37,10 @@ function annotationClass(annotation: ProjectionAnnotation): string {
 
 function segmentClass(segment: ProjectionSegment): string {
   return `tone-${segment.tone}`
+}
+
+function isPeerHighlight(line: ProjectionLine | null): boolean {
+  return !!props.peerHighlightKey && !!line?.changeKey && line.changeKey === props.peerHighlightKey
 }
 
 function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
@@ -89,7 +94,10 @@ function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
     :class="[
       toneClass(props.row.oldLine ?? null),
       pairClass(props.row.oldLine ?? null),
-      { interactive: !!props.row.oldLine?.changeKey },
+      {
+        interactive: !!props.row.oldLine?.changeKey,
+        'peer-highlight': isPeerHighlight(props.row.oldLine ?? null),
+      },
     ]"
     :data-change-key="props.row.oldLine?.changeKey"
     :data-base-tone="props.row.oldLine?.baseTone"
@@ -172,7 +180,10 @@ function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
     :class="[
       toneClass(props.row.newLine ?? null),
       pairClass(props.row.newLine ?? null),
-      { interactive: !!props.row.newLine?.changeKey },
+      {
+        interactive: !!props.row.newLine?.changeKey,
+        'peer-highlight': isPeerHighlight(props.row.newLine ?? null),
+      },
     ]"
     :data-change-key="props.row.newLine?.changeKey"
     :data-base-tone="props.row.newLine?.baseTone"

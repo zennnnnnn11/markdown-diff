@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import type { HighlightFilter, MergedRow } from '../view-model'
-import { computeAllRowHeights } from '../view-model/row-height'
+import { computeAllRowHeights, GRID_FIXED_DESKTOP, GRID_FIXED_MOBILE } from '../view-model/row-height'
 import UnifiedDiffRow from './UnifiedDiffRow.vue'
 
 const scrollBody = ref<HTMLElement | null>(null)
 const tableWidth = ref(0)
+const isMobile = ref(false)
 let resizeObserver: ResizeObserver | undefined
+let mobileQuery: MediaQueryList | undefined
 
 const props = defineProps<{
   mergedRows: MergedRow[]
@@ -15,8 +17,12 @@ const props = defineProps<{
   peerHighlightKey?: string
 }>()
 
+const gridFixedWidth = computed(() => (isMobile.value ? GRID_FIXED_MOBILE : GRID_FIXED_DESKTOP))
+
 const rowHeights = computed(() =>
-  tableWidth.value > 0 ? computeAllRowHeights(props.mergedRows, tableWidth.value) : [],
+  tableWidth.value > 0
+    ? computeAllRowHeights(props.mergedRows, tableWidth.value, gridFixedWidth.value)
+    : [],
 )
 
 const rowVirtualizer = useVirtualizer(
@@ -31,16 +37,26 @@ const rowVirtualizer = useVirtualizer(
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
 
+function onMobileChange(e: MediaQueryListEvent): void {
+  isMobile.value = e.matches
+}
+
 onMounted(() => {
   if (!scrollBody.value) return
   resizeObserver = new ResizeObserver(([entry]) => {
     if (entry) tableWidth.value = entry.contentRect.width
   })
   resizeObserver.observe(scrollBody.value)
+  if (typeof window.matchMedia === 'function') {
+    mobileQuery = window.matchMedia('(max-width: 960px)')
+    isMobile.value = mobileQuery.matches
+    mobileQuery.addEventListener('change', onMobileChange)
+  }
 })
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
+  mobileQuery?.removeEventListener('change', onMobileChange)
 })
 
 defineExpose({
@@ -55,23 +71,6 @@ const emit = defineEmits<{
 function onSelect(changeKey: string | undefined, side: 'old' | 'new'): void {
   emit('select', changeKey, side)
 }
-
-watch(
-  () => props.peerHighlightKey,
-  (newKey, oldKey) => {
-    if (!scrollBody.value) return
-    if (oldKey) {
-      scrollBody.value
-        .querySelectorAll('.cell.peer-highlight')
-        .forEach((el) => el.classList.remove('peer-highlight'))
-    }
-    if (newKey) {
-      scrollBody.value
-        .querySelectorAll(`.cell[data-change-key="${CSS.escape(newKey)}"]`)
-        .forEach((el) => el.classList.add('peer-highlight'))
-    }
-  },
-)
 </script>
 
 <template>
@@ -111,6 +110,7 @@ watch(
           <UnifiedDiffRow
             :row="mergedRows[vRow.index]!"
             :row-index="vRow.index"
+            :peer-highlight-key="peerHighlightKey"
             @select="onSelect"
           />
         </div>
