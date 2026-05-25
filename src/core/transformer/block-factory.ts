@@ -58,7 +58,7 @@ function nextBlockId(ctx: TransformContext): string {
 export function createInlineContent(node: Node): InlineContent {
   return {
     id: `i${++inlineIdCounter}`,
-    ...deepClone(node) as Record<string, unknown>,
+    ...(deepClone(node) as Record<string, unknown>),
   } as InlineContent
 }
 

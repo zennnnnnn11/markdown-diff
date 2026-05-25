@@ -64,8 +64,8 @@
   --radius-lg: 12px;
 
   /* Typography */
-  --font-sans: "Noto Sans SC", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "Maple Mono CN", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-sans: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Maple Mono CN', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -144,7 +144,9 @@
 }
 
 /* --- RESET & BASICS --- */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -161,7 +163,9 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color var(--transition-elastic), color var(--transition-elastic);
+  transition:
+    background-color var(--transition-elastic),
+    color var(--transition-elastic);
 }
 
 /* Custom Scrollbars */
@@ -184,7 +188,12 @@ body {
 }
 
 /* --- TYPOGRAPHY --- */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   margin: 0;
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -196,7 +205,10 @@ p {
 }
 
 /* --- INTERACTIVE BASE COMPONENTS --- */
-button, input, select, textarea {
+button,
+input,
+select,
+textarea {
   font-family: inherit;
   font-size: inherit;
   outline: none;
@@ -216,7 +228,10 @@ button, input, select, textarea {
   font-size: 13px;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .primary-button:hover:not(:disabled) {
@@ -297,7 +312,9 @@ button, input, select, textarea {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   padding: 24px;
-  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+  transition:
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal);
 }
 
 .panel:hover {

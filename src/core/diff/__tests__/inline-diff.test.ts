@@ -166,15 +166,15 @@ describe('inline-diff', () => {
     })
 
     it('returns false when all spans are equal and text matches', () => {
-      expect(
-        hasMeaningfulInlineDiff([{ op: 'equal', oldText: 'a', newText: 'a' }], 'a', 'a'),
-      ).toBe(false)
+      expect(hasMeaningfulInlineDiff([{ op: 'equal', oldText: 'a', newText: 'a' }], 'a', 'a')).toBe(
+        false,
+      )
     })
 
     it('returns true when all spans are equal but text differs', () => {
-      expect(
-        hasMeaningfulInlineDiff([{ op: 'equal', oldText: 'a', newText: 'a' }], 'a', 'b'),
-      ).toBe(true)
+      expect(hasMeaningfulInlineDiff([{ op: 'equal', oldText: 'a', newText: 'a' }], 'a', 'b')).toBe(
+        true,
+      )
     })
   })
 })

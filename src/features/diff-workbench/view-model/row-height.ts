@@ -1,7 +1,8 @@
 import { prepare, layout } from '@chenglou/pretext'
 import type { MergedRow, ProjectionLine } from './types'
 
-const FONT = '12px "Maple Mono CN", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
+const FONT =
+  '12px "Maple Mono CN", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
 const LINE_HEIGHT = 18
 const CELL_PADDING_V = 12
 const ROW_BORDER = 1
@@ -38,7 +39,7 @@ export function computeRowHeight(row: MergedRow, cellWidth: number): number {
 
 export function computeAllRowHeights(rows: MergedRow[], tableWidth: number): number[] {
   const cellWidth = (tableWidth - GRID_FIXED_WIDTH) / 2
-  return rows.map(row => computeRowHeight(row, cellWidth))
+  return rows.map((row) => computeRowHeight(row, cellWidth))
 }
 
 export function clearPretextCache(): void {

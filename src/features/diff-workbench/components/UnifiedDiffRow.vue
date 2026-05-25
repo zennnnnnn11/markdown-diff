@@ -57,14 +57,28 @@ function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
     <template v-if="props.row.oldLine">
       <span class="line-number">{{ props.row.oldLine.lineNumber }}</span>
       <span class="gutter-badges">
-        <span v-if="props.row.oldLine.hasDescendantChange && props.row.oldLine.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
-        <span v-if="props.row.oldLine.changeKeys.length > 1" class="overlap-flag" :title="`旧侧命中 ${props.row.oldLine.changeKeys.length} 个变更`">+{{ props.row.oldLine.changeKeys.length - 1 }}</span>
-        <span v-if="props.row.oldLine.warnings.length" class="warning-flag" title="存在告警">⚠</span>
+        <span
+          v-if="props.row.oldLine.hasDescendantChange && props.row.oldLine.baseTone === 'plain'"
+          class="descendant-flag"
+          title="子内容有变更"
+          >▸</span
+        >
+        <span
+          v-if="props.row.oldLine.changeKeys.length > 1"
+          class="overlap-flag"
+          :title="`旧侧命中 ${props.row.oldLine.changeKeys.length} 个变更`"
+          >+{{ props.row.oldLine.changeKeys.length - 1 }}</span
+        >
+        <span v-if="props.row.oldLine.warnings.length" class="warning-flag" title="存在告警"
+          >⚠</span
+        >
         <span
           v-if="props.row.oldLine.baseTone === 'move' && props.row.oldLine.movePeerLineNumber"
           class="move-peer-flag"
           :title="`移动目标：第 ${props.row.oldLine.movePeerLineNumber} 行`"
-        >{{ (props.row.oldLine.movePeerRowIndex ?? rowIndex) > rowIndex ? '↓' : '↑' }}{{ props.row.oldLine.movePeerLineNumber }}</span>
+          >{{ (props.row.oldLine.movePeerRowIndex ?? rowIndex) > rowIndex ? '↓' : '↑'
+          }}{{ props.row.oldLine.movePeerLineNumber }}</span
+        >
       </span>
     </template>
   </div>
@@ -72,7 +86,11 @@ function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
   <!-- Old content -->
   <div
     class="cell cell-old"
-    :class="[toneClass(props.row.oldLine ?? null), pairClass(props.row.oldLine ?? null), { interactive: !!props.row.oldLine?.changeKey }]"
+    :class="[
+      toneClass(props.row.oldLine ?? null),
+      pairClass(props.row.oldLine ?? null),
+      { interactive: !!props.row.oldLine?.changeKey },
+    ]"
     :data-change-key="props.row.oldLine?.changeKey"
     :data-base-tone="props.row.oldLine?.baseTone"
     :data-matched-tones="matchedTonesAttr(props.row.oldLine ?? null)"
@@ -90,7 +108,8 @@ function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
             :key="`${props.row.oldLine.key}:s:${si}`"
             class="segment"
             :class="segmentClass(segment)"
-          >{{ segment.text || ' ' }}</span>
+            >{{ segment.text || ' ' }}</span
+          >
         </template>
         <template v-else>{{ props.row.oldLine.text || ' ' }}</template>
       </span>
@@ -100,10 +119,13 @@ function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
           :key="`${props.row.oldLine.key}:a:${ai}`"
           class="annotation-chip"
           :class="annotationClass(ann)"
-        >{{ ann.label }}</span>
+          >{{ ann.label }}</span
+        >
       </span>
     </template>
-    <span v-else class="placeholder-text" aria-hidden="true">{{ props.row.newLine?.text || ' ' }}</span>
+    <span v-else class="placeholder-text" aria-hidden="true">{{
+      props.row.newLine?.text || ' '
+    }}</span>
   </div>
 
   <div class="center-gap" aria-hidden="true"></div>
@@ -118,14 +140,28 @@ function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
     <template v-if="props.row.newLine">
       <span class="line-number">{{ props.row.newLine.lineNumber }}</span>
       <span class="gutter-badges">
-        <span v-if="props.row.newLine.hasDescendantChange && props.row.newLine.baseTone === 'plain'" class="descendant-flag" title="子内容有变更">▸</span>
-        <span v-if="props.row.newLine.changeKeys.length > 1" class="overlap-flag" :title="`新侧命中 ${props.row.newLine.changeKeys.length} 个变更`">+{{ props.row.newLine.changeKeys.length - 1 }}</span>
-        <span v-if="props.row.newLine.warnings.length" class="warning-flag" title="存在告警">⚠</span>
+        <span
+          v-if="props.row.newLine.hasDescendantChange && props.row.newLine.baseTone === 'plain'"
+          class="descendant-flag"
+          title="子内容有变更"
+          >▸</span
+        >
+        <span
+          v-if="props.row.newLine.changeKeys.length > 1"
+          class="overlap-flag"
+          :title="`新侧命中 ${props.row.newLine.changeKeys.length} 个变更`"
+          >+{{ props.row.newLine.changeKeys.length - 1 }}</span
+        >
+        <span v-if="props.row.newLine.warnings.length" class="warning-flag" title="存在告警"
+          >⚠</span
+        >
         <span
           v-if="props.row.newLine.baseTone === 'move' && props.row.newLine.movePeerLineNumber"
           class="move-peer-flag"
           :title="`移动来源：第 ${props.row.newLine.movePeerLineNumber} 行`"
-        >{{ (props.row.newLine.movePeerRowIndex ?? rowIndex) > rowIndex ? '↓' : '↑' }}{{ props.row.newLine.movePeerLineNumber }}</span>
+          >{{ (props.row.newLine.movePeerRowIndex ?? rowIndex) > rowIndex ? '↓' : '↑'
+          }}{{ props.row.newLine.movePeerLineNumber }}</span
+        >
       </span>
     </template>
   </div>
@@ -133,7 +169,11 @@ function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
   <!-- New content -->
   <div
     class="cell cell-new"
-    :class="[toneClass(props.row.newLine ?? null), pairClass(props.row.newLine ?? null), { interactive: !!props.row.newLine?.changeKey }]"
+    :class="[
+      toneClass(props.row.newLine ?? null),
+      pairClass(props.row.newLine ?? null),
+      { interactive: !!props.row.newLine?.changeKey },
+    ]"
     :data-change-key="props.row.newLine?.changeKey"
     :data-base-tone="props.row.newLine?.baseTone"
     :data-matched-tones="matchedTonesAttr(props.row.newLine ?? null)"
@@ -151,7 +191,8 @@ function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
             :key="`${props.row.newLine.key}:s:${si}`"
             class="segment"
             :class="segmentClass(segment)"
-          >{{ segment.text || ' ' }}</span>
+            >{{ segment.text || ' ' }}</span
+          >
         </template>
         <template v-else>{{ props.row.newLine.text || ' ' }}</template>
       </span>
@@ -161,9 +202,12 @@ function matchedTonesAttr(line: ProjectionLine | null): string | undefined {
           :key="`${props.row.newLine.key}:a:${ai}`"
           class="annotation-chip"
           :class="annotationClass(ann)"
-        >{{ ann.label }}</span>
+          >{{ ann.label }}</span
+        >
       </span>
     </template>
-    <span v-else class="placeholder-text" aria-hidden="true">{{ props.row.oldLine?.text || ' ' }}</span>
+    <span v-else class="placeholder-text" aria-hidden="true">{{
+      props.row.oldLine?.text || ' '
+    }}</span>
   </div>
 </template>

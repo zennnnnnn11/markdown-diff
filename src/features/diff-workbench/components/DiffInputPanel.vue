@@ -46,7 +46,9 @@ async function onFileSelected(e: Event): Promise<void> {
   } catch (err) {
     importError.value = err instanceof Error ? err.message : '文件读取失败'
     window.clearTimeout(errorTimer)
-    errorTimer = window.setTimeout(() => { importError.value = '' }, 3000)
+    errorTimer = window.setTimeout(() => {
+      importError.value = ''
+    }, 3000)
   }
 }
 </script>
@@ -76,8 +78,12 @@ async function onFileSelected(e: Event): Promise<void> {
             <div class="editor-toolbar">
               <label>旧文档</label>
               <div class="toolbar-actions">
-                <button type="button" class="secondary-button" @click="triggerImport('old')">导入</button>
-                <button type="button" class="secondary-button" @click="emit('clear', 'old')">清空</button>
+                <button type="button" class="secondary-button" @click="triggerImport('old')">
+                  导入
+                </button>
+                <button type="button" class="secondary-button" @click="emit('clear', 'old')">
+                  清空
+                </button>
               </div>
             </div>
             <MarkdownEditor
@@ -91,8 +97,12 @@ async function onFileSelected(e: Event): Promise<void> {
             <div class="editor-toolbar">
               <label>新文档</label>
               <div class="toolbar-actions">
-                <button type="button" class="secondary-button" @click="triggerImport('new')">导入</button>
-                <button type="button" class="secondary-button" @click="emit('clear', 'new')">清空</button>
+                <button type="button" class="secondary-button" @click="triggerImport('new')">
+                  导入
+                </button>
+                <button type="button" class="secondary-button" @click="emit('clear', 'new')">
+                  清空
+                </button>
               </div>
             </div>
             <MarkdownEditor
@@ -124,7 +134,9 @@ async function onFileSelected(e: Event): Promise<void> {
 
 <style scoped>
 .panel {
-  transition: border-color var(--transition-normal), box-shadow var(--transition-normal);
+  transition:
+    border-color var(--transition-normal),
+    box-shadow var(--transition-normal);
 }
 
 .panel-header {
@@ -176,7 +188,10 @@ async function onFileSelected(e: Event): Promise<void> {
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 0.2s ease, height 0s 0.2s, overflow 0s 0.2s;
+  transition:
+    opacity 0.2s ease,
+    height 0s 0.2s,
+    overflow 0s 0.2s;
 }
 
 .editor-body-inner {
@@ -270,13 +285,23 @@ async function onFileSelected(e: Event): Promise<void> {
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 960px) {

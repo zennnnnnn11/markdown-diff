@@ -10,8 +10,14 @@ function makeEmptyResult(): any {
       entity: 'section',
       primaryOp: 'equal',
       status: {
-        isMatchPair: true, isAlignedPair: false, moved: false, movedWithinParent: false,
-        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: false,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
         inlineStructureChanged: false,
       },
       summary: 'root',
@@ -21,8 +27,21 @@ function makeEmptyResult(): any {
     oldIndex: makeEmptyIndex(),
     newIndex: makeEmptyIndex(),
     matches: [],
-    changeIndex: { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map(), byLogicalMoveId: new Map() },
-    stats: { inserts: 0, deletes: 0, replaces: 0, moves: 0, metaUpdates: 0, renames: 0, reorders: 0 },
+    changeIndex: {
+      byOldId: new Map(),
+      byNewId: new Map(),
+      byPairKey: new Map(),
+      byLogicalMoveId: new Map(),
+    },
+    stats: {
+      inserts: 0,
+      deletes: 0,
+      replaces: 0,
+      moves: 0,
+      metaUpdates: 0,
+      renames: 0,
+      reorders: 0,
+    },
     quality: { degradedCount: 0, inlineDeferredCount: 0, warningCount: 0 },
     warnings: [],
   }
@@ -93,14 +112,25 @@ describe('useDiffWorkbench', () => {
 
     const movePeerKey = 'move:s1:s2'
     const sourceChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'source', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: 'match:s1:s2', oldId: 's1',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'source',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:s1:s2',
+      oldId: 's1',
       oldNode: { kind: 'heading', title: 'Moved', headingDepth: 2, items: [] },
       pairKind: 'match',
       status: {
-        isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false,
-        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
         inlineStructureChanged: false,
       },
       summary: 'source',
@@ -108,14 +138,25 @@ describe('useDiffWorkbench', () => {
       warnings: [],
     }
     const targetChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'target', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: 'match:s1:s2', newId: 's2',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'target',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:s1:s2',
+      newId: 's2',
       newNode: { kind: 'heading', title: 'Moved', headingDepth: 2, items: [] },
       pairKind: 'match',
       status: {
-        isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false,
-        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
         inlineStructureChanged: false,
       },
       summary: 'target',
@@ -164,22 +205,56 @@ describe('useDiffWorkbench', () => {
     const movePeerKey = 'move:ps1:ps2'
     const sourceKey = 'match:ps1:ps1:source'
     const sourceChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'source', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: 'match:ps1:ps1', oldId: 'ps1',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'source',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:ps1:ps1',
+      oldId: 'ps1',
       oldNode: { kind: 'heading', title: 'Src', headingDepth: 2, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 'src', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'src',
+      children: [],
+      warnings: [],
     }
     const targetChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'target', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: 'match:ps2:ps2', newId: 'ps2',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'target',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:ps2:ps2',
+      newId: 'ps2',
       newNode: { kind: 'heading', title: 'Tgt', headingDepth: 2, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 'tgt', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'tgt',
+      children: [],
+      warnings: [],
     }
 
     workbench.result.value = {
@@ -208,22 +283,56 @@ describe('useDiffWorkbench', () => {
     const movePeerKey = 'move:pt1:pt2'
     const targetKey = 'match:pt2:pt2:target'
     const sourceChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'source', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: 'match:pt1:pt1', oldId: 'pt1',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'source',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:pt1:pt1',
+      oldId: 'pt1',
       oldNode: { kind: 'heading', title: 'Src', headingDepth: 2, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 'src', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'src',
+      children: [],
+      warnings: [],
     }
     const targetChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'target', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: 'match:pt2:pt2', newId: 'pt2',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'target',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:pt2:pt2',
+      newId: 'pt2',
       newNode: { kind: 'heading', title: 'Tgt', headingDepth: 2, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 'tgt', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'tgt',
+      children: [],
+      warnings: [],
     }
 
     workbench.result.value = {
@@ -250,15 +359,31 @@ describe('useDiffWorkbench', () => {
     const workbench = useDiffWorkbench('old', 'new')
 
     const equalChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'equal',
-      pairKey: 'match:e1:e2', oldId: 'e1', newId: 'e2',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'equal',
+      pairKey: 'match:e1:e2',
+      oldId: 'e1',
+      newId: 'e2',
       oldNode: { kind: 'heading', title: 'Same', headingDepth: 1, items: [] },
       newNode: { kind: 'heading', title: 'Same', headingDepth: 1, items: [] },
       pairKind: 'match',
       matchKind: 'exact-self',
       score: 1,
-      status: { isMatchPair: true, isAlignedPair: false, moved: false, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 'equal', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: false,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'equal',
+      children: [],
+      warnings: [],
     }
 
     workbench.result.value = {
@@ -287,13 +412,29 @@ describe('useDiffWorkbench', () => {
     const workbench = useDiffWorkbench('old', 'new')
 
     const warnedChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'equal',
-      pairKey: 'match:w1:w2', oldId: 'w1', newId: 'w2',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'equal',
+      pairKey: 'match:w1:w2',
+      oldId: 'w1',
+      newId: 'w2',
       oldNode: { kind: 'heading', title: 'Warned', headingDepth: 1, items: [] },
       newNode: { kind: 'heading', title: 'Warned', headingDepth: 1, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: false, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 'warned', children: [], warnings: ['inline-deferred'],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: false,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'warned',
+      children: [],
+      warnings: ['inline-deferred'],
     }
 
     workbench.result.value = {
@@ -308,8 +449,9 @@ describe('useDiffWorkbench', () => {
       warnings: ['global-warning'],
     }
 
-    const perChangeWarnings = [...(workbench.result.value?.changeIndex.byOldId.values() ?? [])]
-      .flatMap((c) => c.warnings)
+    const perChangeWarnings = [
+      ...(workbench.result.value?.changeIndex.byOldId.values() ?? []),
+    ].flatMap((c) => c.warnings)
 
     expect(perChangeWarnings).toContain('inline-deferred')
     expect(workbench.result.value?.warnings).toContain('global-warning')
@@ -348,16 +490,26 @@ describe('useDiffWorkbench', () => {
     const workbench = useDiffWorkbench('old', 'new')
 
     const equalChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'equal',
-      pairKey: 'match:e1:e2', oldId: 'e1', newId: 'e2',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'equal',
+      pairKey: 'match:e1:e2',
+      oldId: 'e1',
+      newId: 'e2',
       oldNode: { kind: 'heading', title: 'Same', headingDepth: 1, items: [] },
       newNode: { kind: 'heading', title: 'Same', headingDepth: 1, items: [] },
       pairKind: 'match',
       matchKind: 'exact-self',
       score: 1,
       status: {
-        isMatchPair: true, isAlignedPair: false, moved: false, movedWithinParent: false,
-        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: false,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
         inlineStructureChanged: false,
       },
       summary: 'equal',
@@ -430,7 +582,9 @@ describe('useDiffWorkbench', () => {
       ? flattenChanges(workbench.result.value.root).find((c) => c.primaryOp !== 'equal')
       : undefined
     expect(firstChange).toBeDefined()
-    firstChange!.metadataChanges = [{ op: 'replace', path: '$.tags[0]', oldValue: 'a', newValue: 'b' }]
+    firstChange!.metadataChanges = [
+      { op: 'replace', path: '$.tags[0]', oldValue: 'a', newValue: 'b' },
+    ]
     delete (firstChange as any).pairKey
     delete (firstChange as any).oldId
     delete (firstChange as any).newId
@@ -533,7 +687,9 @@ describe('useDiffWorkbench', () => {
     expect(workbench.canRun.value).toBe(true)
   })
 
-  it.todo('executeDiff populates errorMessage on failure — vi.doMock cannot replace already-resolved imports')
+  it.todo(
+    'executeDiff populates errorMessage on failure — vi.doMock cannot replace already-resolved imports',
+  )
 
   it('executeDiff resets errorMessage on successful run', async () => {
     const workbench = useDiffWorkbench('# Title\n\nold', '# Title\n\nnew')
@@ -595,13 +751,15 @@ describe('useDiffWorkbench', () => {
     await workbench.executeDiff()
 
     const changes = flattenChanges(workbench.result.value!.root)
-    const firstKey = changes[0] ? (() => {
-      const c = changes[0]!
-      if ('pairKey' in c && c.pairKey) return c.pairKey
-      if ('oldId' in c && c.oldId) return c.oldId
-      if ('newId' in c && c.newId) return c.newId
-      return undefined
-    })() : undefined
+    const firstKey = changes[0]
+      ? (() => {
+          const c = changes[0]!
+          if ('pairKey' in c && c.pairKey) return c.pairKey
+          if ('oldId' in c && c.oldId) return c.oldId
+          if ('newId' in c && c.newId) return c.newId
+          return undefined
+        })()
+      : undefined
 
     expect(firstKey).toBeDefined()
     workbench.selectLine(firstKey!)
@@ -642,7 +800,15 @@ describe('useDiffWorkbench', () => {
     const workbench = useDiffWorkbench('old', 'new')
     workbench.result.value = {
       ...makeEmptyResult(),
-      stats: { inserts: 1, deletes: 1, replaces: 1, moves: 1, metaUpdates: 1, renames: 1, reorders: 1 },
+      stats: {
+        inserts: 1,
+        deletes: 1,
+        replaces: 1,
+        moves: 1,
+        metaUpdates: 1,
+        renames: 1,
+        reorders: 1,
+      },
       quality: { degradedCount: 1, inlineDeferredCount: 1, warningCount: 1 },
     }
 

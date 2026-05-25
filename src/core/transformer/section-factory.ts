@@ -106,11 +106,7 @@ export function createBlockquoteSection(
   }
 }
 
-export function createFootnoteSection(
-  definition: Block,
-  depth = 0,
-  treeDepth = 1,
-): Section {
+export function createFootnoteSection(definition: Block, depth = 0, treeDepth = 1): Section {
   return {
     id: '',
     kind: 'footnote',

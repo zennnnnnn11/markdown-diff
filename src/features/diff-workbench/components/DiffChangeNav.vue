@@ -23,7 +23,17 @@ function label(current: number): string {
       @click="emit('prev')"
       aria-label="上一个变更"
     >
-      <svg class="arrow-left-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        class="arrow-left-icon"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <line x1="19" y1="12" x2="5" y2="12"></line>
         <polyline points="12 19 5 12 12 5"></polyline>
       </svg>
@@ -44,7 +54,17 @@ function label(current: number): string {
       aria-label="下一个变更"
     >
       下一个
-      <svg class="arrow-right-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <svg
+        class="arrow-right-icon"
+        width="14"
+        height="14"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
         <line x1="5" y1="12" x2="19" y2="12"></line>
         <polyline points="12 5 19 12 12 19"></polyline>
       </svg>
@@ -67,15 +87,15 @@ function label(current: number): string {
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(16px) saturate(180%);
   -webkit-backdrop-filter: blur(16px) saturate(180%);
-  box-shadow: 
-    0 12px 40px rgba(0, 0, 0, 0.08), 
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.08),
     0 0 0 1px rgba(0, 0, 0, 0.02),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
   z-index: 999;
   animation: slideUpFloat 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-  transition: 
-    background-color var(--transition-elastic), 
-    border-color var(--transition-elastic), 
+  transition:
+    background-color var(--transition-elastic),
+    border-color var(--transition-elastic),
     box-shadow var(--transition-elastic),
     transform 0.2s ease;
 }
@@ -83,22 +103,22 @@ function label(current: number): string {
 .dark .change-nav {
   background: rgba(10, 10, 10, 0.75);
   border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 
-    0 12px 40px rgba(0, 0, 0, 0.4), 
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.4),
     0 0 0 1px rgba(255, 255, 255, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .change-nav:hover {
   transform: translateX(-50%) translateY(-2px);
-  box-shadow: 
-    0 20px 48px rgba(0, 0, 0, 0.12), 
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.12),
     0 0 0 1px rgba(0, 0, 0, 0.02);
 }
 
 .dark .change-nav:hover {
-  box-shadow: 
-    0 20px 48px rgba(0, 0, 0, 0.5), 
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(255, 255, 255, 0.08);
 }
 
@@ -183,7 +203,9 @@ function label(current: number): string {
 /* Rolling digit out-in transitions */
 .count-fade-enter-active,
 .count-fade-leave-active {
-  transition: opacity 0.15s ease, transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition:
+    opacity 0.15s ease,
+    transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .count-fade-enter-from {
@@ -207,4 +229,3 @@ function label(current: number): string {
   }
 }
 </style>
-

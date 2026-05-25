@@ -42,18 +42,27 @@ function makeMockNode(overrides: Record<string, any> = {}) {
 }
 
 function makePair(oldId: string, newId: string): MatchPair {
-  return { oldId, newId, pairKind: 'match', pairKey: `match:${oldId}:${newId}`, matchKind: 'exact-self', score: 1 }
+  return {
+    oldId,
+    newId,
+    pairKind: 'match',
+    pairKey: `match:${oldId}:${newId}`,
+    matchKind: 'exact-self',
+    score: 1,
+  }
 }
 
-function makeContext(overrides: {
-  oldNodes?: Record<string, any>[]
-  newNodes?: Record<string, any>[]
-  oldChildren?: Map<string, string[]>
-  newChildren?: Map<string, string[]>
-  matchesByOld?: Map<string, MatchPair>
-  matchesByNew?: Map<string, MatchPair>
-  options?: Partial<Parameters<typeof resolveDiffOptions>[0]>
-} = {}): DiffContext {
+function makeContext(
+  overrides: {
+    oldNodes?: Record<string, any>[]
+    newNodes?: Record<string, any>[]
+    oldChildren?: Map<string, string[]>
+    newChildren?: Map<string, string[]>
+    matchesByOld?: Map<string, MatchPair>
+    matchesByNew?: Map<string, MatchPair>
+    options?: Partial<Parameters<typeof resolveDiffOptions>[0]>
+  } = {},
+): DiffContext {
   const oldByIdEntries = (overrides.oldNodes ?? []).map((n) => {
     const node = makeMockNode(n)
     return [node.id, node] as const
@@ -80,17 +89,27 @@ function makeContext(overrides: {
 
 function makeDeleteChange(oldId: string, overrides: Partial<DiffChange> = {}): DiffChange {
   return {
-    entity: 'section', primaryOp: 'delete', oldId,
-    status: makeStatus({ selfChanged: true }), summary: `Delete ${oldId}`,
-    children: [], warnings: [], ...overrides,
+    entity: 'section',
+    primaryOp: 'delete',
+    oldId,
+    status: makeStatus({ selfChanged: true }),
+    summary: `Delete ${oldId}`,
+    children: [],
+    warnings: [],
+    ...overrides,
   }
 }
 
 function makeInsertChange(newId: string, overrides: Partial<DiffChange> = {}): DiffChange {
   return {
-    entity: 'section', primaryOp: 'insert', newId,
-    status: makeStatus({ selfChanged: true }), summary: `Insert ${newId}`,
-    children: [], warnings: [], ...overrides,
+    entity: 'section',
+    primaryOp: 'insert',
+    newId,
+    status: makeStatus({ selfChanged: true }),
+    summary: `Insert ${newId}`,
+    children: [],
+    warnings: [],
+    ...overrides,
   }
 }
 
@@ -153,7 +172,9 @@ describe('moves module', () => {
         oldNodes: [{ id: 'o1', entity: 'block', blockType: 'paragraph' }],
         newNodes: [{ id: 'n1', entity: 'block', blockType: 'code' }],
       })
-      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(false)
+      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(
+        false,
+      )
     })
 
     it('returns false when depth diff exceeds moveDepthDiffMax', () => {
@@ -162,16 +183,24 @@ describe('moves module', () => {
         newNodes: [{ id: 'n1', entity: 'block', blockType: 'paragraph', depth: 5 }],
         options: { moveDepthDiffMax: 2 },
       })
-      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(false)
+      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(
+        false,
+      )
     })
 
     it('returns true when depth diff exceeds limit but path is compatible', () => {
       const context = makeContext({
-        oldNodes: [{ id: 'o1', entity: 'block', blockType: 'paragraph', depth: 0, pathParts: ['a', 'b'] }],
-        newNodes: [{ id: 'n1', entity: 'block', blockType: 'paragraph', depth: 5, pathParts: ['a', 'b'] }],
+        oldNodes: [
+          { id: 'o1', entity: 'block', blockType: 'paragraph', depth: 0, pathParts: ['a', 'b'] },
+        ],
+        newNodes: [
+          { id: 'n1', entity: 'block', blockType: 'paragraph', depth: 5, pathParts: ['a', 'b'] },
+        ],
         options: { moveDepthDiffMax: 2 },
       })
-      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(true)
+      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(
+        true,
+      )
     })
 
     it('returns false when section subtreeSize ratio below min', () => {
@@ -180,7 +209,9 @@ describe('moves module', () => {
         newNodes: [{ id: 'n1', entity: 'section', kind: 'heading', subtreeSize: 10, depth: 0 }],
         options: { moveSubtreeSizeRatioMin: 0.3 },
       })
-      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(false)
+      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(
+        false,
+      )
     })
 
     it('returns false when section subtreeSize ratio above max', () => {
@@ -189,7 +220,9 @@ describe('moves module', () => {
         newNodes: [{ id: 'n1', entity: 'section', kind: 'heading', subtreeSize: 10, depth: 0 }],
         options: { moveSubtreeSizeRatioMax: 3 },
       })
-      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(false)
+      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(
+        false,
+      )
     })
 
     it('returns true when all guards pass for block entity', () => {
@@ -197,7 +230,9 @@ describe('moves module', () => {
         oldNodes: [{ id: 'o1', entity: 'block', blockType: 'paragraph', depth: 1 }],
         newNodes: [{ id: 'n1', entity: 'block', blockType: 'paragraph', depth: 2 }],
       })
-      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(true)
+      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(
+        true,
+      )
     })
   })
 
@@ -264,11 +299,13 @@ describe('moves module', () => {
 
     it('returns Jaccard similarity when no hash matches', () => {
       const old = makeMockNode({
-        contentOnlyHash: 'a', headingBodyHash: undefined,
+        contentOnlyHash: 'a',
+        headingBodyHash: undefined,
         textTokens: ['hello', 'world', 'foo'],
       })
       const nw = makeMockNode({
-        contentOnlyHash: 'b', headingBodyHash: undefined,
+        contentOnlyHash: 'b',
+        headingBodyHash: undefined,
         textTokens: ['hello', 'world', 'bar'],
       })
       const score = computeHeadingMoveScore(old as any, nw as any)
@@ -278,11 +315,13 @@ describe('moves module', () => {
 
     it('returns 0 when textTokens are completely disjoint', () => {
       const old = makeMockNode({
-        contentOnlyHash: 'a', headingBodyHash: undefined,
+        contentOnlyHash: 'a',
+        headingBodyHash: undefined,
         textTokens: ['alpha', 'beta'],
       })
       const nw = makeMockNode({
-        contentOnlyHash: 'b', headingBodyHash: undefined,
+        contentOnlyHash: 'b',
+        headingBodyHash: undefined,
         textTokens: ['gamma', 'delta'],
       })
       expect(computeHeadingMoveScore(old as any, nw as any)).toBe(0)
@@ -315,8 +354,24 @@ describe('moves module', () => {
 
     it('returns move-code when code blocks with same contentOnlyHash and unique', () => {
       const context = makeContext({
-        oldNodes: [{ id: 'o1', entity: 'block', blockType: 'code', subtreeHash: 'diff', contentOnlyHash: 'same' }],
-        newNodes: [{ id: 'n1', entity: 'block', blockType: 'code', subtreeHash: 'diff2', contentOnlyHash: 'same' }],
+        oldNodes: [
+          {
+            id: 'o1',
+            entity: 'block',
+            blockType: 'code',
+            subtreeHash: 'diff',
+            contentOnlyHash: 'same',
+          },
+        ],
+        newNodes: [
+          {
+            id: 'n1',
+            entity: 'block',
+            blockType: 'code',
+            subtreeHash: 'diff2',
+            contentOnlyHash: 'same',
+          },
+        ],
       })
       const deletes = [makeDeleteChange('o1')]
       const inserts = [makeInsertChange('n1')]
@@ -370,8 +425,12 @@ describe('moves module', () => {
   describe('isUniqueHeadingMoveCandidate', () => {
     it('returns true when candidate is unique with sufficient margin', () => {
       const context = makeContext({
-        oldNodes: [{ id: 'o1', entity: 'section', kind: 'heading', titleSlug: 'slug', textTokens: ['a'] }],
-        newNodes: [{ id: 'n1', entity: 'section', kind: 'heading', titleSlug: 'slug', textTokens: ['a'] }],
+        oldNodes: [
+          { id: 'o1', entity: 'section', kind: 'heading', titleSlug: 'slug', textTokens: ['a'] },
+        ],
+        newNodes: [
+          { id: 'n1', entity: 'section', kind: 'heading', titleSlug: 'slug', textTokens: ['a'] },
+        ],
       })
       const deletes = [makeDeleteChange('o1')]
       const inserts = [makeInsertChange('n1')]
@@ -384,8 +443,12 @@ describe('moves module', () => {
 
     it('returns false when target score does not match', () => {
       const context = makeContext({
-        oldNodes: [{ id: 'o1', entity: 'section', kind: 'heading', titleSlug: 'slug', textTokens: ['a'] }],
-        newNodes: [{ id: 'n1', entity: 'section', kind: 'heading', titleSlug: 'slug', textTokens: ['a'] }],
+        oldNodes: [
+          { id: 'o1', entity: 'section', kind: 'heading', titleSlug: 'slug', textTokens: ['a'] },
+        ],
+        newNodes: [
+          { id: 'n1', entity: 'section', kind: 'heading', titleSlug: 'slug', textTokens: ['a'] },
+        ],
       })
       const deletes = [makeDeleteChange('o1')]
       const inserts = [makeInsertChange('n1')]

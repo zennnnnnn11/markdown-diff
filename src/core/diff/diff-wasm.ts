@@ -5,12 +5,7 @@ interface DiffWasmExports {
   memory: WebAssembly.Memory
   alloc(size: number): number
   dealloc(ptr: number, size: number): void
-  hungarian_assignment(
-    costPtr: number,
-    rows: number,
-    cols: number,
-    outputPtr: number,
-  ): number
+  hungarian_assignment(costPtr: number, rows: number, cols: number, outputPtr: number): number
   myers_diff(
     oldPtr: number,
     oldLen: number,
@@ -106,13 +101,7 @@ export function myersDiffWasm<T>(
     memU32.set(oldIds, oldPtr / Uint32Array.BYTES_PER_ELEMENT)
     memU32.set(newIds, newPtr / Uint32Array.BYTES_PER_ELEMENT)
 
-    const editCount = wasm.myers_diff(
-      oldPtr,
-      oldValues.length,
-      newPtr,
-      newValues.length,
-      outputPtr,
-    )
+    const editCount = wasm.myers_diff(oldPtr, oldValues.length, newPtr, newValues.length, outputPtr)
 
     const memI32 = new Int32Array(wasm.memory.buffer)
     const base = outputPtr / Int32Array.BYTES_PER_ELEMENT

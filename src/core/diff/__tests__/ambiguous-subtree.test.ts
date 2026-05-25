@@ -43,14 +43,9 @@ describe('ambiguous subtree resolution', () => {
 
   describe('integration: resolves ambiguous list items by child content', () => {
     it('disambiguates 2:2 identical list items with different sub-content', async () => {
-      const oldMd = [
-        '# Root',
-        '',
-        '- Item',
-        '  - Alpha child',
-        '- Item',
-        '  - Beta child',
-      ].join('\n')
+      const oldMd = ['# Root', '', '- Item', '  - Alpha child', '- Item', '  - Beta child'].join(
+        '\n',
+      )
 
       const newMd = [
         '# Root',

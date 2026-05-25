@@ -85,7 +85,9 @@ export function computeAptedMatches<TMeta>(
     const rows = oldForest.length + 1
     const cols = newForest.length + 1
     const costs = Array.from({ length: rows }, () => Array.from<number>({ length: cols }).fill(0))
-    const decisions = Array.from({ length: rows }, () => Array.from<ForestDecision | undefined>({ length: cols }).fill(undefined))
+    const decisions = Array.from({ length: rows }, () =>
+      Array.from<ForestDecision | undefined>({ length: cols }).fill(undefined),
+    )
 
     for (let row = 1; row < rows; row++) {
       costs[row]![0] = (costs[row - 1]?.[0] ?? 0) + options.deleteCost(oldForest[row - 1]!)
@@ -100,10 +102,13 @@ export function computeAptedMatches<TMeta>(
       for (let col = 1; col < cols; col++) {
         const oldNode = oldForest[row - 1]!
         const newNode = newForest[col - 1]!
-        const deleteCost = (costs[row - 1]?.[col] ?? Number.POSITIVE_INFINITY) + options.deleteCost(oldNode)
-        const insertCost = (costs[row]?.[col - 1] ?? Number.POSITIVE_INFINITY) + options.insertCost(newNode)
+        const deleteCost =
+          (costs[row - 1]?.[col] ?? Number.POSITIVE_INFINITY) + options.deleteCost(oldNode)
+        const insertCost =
+          (costs[row]?.[col - 1] ?? Number.POSITIVE_INFINITY) + options.insertCost(newNode)
         const matchDistance = computeNodeDistance(oldNode, newNode)
-        const matchCost = (costs[row - 1]?.[col - 1] ?? Number.POSITIVE_INFINITY) + matchDistance.cost
+        const matchCost =
+          (costs[row - 1]?.[col - 1] ?? Number.POSITIVE_INFINITY) + matchDistance.cost
 
         let bestCost = deleteCost
         let bestDecision: ForestDecision = { step: 'delete' }

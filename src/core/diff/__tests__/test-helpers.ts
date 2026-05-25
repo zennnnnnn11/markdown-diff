@@ -32,7 +32,9 @@ export function makeStatus(overrides: Partial<DiffStatus> = {}): DiffStatus {
   }
 }
 
-export function makeChange(overrides: Partial<DiffChange> & Pick<DiffChange, 'primaryOp' | 'summary' | 'status'>): DiffChange {
+export function makeChange(
+  overrides: Partial<DiffChange> & Pick<DiffChange, 'primaryOp' | 'summary' | 'status'>,
+): DiffChange {
   return {
     entity: 'section',
     children: [],

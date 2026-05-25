@@ -85,16 +85,12 @@ describe('structural fallback hook via DiffContext', () => {
 
   describe('context.structuralFallback field', () => {
     it('enhancedLocalRecovery controls whether structural fallback runs', async () => {
-      const withRecovery = await diffMarkdown(
-        '# A\n\nOld text.\n',
-        '# A\n\nNew text.\n',
-        { enhancedLocalRecovery: true },
-      )
-      const withoutRecovery = await diffMarkdown(
-        '# A\n\nOld text.\n',
-        '# A\n\nNew text.\n',
-        { enhancedLocalRecovery: false },
-      )
+      const withRecovery = await diffMarkdown('# A\n\nOld text.\n', '# A\n\nNew text.\n', {
+        enhancedLocalRecovery: true,
+      })
+      const withoutRecovery = await diffMarkdown('# A\n\nOld text.\n', '# A\n\nNew text.\n', {
+        enhancedLocalRecovery: false,
+      })
       expect(withRecovery.root).toBeDefined()
       expect(withoutRecovery.root).toBeDefined()
       expect(flatten(withRecovery.root).some((c) => c.primaryOp === 'replace')).toBe(true)
@@ -201,23 +197,9 @@ describe('structural fallback hook via DiffContext', () => {
       const lines = (count: number, prefix: string) =>
         Array.from({ length: count }, (_, i) => `${prefix} line ${i + 1}`)
 
-      const oldMd = [
-        '# Root',
-        '',
-        '## Section',
-        '',
-        ...lines(8, 'Old paragraph'),
-        '',
-      ].join('\n')
+      const oldMd = ['# Root', '', '## Section', '', ...lines(8, 'Old paragraph'), ''].join('\n')
 
-      const newMd = [
-        '# Root',
-        '',
-        '## Section',
-        '',
-        ...lines(8, 'New paragraph'),
-        '',
-      ].join('\n')
+      const newMd = ['# Root', '', '## Section', '', ...lines(8, 'New paragraph'), ''].join('\n')
 
       const result = await diffMarkdown(oldMd, newMd)
       const changes = flatten(result.root)
@@ -298,5 +280,4 @@ describe('structural fallback hook via DiffContext', () => {
       expect(changes.some((c) => c.primaryOp === 'insert')).toBe(true)
     })
   })
-
 })

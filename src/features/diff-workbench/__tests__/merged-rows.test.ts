@@ -1,11 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { buildMergedRows, removeNewIndexCrossings, tokenizeForSimilarity } from '../view-model/merged-rows'
+import {
+  buildMergedRows,
+  removeNewIndexCrossings,
+  tokenizeForSimilarity,
+} from '../view-model/merged-rows'
 import { runMarkdownDiff } from '../view-model/run-markdown-diff'
 import { buildOldProjectionLines, buildProjectionLines } from '../view-model/projection'
 import type { DiffResult } from '@/core/diff'
 
 function mergedRowsFromMarkdown(oldMd: string, newMd: string, result: DiffResult) {
-  return buildMergedRows(buildOldProjectionLines(oldMd, result), buildProjectionLines(newMd, result))
+  return buildMergedRows(
+    buildOldProjectionLines(oldMd, result),
+    buildProjectionLines(newMd, result),
+  )
 }
 
 describe('merged-rows module', () => {
@@ -131,33 +138,66 @@ describe('merged-rows module', () => {
     })
 
     it('keeps monotonically increasing new indices', () => {
-      const input: Array<[number, number]> = [[0, 0], [1, 1], [2, 2]]
-      expect(removeNewIndexCrossings(input)).toEqual([[0, 0], [1, 1], [2, 2]])
+      const input: Array<[number, number]> = [
+        [0, 0],
+        [1, 1],
+        [2, 2],
+      ]
+      expect(removeNewIndexCrossings(input)).toEqual([
+        [0, 0],
+        [1, 1],
+        [2, 2],
+      ])
     })
 
     it('removes crossing matches where new index goes backward', () => {
-      const input: Array<[number, number]> = [[0, 1], [1, 0]]
+      const input: Array<[number, number]> = [
+        [0, 1],
+        [1, 0],
+      ]
       expect(removeNewIndexCrossings(input)).toEqual([[0, 1]])
     })
 
     it('handles fully reversed new indices by keeping only the first', () => {
-      const input: Array<[number, number]> = [[0, 3], [1, 2], [2, 1], [3, 0]]
+      const input: Array<[number, number]> = [
+        [0, 3],
+        [1, 2],
+        [2, 1],
+        [3, 0],
+      ]
       expect(removeNewIndexCrossings(input)).toEqual([[0, 3]])
     })
 
     it('preserves the longest non-crossing prefix in a mixed sequence', () => {
-      const input: Array<[number, number]> = [[0, 0], [1, 2], [2, 1], [3, 3]]
-      expect(removeNewIndexCrossings(input)).toEqual([[0, 0], [1, 2], [3, 3]])
+      const input: Array<[number, number]> = [
+        [0, 0],
+        [1, 2],
+        [2, 1],
+        [3, 3],
+      ]
+      expect(removeNewIndexCrossings(input)).toEqual([
+        [0, 0],
+        [1, 2],
+        [3, 3],
+      ])
     })
 
     it('handles duplicate new indices by dropping later duplicates', () => {
-      const input: Array<[number, number]> = [[0, 1], [1, 1]]
+      const input: Array<[number, number]> = [
+        [0, 1],
+        [1, 1],
+      ]
       expect(removeNewIndexCrossings(input)).toEqual([[0, 1]])
     })
 
     it('handles large interleaved crossing pattern', () => {
       const input: Array<[number, number]> = [
-        [0, 0], [1, 5], [2, 1], [3, 6], [4, 2], [5, 7],
+        [0, 0],
+        [1, 5],
+        [2, 1],
+        [3, 6],
+        [4, 2],
+        [5, 7],
       ]
       const result = removeNewIndexCrossings(input)
       for (let i = 1; i < result.length; i++) {

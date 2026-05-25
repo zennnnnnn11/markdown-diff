@@ -1,6 +1,14 @@
 import type { DiffNode, DiffOptions } from './types'
 import { DIFF_HEURISTICS } from './heuristics'
-import { extractNodeText, characterNgramSimilarity, jaccardSimilarity, maxColumns, readTableData, sequenceSimilarity, tokenizeText } from './utils'
+import {
+  extractNodeText,
+  characterNgramSimilarity,
+  jaccardSimilarity,
+  maxColumns,
+  readTableData,
+  sequenceSimilarity,
+  tokenizeText,
+} from './utils'
 import { estimateMinHashSimilarityWasm } from './simhash-wasm'
 
 export function computeNodeSimilarity(
@@ -51,7 +59,9 @@ export function uniquenessMargin(scores: readonly number[]): number {
 
 export function isSameShape(oldNode: DiffNode, newNode: DiffNode): boolean {
   if (oldNode.entity !== newNode.entity) return false
-  return oldNode.entity === 'section' ? oldNode.kind === newNode.kind : oldNode.blockType === newNode.blockType
+  return oldNode.entity === 'section'
+    ? oldNode.kind === newNode.kind
+    : oldNode.blockType === newNode.blockType
 }
 
 function paragraphSimilarity(
@@ -166,7 +176,8 @@ function headingSimilarity(
     newNode.titleTokens,
     options,
   )
-  const hasChildren = (oldNode.logicalChildren.length ?? 0) > 0 && (newNode.logicalChildren.length ?? 0) > 0
+  const hasChildren =
+    (oldNode.logicalChildren.length ?? 0) > 0 && (newNode.logicalChildren.length ?? 0) > 0
   const headingBodySimilarity =
     oldNode.headingBodyHash === newNode.headingBodyHash
       ? 1
@@ -228,7 +239,10 @@ function tableSimilarity(
   const newRows = readTableData(newNode.block).cells
   const oldAlign = Array.isArray(oldNode.block?.align) ? (oldNode.block.align as string[]) : []
   const newAlign = Array.isArray(newNode.block?.align) ? (newNode.block.align as string[]) : []
-  const shapeSimilarity = Math.min(ratio(oldRows.length, newRows.length), ratio(maxColumns(oldRows), maxColumns(newRows)))
+  const shapeSimilarity = Math.min(
+    ratio(oldRows.length, newRows.length),
+    ratio(maxColumns(oldRows), maxColumns(newRows)),
+  )
   const cellContentSimilarity = averageTableCellSimilarity(oldRows, newRows, options)
   const alignmentMatch = exactAlignmentRatio(oldAlign, newAlign)
   return clamp01(
@@ -267,9 +281,27 @@ function definitionFieldSimilarity(
   const newTitle = String(newNode.block?.title ?? '')
   const oldLabel = String(oldNode.block?.label ?? extractNodeText(oldNode.block))
   const newLabel = String(newNode.block?.label ?? extractNodeText(newNode.block))
-  const urlSimilarity = textContentSimilarity(oldUrl, newUrl, tokenizeText(oldUrl), tokenizeText(newUrl), options)
-  const titleSimilarity = textContentSimilarity(oldTitle, newTitle, tokenizeText(oldTitle), tokenizeText(newTitle), options)
-  const labelSimilarity = textContentSimilarity(oldLabel, newLabel, tokenizeText(oldLabel), tokenizeText(newLabel), options)
+  const urlSimilarity = textContentSimilarity(
+    oldUrl,
+    newUrl,
+    tokenizeText(oldUrl),
+    tokenizeText(newUrl),
+    options,
+  )
+  const titleSimilarity = textContentSimilarity(
+    oldTitle,
+    newTitle,
+    tokenizeText(oldTitle),
+    tokenizeText(newTitle),
+    options,
+  )
+  const labelSimilarity = textContentSimilarity(
+    oldLabel,
+    newLabel,
+    tokenizeText(oldLabel),
+    tokenizeText(newLabel),
+    options,
+  )
   return clamp01(
     DIFF_HEURISTICS.similarity.definition.urlWeight * urlSimilarity +
       DIFF_HEURISTICS.similarity.definition.titleWeight * titleSimilarity +
@@ -314,7 +346,11 @@ function textContentUnitCount(tokens: readonly string[], rawText: string): numbe
   return rawText.length > 0 ? rawText.length : 0
 }
 
-function estimateJaccardWithMinHash(left: readonly string[], right: readonly string[], functions: number): number {
+function estimateJaccardWithMinHash(
+  left: readonly string[],
+  right: readonly string[],
+  functions: number,
+): number {
   try {
     return estimateMinHashSimilarityWasm(left, right, functions)
   } catch {
@@ -322,7 +358,11 @@ function estimateJaccardWithMinHash(left: readonly string[], right: readonly str
   }
 }
 
-function estimateJaccardWithMinHashLegacy(left: readonly string[], right: readonly string[], functions: number): number {
+function estimateJaccardWithMinHashLegacy(
+  left: readonly string[],
+  right: readonly string[],
+  functions: number,
+): number {
   const leftSketch = computeMinHashSketch(left, functions)
   const rightSketch = computeMinHashSketch(right, functions)
   let equal = 0
@@ -336,7 +376,10 @@ function computeMinHashSketch(tokens: readonly string[], functions: number): num
   if (tokens.length === 0) return []
   const unique = [...new Set(tokens)]
   return Array.from({ length: functions }, (_, seed) =>
-    unique.reduce((best, token) => Math.min(best, seededHash(token, seed + 1)), Number.POSITIVE_INFINITY),
+    unique.reduce(
+      (best, token) => Math.min(best, seededHash(token, seed + 1)),
+      Number.POSITIVE_INFINITY,
+    ),
   )
 }
 

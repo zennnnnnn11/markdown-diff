@@ -8,7 +8,10 @@ class MockWorker {
 
   addEventListener(type: string, handler: Function): void {
     let set = this.listeners.get(type)
-    if (!set) { set = new Set(); this.listeners.set(type, set) }
+    if (!set) {
+      set = new Set()
+      this.listeners.set(type, set)
+    }
     set.add(handler)
   }
 
@@ -36,7 +39,12 @@ describe('worker-client', () => {
 
   beforeEach(() => {
     mockWorker = new MockWorker()
-    vi.stubGlobal('Worker', vi.fn(function () { return mockWorker }))
+    vi.stubGlobal(
+      'Worker',
+      vi.fn(function () {
+        return mockWorker
+      }),
+    )
   })
 
   afterEach(() => {
@@ -205,7 +213,9 @@ describe('worker-client', () => {
     terminateDiffWorker()
 
     const newMockWorker = new MockWorker()
-    vi.mocked(Worker).mockImplementation(function () { return newMockWorker as any })
+    vi.mocked(Worker).mockImplementation(function () {
+      return newMockWorker as any
+    })
 
     const p2 = runDiffInWorker('c', 'd')
     const id2 = newMockWorker.postMessage.mock.calls[0]![0].id

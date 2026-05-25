@@ -19,20 +19,22 @@ let view: CodeMirrorEditorView | undefined
 let ignoreNextUpdate = false
 let destroyed = false
 
-let runtimePromise: Promise<{
-  EditorView: typeof import('@codemirror/view').EditorView
-  EditorState: typeof import('@codemirror/state').EditorState
-  drawSelection: typeof import('@codemirror/view').drawSelection
-  cmPlaceholder: typeof import('@codemirror/view').placeholder
-  keymap: typeof import('@codemirror/view').keymap
-  markdown: typeof import('@codemirror/lang-markdown').markdown
-  syntaxHighlighting: typeof import('@codemirror/language').syntaxHighlighting
-  HighlightStyle: typeof import('@codemirror/language').HighlightStyle
-  history: typeof import('@codemirror/commands').history
-  historyKeymap: typeof import('@codemirror/commands').historyKeymap
-  tags: typeof import('@lezer/highlight').tags
-  loadCommonCodeLanguages: typeof import('./markdown-code-languages').loadCommonCodeLanguages
-}> | undefined
+let runtimePromise:
+  | Promise<{
+      EditorView: typeof import('@codemirror/view').EditorView
+      EditorState: typeof import('@codemirror/state').EditorState
+      drawSelection: typeof import('@codemirror/view').drawSelection
+      cmPlaceholder: typeof import('@codemirror/view').placeholder
+      keymap: typeof import('@codemirror/view').keymap
+      markdown: typeof import('@codemirror/lang-markdown').markdown
+      syntaxHighlighting: typeof import('@codemirror/language').syntaxHighlighting
+      HighlightStyle: typeof import('@codemirror/language').HighlightStyle
+      history: typeof import('@codemirror/commands').history
+      historyKeymap: typeof import('@codemirror/commands').historyKeymap
+      tags: typeof import('@lezer/highlight').tags
+      loadCommonCodeLanguages: typeof import('./markdown-code-languages').loadCommonCodeLanguages
+    }>
+  | undefined
 
 function loadMarkdownEditorRuntime() {
   runtimePromise ??= Promise.all([
@@ -43,20 +45,30 @@ function loadMarkdownEditorRuntime() {
     import('@codemirror/commands'),
     import('@lezer/highlight'),
     import('./markdown-code-languages'),
-  ]).then(([viewMod, stateMod, markdownMod, languageMod, commandsMod, highlightMod, codeLanguagesMod]) => ({
-    EditorView: viewMod.EditorView,
-    EditorState: stateMod.EditorState,
-    drawSelection: viewMod.drawSelection,
-    cmPlaceholder: viewMod.placeholder,
-    keymap: viewMod.keymap,
-    markdown: markdownMod.markdown,
-    syntaxHighlighting: languageMod.syntaxHighlighting,
-    HighlightStyle: languageMod.HighlightStyle,
-    history: commandsMod.history,
-    historyKeymap: commandsMod.historyKeymap,
-    tags: highlightMod.tags,
-    loadCommonCodeLanguages: codeLanguagesMod.loadCommonCodeLanguages,
-  }))
+  ]).then(
+    ([
+      viewMod,
+      stateMod,
+      markdownMod,
+      languageMod,
+      commandsMod,
+      highlightMod,
+      codeLanguagesMod,
+    ]) => ({
+      EditorView: viewMod.EditorView,
+      EditorState: stateMod.EditorState,
+      drawSelection: viewMod.drawSelection,
+      cmPlaceholder: viewMod.placeholder,
+      keymap: viewMod.keymap,
+      markdown: markdownMod.markdown,
+      syntaxHighlighting: languageMod.syntaxHighlighting,
+      HighlightStyle: languageMod.HighlightStyle,
+      history: commandsMod.history,
+      historyKeymap: commandsMod.historyKeymap,
+      tags: highlightMod.tags,
+      loadCommonCodeLanguages: codeLanguagesMod.loadCommonCodeLanguages,
+    }),
+  )
   return runtimePromise
 }
 
@@ -66,7 +78,14 @@ function createHighlightStyle(
 ) {
   return HighlightStyle.define([
     {
-      tag: [tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6],
+      tag: [
+        tags.heading1,
+        tags.heading2,
+        tags.heading3,
+        tags.heading4,
+        tags.heading5,
+        tags.heading6,
+      ],
       fontWeight: '600',
       color: 'var(--text-primary)',
     },
@@ -79,7 +98,11 @@ function createHighlightStyle(
       color: 'var(--text-primary)',
     },
     { tag: [tags.link, tags.url], textDecoration: 'underline', color: 'var(--accent-blue)' },
-    { tag: [tags.quote, tags.contentSeparator], color: 'var(--text-secondary)', fontStyle: 'italic' },
+    {
+      tag: [tags.quote, tags.contentSeparator],
+      color: 'var(--text-secondary)',
+      fontStyle: 'italic',
+    },
   ])
 }
 
@@ -92,7 +115,8 @@ function createEditorTheme(EditorView: MarkdownEditorRuntime['EditorView']) {
       borderRadius: 'var(--radius-md)',
       minHeight: '280px',
       marginTop: '6px',
-      transition: 'background-color var(--transition-elastic), border-color var(--transition-elastic)',
+      transition:
+        'background-color var(--transition-elastic), border-color var(--transition-elastic)',
     },
     '&.cm-focused': {
       outline: 'none',
@@ -121,18 +145,21 @@ onMounted(() => {
   void mountEditor()
 })
 
-watch(() => props.modelValue, (newVal) => {
-  if (ignoreNextUpdate) {
-    ignoreNextUpdate = false
-    return
-  }
-  if (!view) return
-  const current = view.state.doc.toString()
-  if (current === newVal) return
-  view.dispatch({
-    changes: { from: 0, to: current.length, insert: newVal },
-  })
-})
+watch(
+  () => props.modelValue,
+  (newVal) => {
+    if (ignoreNextUpdate) {
+      ignoreNextUpdate = false
+      return
+    }
+    if (!view) return
+    const current = view.state.doc.toString()
+    if (current === newVal) return
+    view.dispatch({
+      changes: { from: 0, to: current.length, insert: newVal },
+    })
+  },
+)
 
 onBeforeUnmount(() => {
   destroyed = true

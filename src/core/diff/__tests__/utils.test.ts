@@ -45,7 +45,9 @@ describe('diff utilities', () => {
       array: [{ b: 2, a: 1 }, 3, 2, 1],
     }
 
-    expect(stableStringify(value)).toBe('{"a":1,"array":[{"a":1,"b":2},3,2,1],"b":2,"nested":{"x":"x","y":null}}')
+    expect(stableStringify(value)).toBe(
+      '{"a":1,"array":[{"a":1,"b":2},3,2,1],"b":2,"nested":{"x":"x","y":null}}',
+    )
   })
 
   it('normalizes headings and slugifies titles without stripping year prefixes', () => {
@@ -96,7 +98,11 @@ describe('diff utilities', () => {
         {
           type: 'paragraph',
           children: [
-            { type: 'link', url: 'https://example.com', children: [{ type: 'text', value: 'Docs' }] },
+            {
+              type: 'link',
+              url: 'https://example.com',
+              children: [{ type: 'text', value: 'Docs' }],
+            },
             { type: 'text', value: ' image ' },
             { type: 'image', alt: 'Logo', url: 'https://example.com/logo.png' },
           ],
@@ -172,46 +178,52 @@ describe('diff utilities', () => {
     ])
 
     expect(left.hash).toBe(right.hash)
-    expect(extractInlineStructure(nestedTokens[0]?.source as any)).toEqual(['strong', 'text', 'inlineCode'])
+    expect(extractInlineStructure(nestedTokens[0]?.source as any)).toEqual([
+      'strong',
+      'text',
+      'inlineCode',
+    ])
   })
 
-    it('computes simhashes and similarity helpers consistently', async () => {
-      const first = await charikarSimHash(['alpha', 'beta', 'gamma'])
-      const second = await charikarSimHash(['alpha', 'beta', 'gamma'])
-      const third = await charikarSimHash(['delta', 'epsilon'])
+  it('computes simhashes and similarity helpers consistently', async () => {
+    const first = await charikarSimHash(['alpha', 'beta', 'gamma'])
+    const second = await charikarSimHash(['alpha', 'beta', 'gamma'])
+    const third = await charikarSimHash(['delta', 'epsilon'])
 
     expect(first).toBe(second)
     expect(first).toBeDefined()
     expect(third).toBeDefined()
     expect(await charikarSimHash([])).toBeUndefined()
     expect(jaccardSimilarity(['a', 'a', 'b'], ['a', 'c'])).toBe(1 / 3)
-      expect(multisetJaccardSimilarity(['a', 'a', 'b'], ['a', 'c'])).toBe(1 / 4)
-      expect(sequenceSimilarity(['a', 'b', 'c'], ['a', 'x', 'c'])).toBeCloseTo(2 / 3)
-    })
+    expect(multisetJaccardSimilarity(['a', 'a', 'b'], ['a', 'c'])).toBe(1 / 4)
+    expect(sequenceSimilarity(['a', 'b', 'c'], ['a', 'x', 'c'])).toBeCloseTo(2 / 3)
+  })
 
-    it('preserves the legacy simhash outputs for representative token sets', async () => {
-      expect(await charikarSimHash(['hello', 'world'])).toBe('ffedf9adb79bbeff')
-      expect(
-        await charikarSimHash([
-          'token',
-          'set',
-          '1',
-          'alpha',
-          'beta',
-          'gamma',
-          'delta',
-          'epsilon',
-          'zeta',
-          'eta',
-          'theta',
-          'iota',
-          'kappa',
-          'lambda',
-          'mu',
-        ]),
-      ).toBe('1d2475a58e7db019')
-      expect(await charikarSimHash(['你好', '世界', 'foo', 'bar', 'baz', 'qux'])).toBe('fdabfbfe94012d21')
-    })
+  it('preserves the legacy simhash outputs for representative token sets', async () => {
+    expect(await charikarSimHash(['hello', 'world'])).toBe('ffedf9adb79bbeff')
+    expect(
+      await charikarSimHash([
+        'token',
+        'set',
+        '1',
+        'alpha',
+        'beta',
+        'gamma',
+        'delta',
+        'epsilon',
+        'zeta',
+        'eta',
+        'theta',
+        'iota',
+        'kappa',
+        'lambda',
+        'mu',
+      ]),
+    ).toBe('1d2475a58e7db019')
+    expect(await charikarSimHash(['你好', '世界', 'foo', 'bar', 'baz', 'qux'])).toBe(
+      'fdabfbfe94012d21',
+    )
+  })
 
   it('creates pair and move keys and hashes path parts deterministically', () => {
     expect(makePairKey('match', 'old-1', 'new-2')).toBe('match:old-1:new-2')
@@ -281,7 +293,16 @@ describe('diff utilities', () => {
 
 describe('isSection', () => {
   it('returns true for a Section object with kind and depth', () => {
-    const section = { id: 's1', kind: 'heading', depth: 1, treeDepth: 1, title: 'Test', titleKind: 'explicit', children: [], items: [] }
+    const section = {
+      id: 's1',
+      kind: 'heading',
+      depth: 1,
+      treeDepth: 1,
+      title: 'Test',
+      titleKind: 'explicit',
+      children: [],
+      items: [],
+    }
     expect(isSection(section as any)).toBe(true)
   })
 

@@ -17,7 +17,11 @@ describe('definition edge cases', () => {
     expect(definition?.matchKind).toBe('definition-identifier')
     expect(definition?.primaryOp).toBe('meta-update')
     expect(definition?.status.metaChanged).toBe(true)
-    expect(definitionChanges(result).some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert')).toBe(false)
+    expect(
+      definitionChanges(result).some(
+        (change) => change.primaryOp === 'delete' || change.primaryOp === 'insert',
+      ),
+    ).toBe(false)
     expect(result.matches.some((pair) => pair.matchKind === 'definition-identifier')).toBe(true)
     expect(result.warnings).toEqual([])
   })
@@ -30,7 +34,9 @@ describe('definition edge cases', () => {
     const definitions = definitionChanges(result)
     const definition = definitions.find((change) => change.oldId && change.newId)
 
-    expect(definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert')).toBe(false)
+    expect(
+      definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert'),
+    ).toBe(false)
     expect(definition?.pairKind).toBe('match')
     expect(definition?.primaryOp).toBe('meta-update')
   })
@@ -60,10 +66,15 @@ describe('definition edge cases', () => {
     )
     const definitions = definitionChanges(result)
     const docsDefinition = definitions.find(
-      (change) => change.oldId && change.newId && String((change.newNode as { identifier?: string } | undefined)?.identifier) === 'docs',
+      (change) =>
+        change.oldId &&
+        change.newId &&
+        String((change.newNode as { identifier?: string } | undefined)?.identifier) === 'docs',
     )
     const extraDefinition = definitions.find(
-      (change) => change.primaryOp === 'insert' && String((change.newNode as { identifier?: string } | undefined)?.identifier) === 'extra',
+      (change) =>
+        change.primaryOp === 'insert' &&
+        String((change.newNode as { identifier?: string } | undefined)?.identifier) === 'extra',
     )
 
     expect(docsDefinition?.pairKind).toBe('match')
@@ -92,7 +103,9 @@ describe('definition edge cases', () => {
     const definitions = definitionChanges(result)
     const definition = definitions.find((change) => change.oldId && change.newId)
 
-    expect(definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert')).toBe(false)
+    expect(
+      definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert'),
+    ).toBe(false)
     expect(definition?.primaryOp).toBe('meta-update')
     expect(result.stats).toMatchObject({
       inserts: 0,
@@ -117,7 +130,9 @@ describe('definition edge cases', () => {
   it('does not create identifier-based matches when only one side has duplicate identifiers', async () => {
     const result = await diffMarkdown(
       '[docs]: https://example.com/one "One"',
-      ['[docs]: https://example.com/two "Two"', '[docs]: https://example.com/three "Three"'].join('\n\n'),
+      ['[docs]: https://example.com/two "Two"', '[docs]: https://example.com/three "Three"'].join(
+        '\n\n',
+      ),
     )
     const definitions = definitionChanges(result)
 
@@ -127,8 +142,12 @@ describe('definition edge cases', () => {
 
   it('does not create identifier-based matches when both sides have duplicate identifiers', async () => {
     const result = await diffMarkdown(
-      ['[docs]: https://example.com/one "One"', '[docs]: https://example.com/two "Two"'].join('\n\n'),
-      ['[docs]: https://example.com/three "Three"', '[docs]: https://example.com/four "Four"'].join('\n\n'),
+      ['[docs]: https://example.com/one "One"', '[docs]: https://example.com/two "Two"'].join(
+        '\n\n',
+      ),
+      ['[docs]: https://example.com/three "Three"', '[docs]: https://example.com/four "Four"'].join(
+        '\n\n',
+      ),
     )
     const definitions = definitionChanges(result)
 
@@ -172,10 +191,15 @@ describe('definition edge cases', () => {
     )
     const definitions = definitionChanges(result)
     const docsDefinition = definitions.find(
-      (change) => change.oldId && change.newId && String((change.oldNode as { identifier?: string } | undefined)?.identifier) === 'docs',
+      (change) =>
+        change.oldId &&
+        change.newId &&
+        String((change.oldNode as { identifier?: string } | undefined)?.identifier) === 'docs',
     )
     const legacyDefinition = definitions.find(
-      (change) => change.primaryOp === 'delete' && String((change.oldNode as { identifier?: string } | undefined)?.identifier) === 'legacy',
+      (change) =>
+        change.primaryOp === 'delete' &&
+        String((change.oldNode as { identifier?: string } | undefined)?.identifier) === 'legacy',
     )
 
     expect(docsDefinition?.pairKind).toBe('match')
@@ -259,10 +283,15 @@ describe('definition edge cases', () => {
       ].join('\n'),
     )
     const docsDefinition = definitionChanges(result).find(
-      (change) => change.oldId && change.newId && String((change.oldNode as { identifier?: string } | undefined)?.identifier) === 'docs',
+      (change) =>
+        change.oldId &&
+        change.newId &&
+        String((change.oldNode as { identifier?: string } | undefined)?.identifier) === 'docs',
     )
     const renamedDefinition = definitionChanges(result).find(
-      (change) => change.status.renamed && String((change.newNode as { identifier?: string } | undefined)?.identifier) === 'source',
+      (change) =>
+        change.status.renamed &&
+        String((change.newNode as { identifier?: string } | undefined)?.identifier) === 'source',
     )
 
     expect(docsDefinition?.pairKind).toBe('match')

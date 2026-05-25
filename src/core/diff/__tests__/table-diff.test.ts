@@ -220,19 +220,9 @@ describe('table-diff', () => {
 
   describe('behavioral equivalence', () => {
     it('table diff in integration produces same result', async () => {
-      const oldMd = [
-        '| Name | Age |',
-        '| --- | --- |',
-        '| Alice | 30 |',
-        '| Bob | 25 |',
-      ].join('\n')
+      const oldMd = ['| Name | Age |', '| --- | --- |', '| Alice | 30 |', '| Bob | 25 |'].join('\n')
 
-      const newMd = [
-        '| Name | Age |',
-        '| --- | --- |',
-        '| Alice | 31 |',
-        '| Bob | 25 |',
-      ].join('\n')
+      const newMd = ['| Name | Age |', '| --- | --- |', '| Alice | 31 |', '| Bob | 25 |'].join('\n')
 
       const result = await diffMarkdown(oldMd, newMd)
       const changes = flatten(result.root)

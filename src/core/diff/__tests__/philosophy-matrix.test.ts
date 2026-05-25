@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { diffMarkdown, flatten } from './test-helpers'
 
 function sectionTitle(node: unknown): string | undefined {
-  return node && typeof node === 'object' && 'title' in node ? String((node as { title?: unknown }).title ?? '') : undefined
+  return node && typeof node === 'object' && 'title' in node
+    ? String((node as { title?: unknown }).title ?? '')
+    : undefined
 }
 
 describe('testing philosophy matrix', () => {
@@ -40,8 +42,16 @@ describe('testing philosophy matrix', () => {
       const ordered = await diffMarkdown('1. a\n2. b')
       const unordered = await diffMarkdown('- a\n- b')
 
-      expect(flatten(ordered.root).filter((change) => change.kind === 'listItem').every((change) => change.primaryOp === 'equal')).toBe(true)
-      expect(flatten(unordered.root).filter((change) => change.kind === 'listItem').every((change) => change.primaryOp === 'equal')).toBe(true)
+      expect(
+        flatten(ordered.root)
+          .filter((change) => change.kind === 'listItem')
+          .every((change) => change.primaryOp === 'equal'),
+      ).toBe(true)
+      expect(
+        flatten(unordered.root)
+          .filter((change) => change.kind === 'listItem')
+          .every((change) => change.primaryOp === 'equal'),
+      ).toBe(true)
     })
 
     it.each([
@@ -55,7 +65,9 @@ describe('testing philosophy matrix', () => {
     ])('%s: equal node types stay equal (%s)', async (_id, markdown, kindOrType) => {
       const result = await diffMarkdown(markdown)
       const changes = flatten(result.root)
-      const target = changes.find((change) => change.kind === kindOrType || change.blockType === kindOrType)
+      const target = changes.find(
+        (change) => change.kind === kindOrType || change.blockType === kindOrType,
+      )
 
       expect(target).toBeDefined()
       expect(target?.primaryOp).toBe('equal')
@@ -69,8 +81,16 @@ describe('testing philosophy matrix', () => {
       const inserted = headings.find((change) => sectionTitle(change.newNode) === 'B')
 
       expect(inserted?.primaryOp).toBe('insert')
-      expect(headings.some((change) => sectionTitle(change.oldNode) === 'A' && change.primaryOp === 'equal')).toBe(true)
-      expect(headings.some((change) => sectionTitle(change.oldNode) === 'C' && change.primaryOp === 'equal')).toBe(true)
+      expect(
+        headings.some(
+          (change) => sectionTitle(change.oldNode) === 'A' && change.primaryOp === 'equal',
+        ),
+      ).toBe(true)
+      expect(
+        headings.some(
+          (change) => sectionTitle(change.oldNode) === 'C' && change.primaryOp === 'equal',
+        ),
+      ).toBe(true)
     })
 
     it('IN-005: inserting a list item keeps surrounding list items equal', async () => {
@@ -96,8 +116,16 @@ describe('testing philosophy matrix', () => {
       const deleted = headings.find((change) => sectionTitle(change.oldNode) === 'B')
 
       expect(deleted?.primaryOp).toBe('delete')
-      expect(headings.some((change) => sectionTitle(change.oldNode) === 'A' && change.primaryOp === 'equal')).toBe(true)
-      expect(headings.some((change) => sectionTitle(change.oldNode) === 'C' && change.primaryOp === 'equal')).toBe(true)
+      expect(
+        headings.some(
+          (change) => sectionTitle(change.oldNode) === 'A' && change.primaryOp === 'equal',
+        ),
+      ).toBe(true)
+      expect(
+        headings.some(
+          (change) => sectionTitle(change.oldNode) === 'C' && change.primaryOp === 'equal',
+        ),
+      ).toBe(true)
     })
 
     it('DL-012: deleting frontmatter keeps the following heading equal', async () => {
@@ -130,8 +158,8 @@ describe('testing philosophy matrix', () => {
 
     it('MU-004: code title changes are treated as metadata updates when content is unchanged', async () => {
       const result = await diffMarkdown(
-        '```js title=\"old\"\nexport default {}\n```',
-        '```js title=\"new\"\nexport default {}\n```',
+        '```js title="old"\nexport default {}\n```',
+        '```js title="new"\nexport default {}\n```',
       )
       const code = flatten(result.root).find((change) => change.blockType === 'code')
 
@@ -151,13 +179,20 @@ describe('testing philosophy matrix', () => {
     })
 
     it('MU-009/MU-010: definition URL and title changes stay as metadata updates', async () => {
-      const urlResult = await diffMarkdown('[id]: https://example.com/v1', '[id]: https://example.com/v2')
-      const titleResult = await diffMarkdown(
-        '[id]: https://example.com \"old title\"',
-        '[id]: https://example.com \"new title\"',
+      const urlResult = await diffMarkdown(
+        '[id]: https://example.com/v1',
+        '[id]: https://example.com/v2',
       )
-      const urlDefinition = flatten(urlResult.root).find((change) => change.blockType === 'definition' && change.oldId && change.newId)
-      const titleDefinition = flatten(titleResult.root).find((change) => change.blockType === 'definition' && change.oldId && change.newId)
+      const titleResult = await diffMarkdown(
+        '[id]: https://example.com "old title"',
+        '[id]: https://example.com "new title"',
+      )
+      const urlDefinition = flatten(urlResult.root).find(
+        (change) => change.blockType === 'definition' && change.oldId && change.newId,
+      )
+      const titleDefinition = flatten(titleResult.root).find(
+        (change) => change.blockType === 'definition' && change.oldId && change.newId,
+      )
 
       expect(urlDefinition?.primaryOp).toBe('meta-update')
       expect(titleDefinition?.primaryOp).toBe('meta-update')
@@ -166,25 +201,53 @@ describe('testing philosophy matrix', () => {
     it('FN-004/FN-005: footnote inserts and deletes preserve the unchanged footnote', async () => {
       const inserted = await diffMarkdown('[^1]: a', '[^1]: a\n[^2]: b')
       const deleted = await diffMarkdown('[^1]: a\n[^2]: b', '[^1]: a')
-      const insertedFootnotes = flatten(inserted.root).filter((change) => change.kind === 'footnote')
+      const insertedFootnotes = flatten(inserted.root).filter(
+        (change) => change.kind === 'footnote',
+      )
       const deletedFootnotes = flatten(deleted.root).filter((change) => change.kind === 'footnote')
 
       expect(insertedFootnotes.some((change) => change.primaryOp === 'insert')).toBe(true)
-      expect(insertedFootnotes.some((change) => change.oldId && change.newId && change.primaryOp === 'equal')).toBe(true)
+      expect(
+        insertedFootnotes.some(
+          (change) => change.oldId && change.newId && change.primaryOp === 'equal',
+        ),
+      ).toBe(true)
       expect(deletedFootnotes.some((change) => change.primaryOp === 'delete')).toBe(true)
-      expect(deletedFootnotes.some((change) => change.oldId && change.newId && change.primaryOp === 'equal')).toBe(true)
+      expect(
+        deletedFootnotes.some(
+          (change) => change.oldId && change.newId && change.primaryOp === 'equal',
+        ),
+      ).toBe(true)
     })
 
     it('DF-005/DF-006: definition inserts and deletes preserve the unchanged definition', async () => {
-      const inserted = await diffMarkdown('[a]: https://example.com/a', '[a]: https://example.com/a\n[b]: https://example.com/b')
-      const deleted = await diffMarkdown('[a]: https://example.com/a\n[b]: https://example.com/b', '[a]: https://example.com/a')
-      const insertedDefinitions = flatten(inserted.root).filter((change) => change.blockType === 'definition')
-      const deletedDefinitions = flatten(deleted.root).filter((change) => change.blockType === 'definition')
+      const inserted = await diffMarkdown(
+        '[a]: https://example.com/a',
+        '[a]: https://example.com/a\n[b]: https://example.com/b',
+      )
+      const deleted = await diffMarkdown(
+        '[a]: https://example.com/a\n[b]: https://example.com/b',
+        '[a]: https://example.com/a',
+      )
+      const insertedDefinitions = flatten(inserted.root).filter(
+        (change) => change.blockType === 'definition',
+      )
+      const deletedDefinitions = flatten(deleted.root).filter(
+        (change) => change.blockType === 'definition',
+      )
 
       expect(insertedDefinitions.some((change) => change.primaryOp === 'insert')).toBe(true)
-      expect(insertedDefinitions.some((change) => change.oldId && change.newId && change.primaryOp === 'equal')).toBe(true)
+      expect(
+        insertedDefinitions.some(
+          (change) => change.oldId && change.newId && change.primaryOp === 'equal',
+        ),
+      ).toBe(true)
       expect(deletedDefinitions.some((change) => change.primaryOp === 'delete')).toBe(true)
-      expect(deletedDefinitions.some((change) => change.oldId && change.newId && change.primaryOp === 'equal')).toBe(true)
+      expect(
+        deletedDefinitions.some(
+          (change) => change.oldId && change.newId && change.primaryOp === 'equal',
+        ),
+      ).toBe(true)
     })
   })
 
@@ -193,7 +256,9 @@ describe('testing philosophy matrix', () => {
       const caseOnly = await diffMarkdown('# Title', '# title')
       const whitespaceOnly = await diffMarkdown('#  Title', '# Title')
       const caseHeading = flatten(caseOnly.root).find((change) => change.kind === 'heading')
-      const whitespaceHeading = flatten(whitespaceOnly.root).find((change) => change.kind === 'heading')
+      const whitespaceHeading = flatten(whitespaceOnly.root).find(
+        (change) => change.kind === 'heading',
+      )
 
       expect(caseHeading?.primaryOp).not.toBe('insert')
       expect(caseHeading?.primaryOp).not.toBe('delete')
@@ -214,11 +279,23 @@ describe('testing philosophy matrix', () => {
     it('PG-003/PG-004: paragraph word insertions and deletions produce inline insert/delete spans', async () => {
       const inserted = await diffMarkdown('hello', 'hello world')
       const deleted = await diffMarkdown('hello world', 'hello')
-      const insertedParagraph = flatten(inserted.root).find((change) => change.blockType === 'paragraph')
-      const deletedParagraph = flatten(deleted.root).find((change) => change.blockType === 'paragraph')
+      const insertedParagraph = flatten(inserted.root).find(
+        (change) => change.blockType === 'paragraph',
+      )
+      const deletedParagraph = flatten(deleted.root).find(
+        (change) => change.blockType === 'paragraph',
+      )
 
-      expect(insertedParagraph?.inlineSpans?.some((span) => span.wordSpans?.some((word) => word.op === 'insert'))).toBe(true)
-      expect(deletedParagraph?.inlineSpans?.some((span) => span.wordSpans?.some((word) => word.op === 'delete'))).toBe(true)
+      expect(
+        insertedParagraph?.inlineSpans?.some((span) =>
+          span.wordSpans?.some((word) => word.op === 'insert'),
+        ),
+      ).toBe(true)
+      expect(
+        deletedParagraph?.inlineSpans?.some((span) =>
+          span.wordSpans?.some((word) => word.op === 'delete'),
+        ),
+      ).toBe(true)
     })
 
     it('IS-009/DG-001: very large paragraph changes defer inline spans instead of faking a replace-only answer', async () => {
@@ -244,7 +321,9 @@ describe('testing philosophy matrix', () => {
             (change.primaryOp === 'delete' || change.primaryOp === 'insert'),
         ),
       ).toHaveLength(0)
-      expect(headings.some((change) => change.status.movedWithinParent || change.primaryOp === 'move')).toBe(true)
+      expect(
+        headings.some((change) => change.status.movedWithinParent || change.primaryOp === 'move'),
+      ).toBe(true)
     })
 
     it('MV-008/FN-007: footnote order changes preserve both footnotes as paired nodes', async () => {
@@ -252,7 +331,9 @@ describe('testing philosophy matrix', () => {
       const footnotes = flatten(result.root).filter((change) => change.kind === 'footnote')
 
       expect(footnotes.filter((change) => change.oldId && change.newId)).toHaveLength(2)
-      expect(footnotes.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert')).toBe(false)
+      expect(
+        footnotes.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert'),
+      ).toBe(false)
     })
 
     it('DF-007/AN-005: definition reordering keeps both definitions matched', async () => {
@@ -263,14 +344,22 @@ describe('testing philosophy matrix', () => {
       const definitions = flatten(result.root).filter((change) => change.blockType === 'definition')
 
       expect(definitions.filter((change) => change.oldId && change.newId)).toHaveLength(2)
-      expect(definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert')).toBe(false)
+      expect(
+        definitions.some(
+          (change) => change.primaryOp === 'delete' || change.primaryOp === 'insert',
+        ),
+      ).toBe(false)
     })
 
     it('BQ-001/BQ-004: blockquote content changes and nested list removals stay localized to the quote subtree', async () => {
       const contentChanged = await diffMarkdown('> old', '> new')
       const nestedListChanged = await diffMarkdown('> - a\n> - b', '> - a')
-      const contentQuote = flatten(contentChanged.root).find((change) => change.kind === 'blockquote')
-      const nestedQuote = flatten(nestedListChanged.root).find((change) => change.kind === 'blockquote')
+      const contentQuote = flatten(contentChanged.root).find(
+        (change) => change.kind === 'blockquote',
+      )
+      const nestedQuote = flatten(nestedListChanged.root).find(
+        (change) => change.kind === 'blockquote',
+      )
 
       expect(contentQuote?.primaryOp).not.toBe('insert')
       expect(contentQuote?.primaryOp).not.toBe('delete')
@@ -284,7 +373,9 @@ describe('testing philosophy matrix', () => {
     it('FM-006/FM-007: frontmatter array append and shrink are represented as metadata changes', async () => {
       const appended = await diffMarkdown('---\ntags: [a]\n---', '---\ntags: [a, b]\n---')
       const shrunk = await diffMarkdown('---\ntags: [a, b]\n---', '---\ntags: [a]\n---')
-      const appendedFrontmatter = flatten(appended.root).find((change) => change.kind === 'frontmatter')
+      const appendedFrontmatter = flatten(appended.root).find(
+        (change) => change.kind === 'frontmatter',
+      )
       const shrunkFrontmatter = flatten(shrunk.root).find((change) => change.kind === 'frontmatter')
 
       expect(appendedFrontmatter?.primaryOp).toBe('meta-update')
@@ -306,7 +397,9 @@ describe('testing philosophy matrix', () => {
       const frontmatter = flatten(result.root).find((change) => change.kind === 'frontmatter')
 
       expect(frontmatter).toBeDefined()
-      expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual([])
+      expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual(
+        [],
+      )
     })
   })
 })

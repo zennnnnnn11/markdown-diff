@@ -51,14 +51,12 @@ describe('diff negative regressions', () => {
 
   it('does not create identifier-based definition matches when duplicate identifiers are ambiguous', async () => {
     const result = await diffMarkdown(
-      [
-        '[docs]: https://example.com/one "One"',
-        '[docs]: https://example.com/two "Two"',
-      ].join('\n\n'),
-      [
-        '[docs]: https://example.com/three "Three"',
-        '[docs]: https://example.com/four "Four"',
-      ].join('\n\n'),
+      ['[docs]: https://example.com/one "One"', '[docs]: https://example.com/two "Two"'].join(
+        '\n\n',
+      ),
+      ['[docs]: https://example.com/three "Three"', '[docs]: https://example.com/four "Four"'].join(
+        '\n\n',
+      ),
     )
 
     expect(result.matches.some((pair) => pair.matchKind === 'definition-identifier')).toBe(false)
@@ -118,7 +116,9 @@ describe('diff negative regressions', () => {
       '# Beta\n\nbefore new\n\n## Stable\n\nBody',
     )
 
-    const exactSelfWithContext = result.matches.filter((pair) => pair.matchKind === 'exact-self-with-context')
+    const exactSelfWithContext = result.matches.filter(
+      (pair) => pair.matchKind === 'exact-self-with-context',
+    )
     expect(exactSelfWithContext).toHaveLength(0)
   })
 
@@ -134,7 +134,9 @@ owner: bob
 ---`,
     )
 
-    expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual([])
+    expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual(
+      [],
+    )
   })
 
   it('does not double-count frontmatter metadata detail rows in meta-update stats', async () => {

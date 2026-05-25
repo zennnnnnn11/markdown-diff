@@ -338,7 +338,12 @@ export function registerDeterministicAnchor(
 }
 
 export function shouldRegisterDeterministicAnchor(matchKind: MatchKind | undefined): boolean {
-  return matchKind === 'forced-root' || matchKind === 'exact-subtree' || matchKind === 'exact-subtree-resolved' || matchKind === 'exact-self'
+  return (
+    matchKind === 'forced-root' ||
+    matchKind === 'exact-subtree' ||
+    matchKind === 'exact-subtree-resolved' ||
+    matchKind === 'exact-self'
+  )
 }
 
 export function isCandidateWithinAnchoredBounds(
@@ -386,7 +391,14 @@ function resolveAmbiguousSubtrees(
   })
 
   for (const { oldIds, newIds } of ambiguous) {
-    const resolved = resolveByChildDisambiguation(context, oldIds, newIds, blockedOld, blockedNew, 3)
+    const resolved = resolveByChildDisambiguation(
+      context,
+      oldIds,
+      newIds,
+      blockedOld,
+      blockedNew,
+      3,
+    )
     for (const { oldId, newId } of resolved) {
       if (blockedOld.has(oldId) || blockedNew.has(newId)) continue
       if (context.matchesByOld.has(oldId) || context.matchesByNew.has(newId)) continue
@@ -442,7 +454,10 @@ function resolveByChildDisambiguation(
       }
       if (candidates.length !== 1) continue
       const existing = evidence.get(oldId)
-      if (existing && existing !== candidates[0]) { evidence.delete(oldId); break }
+      if (existing && existing !== candidates[0]) {
+        evidence.delete(oldId)
+        break
+      }
       evidence.set(oldId, candidates[0]!)
     }
   }

@@ -79,7 +79,9 @@ Paragraph with [ref][docs] and footnote[^1].
     const tree = transformMarkdown(await parseMarkdown('# Intro\n\nParagraph\n\n## Child\n\nLeaf'))
     const index = await buildSemanticIndex(tree, 'old')
     const labels = index.nodesInPreorder.map((node) =>
-      node.entity === 'section' ? `${node.kind}:${node.section?.title ?? ''}` : `${node.blockType}:${extractNodeText(node.block)}`,
+      node.entity === 'section'
+        ? `${node.kind}:${node.section?.title ?? ''}`
+        : `${node.blockType}:${extractNodeText(node.block)}`,
     )
 
     expect(labels[0]).toBe('root:')
@@ -118,8 +120,12 @@ After note[^1].
   })
 
   it('treats definition identity as url/title-based so pure label renames stay stable', async () => {
-    const oldTree = transformMarkdown(await parseMarkdown('[repo]: https://example.com/docs "Documentation"'))
-    const newTree = transformMarkdown(await parseMarkdown('[source]: https://example.com/docs "Documentation"'))
+    const oldTree = transformMarkdown(
+      await parseMarkdown('[repo]: https://example.com/docs "Documentation"'),
+    )
+    const newTree = transformMarkdown(
+      await parseMarkdown('[source]: https://example.com/docs "Documentation"'),
+    )
     const oldIndex = await buildSemanticIndex(oldTree, 'old')
     const newIndex = await buildSemanticIndex(newTree, 'new')
     const oldDefinition = oldIndex.byId.get(oldIndex.byBlockType.get('definition')![0]!)
@@ -233,7 +239,10 @@ Paragraph two.
     expect(heading).toBeDefined()
 
     const childIds = index.childrenById.get(heading!.id) ?? []
-    const childSizeSum = childIds.reduce((sum, id) => sum + (index.byId.get(id)?.subtreeSize ?? 0), 0)
+    const childSizeSum = childIds.reduce(
+      (sum, id) => sum + (index.byId.get(id)?.subtreeSize ?? 0),
+      0,
+    )
     expect(heading!.subtreeSize).toBe(1 + childSizeSum)
   })
 
@@ -370,7 +379,14 @@ describe('diff utils', () => {
   })
 
   it('accounts for duplicate tokens in multiset similarity', () => {
-    expect(multisetJaccardSimilarity(['paragraph', 'paragraph', 'blockquote'], ['paragraph', 'blockquote', 'blockquote'])).toBe(0.5)
-    expect(multisetJaccardSimilarity(['paragraph', 'paragraph'], ['paragraph', 'paragraph'])).toBe(1)
+    expect(
+      multisetJaccardSimilarity(
+        ['paragraph', 'paragraph', 'blockquote'],
+        ['paragraph', 'blockquote', 'blockquote'],
+      ),
+    ).toBe(0.5)
+    expect(multisetJaccardSimilarity(['paragraph', 'paragraph'], ['paragraph', 'paragraph'])).toBe(
+      1,
+    )
   })
 })

@@ -1,20 +1,29 @@
 import { sequenceTuning } from '../heuristics'
 import { forEachChangeAsync } from '../summary'
 import { alignSequence } from '../sequence'
-import type {
-  DiffChange,
-  DiffOptions,
-  LineDiffSpan,
-} from '../types'
+import type { DiffChange, DiffOptions, LineDiffSpan } from '../types'
 import type { DiffContext } from './context'
 import { diffCharacters, diffInlineNodes, diffWordText } from './inline-diff'
 import { computeTableMetadataChange } from './table-diff'
 
 export { diffInlineNodes, diffWordText } from './inline-diff'
-export { computeTableMetadataChange, isStructuralOnlyTableChange, metadataChangeToDiff } from './table-diff'
-export { diffWordTextSync, buildInlineReplaceSpan, diffCharacters, coalesceTextSpans, hasMeaningfulInlineDiff } from './inline-diff'
+export {
+  computeTableMetadataChange,
+  isStructuralOnlyTableChange,
+  metadataChangeToDiff,
+} from './table-diff'
+export {
+  diffWordTextSync,
+  buildInlineReplaceSpan,
+  diffCharacters,
+  coalesceTextSpans,
+  hasMeaningfulInlineDiff,
+} from './inline-diff'
 
-export async function computePresentationDiffs(context: DiffContext, root: DiffChange): Promise<void> {
+export async function computePresentationDiffs(
+  context: DiffContext,
+  root: DiffChange,
+): Promise<void> {
   await forEachChangeAsync(root, async (change) => {
     if (!change.oldId || !change.newId) return
     const oldNode = context.oldIndex.byId.get(change.oldId)
@@ -61,7 +70,11 @@ export async function computePresentationDiffs(context: DiffContext, root: DiffC
   })
 }
 
-export function diffCodeLines(oldValue: string, newValue: string, options: DiffOptions): LineDiffSpan[] {
+export function diffCodeLines(
+  oldValue: string,
+  newValue: string,
+  options: DiffOptions,
+): LineDiffSpan[] {
   const oldLines = oldValue.split(/\r?\n/u)
   const newLines = newValue.split(/\r?\n/u)
   const edits = alignSequence(oldLines, newLines, options, 'heckel')

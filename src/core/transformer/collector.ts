@@ -20,18 +20,11 @@ export function collectFootnoteDefinition(
   }
 }
 
-export function collectFootnoteRefsFromBlock(
-  ctx: TransformContext,
-  block: Block,
-): void {
+export function collectFootnoteRefsFromBlock(ctx: TransformContext, block: Block): void {
   scanForRefs(ctx, block, block.id)
 }
 
-function scanForRefs(
-  ctx: TransformContext,
-  block: Block,
-  parentBlockId: string,
-): void {
+function scanForRefs(ctx: TransformContext, block: Block, parentBlockId: string): void {
   if (block.type === 'footnoteReference' && block.identifier) {
     ctx.footnoteRefs.push({
       identifier: block.identifier,

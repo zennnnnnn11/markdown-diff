@@ -73,7 +73,11 @@ const emit = defineEmits<{
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 120%, var(--accent-glow, rgba(0, 0, 0, 0.03)), transparent 70%);
+  background: radial-gradient(
+    circle at 50% 120%,
+    var(--accent-glow, rgba(0, 0, 0, 0.03)),
+    transparent 70%
+  );
   opacity: 0;
   transition: opacity var(--transition-normal);
   pointer-events: none;
@@ -84,14 +88,14 @@ const emit = defineEmits<{
   border-color: var(--text-primary);
   background: var(--bg-subtle);
   transform: translateY(-2px);
-  box-shadow: 
-    0 6px 20px rgba(0, 0, 0, 0.04), 
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.04),
     0 0 0 1px var(--text-muted);
 }
 
 .dark .stat-card:hover {
-  box-shadow: 
-    0 6px 20px rgba(0, 0, 0, 0.25), 
+  box-shadow:
+    0 6px 20px rgba(0, 0, 0, 0.25),
     0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 
@@ -104,14 +108,14 @@ const emit = defineEmits<{
   border-color: var(--text-primary);
   background: var(--bg-subtle);
   transform: translateY(-2px);
-  box-shadow: 
-    0 8px 24px rgba(0, 0, 0, 0.06), 
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.06),
     0 0 0 1.5px var(--text-primary);
 }
 
 .dark .stat-card.active {
-  box-shadow: 
-    0 8px 24px rgba(0, 0, 0, 0.35), 
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
     0 0 0 1.5px var(--text-primary);
 }
 
@@ -156,7 +160,8 @@ const emit = defineEmits<{
 
 /* Staggered Pulsating breathing effect for dots */
 @keyframes dot-pulse {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1);
     opacity: 0.85;
   }
@@ -219,16 +224,36 @@ const emit = defineEmits<{
 }
 
 /* Accent Glow Color Map */
-.card-insert { --accent-glow: rgba(0, 224, 150, 0.08); }
-.card-delete { --accent-glow: rgba(255, 77, 79, 0.08); }
-.card-replace { --accent-glow: rgba(245, 166, 35, 0.07); }
-.card-move { --accent-glow: rgba(0, 112, 243, 0.08); }
-.card-reorder { --accent-glow: rgba(255, 255, 255, 0.04); }
-.card-meta { --accent-glow: rgba(121, 40, 202, 0.08); }
-.card-rename { --accent-glow: rgba(245, 166, 35, 0.07); }
-.card-warning { --accent-glow: rgba(245, 166, 35, 0.07); }
-.card-degraded { --accent-glow: rgba(245, 166, 35, 0.07); }
-.card-deferred { --accent-glow: rgba(100, 100, 100, 0.04); }
+.card-insert {
+  --accent-glow: rgba(0, 224, 150, 0.08);
+}
+.card-delete {
+  --accent-glow: rgba(255, 77, 79, 0.08);
+}
+.card-replace {
+  --accent-glow: rgba(245, 166, 35, 0.07);
+}
+.card-move {
+  --accent-glow: rgba(0, 112, 243, 0.08);
+}
+.card-reorder {
+  --accent-glow: rgba(255, 255, 255, 0.04);
+}
+.card-meta {
+  --accent-glow: rgba(121, 40, 202, 0.08);
+}
+.card-rename {
+  --accent-glow: rgba(245, 166, 35, 0.07);
+}
+.card-warning {
+  --accent-glow: rgba(245, 166, 35, 0.07);
+}
+.card-degraded {
+  --accent-glow: rgba(245, 166, 35, 0.07);
+}
+.card-deferred {
+  --accent-glow: rgba(100, 100, 100, 0.04);
+}
 
 .stat-label {
   font-size: 11px;

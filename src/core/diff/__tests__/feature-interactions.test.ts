@@ -144,7 +144,9 @@ describe('feature interaction tests', () => {
 
       const result = await diffMarkdown(oldMd, newMd)
       const changes = flatten(result.root)
-      const changedParagraph = changes.find((c) => c.blockType === 'paragraph' && c.primaryOp !== 'equal')
+      const changedParagraph = changes.find(
+        (c) => c.blockType === 'paragraph' && c.primaryOp !== 'equal',
+      )
       const changedCode = changes.find((c) => c.blockType === 'code' && c.primaryOp !== 'equal')
       const changedTable = changes.find((c) => c.blockType === 'table' && c.primaryOp !== 'equal')
       expect(changedParagraph).toBeDefined()
@@ -191,9 +193,7 @@ describe('feature interaction tests', () => {
         (c) => c.reordered || c.status.moved || c.status.movedWithinParent,
       )
       expect(reorderedOrMoved.length).toBeGreaterThan(0)
-      const movedWithContentEdit = changes.find(
-        (c) => c.status.moved && c.status.selfChanged,
-      )
+      const movedWithContentEdit = changes.find((c) => c.status.moved && c.status.selfChanged)
       expect(movedWithContentEdit).toBeDefined()
     })
   })

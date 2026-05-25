@@ -22,7 +22,10 @@ export async function recoverMoves(context: DiffContext, root: DiffChange): Prom
     const node = d.oldId ? context.oldIndex.byId.get(d.oldId) : undefined
     const key = node?.entity === 'section' ? `section:${node.kind}` : (node?.blockType ?? 'unknown')
     let bucket = deleteBuckets.get(key)
-    if (!bucket) { bucket = []; deleteBuckets.set(key, bucket) }
+    if (!bucket) {
+      bucket = []
+      deleteBuckets.set(key, bucket)
+    }
     bucket.push(d)
   }
 

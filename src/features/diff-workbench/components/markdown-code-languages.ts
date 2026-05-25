@@ -24,9 +24,7 @@ export function loadCommonCodeLanguages(): Promise<LanguageDescription[]> {
       alias: ['jsx'],
       extensions: ['jsx'],
       load: () =>
-        import('@codemirror/lang-javascript').then((module) =>
-          module.javascript({ jsx: true }),
-        ),
+        import('@codemirror/lang-javascript').then((module) => module.javascript({ jsx: true })),
     }),
     LanguageDescription.of({
       name: 'TSX',
@@ -41,10 +39,7 @@ export function loadCommonCodeLanguages(): Promise<LanguageDescription[]> {
       name: 'JSON',
       alias: ['json'],
       extensions: ['json'],
-      load: () =>
-        import('@codemirror/lang-javascript').then((module) =>
-          module.javascript(),
-        ),
+      load: () => import('@codemirror/lang-javascript').then((module) => module.javascript()),
     }),
     LanguageDescription.of({
       name: 'HTML',

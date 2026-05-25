@@ -6,9 +6,34 @@ import { normalizeIdentifier } from './text'
 
 export { isSection } from '../transformer'
 
-export { hashCanonical, hashText, stableStringify, charikarSimHash, simHashHammingDistance, simHashHammingDistanceBatch } from './hash'
-export { normalizeIdentifier, normalizeHeadingTitle, slugifyHeading, tokenizeText, structuredTextTokens, extractNodeText, buildInlineTokens, buildInlineToken, extractInlineStructure, readTableData, maxColumns, pathHashInput } from './text'
-export { characterNgramSimilarity, jaccardSimilarity, multisetJaccardSimilarity, sequenceSimilarity } from './math'
+export {
+  hashCanonical,
+  hashText,
+  stableStringify,
+  charikarSimHash,
+  simHashHammingDistance,
+  simHashHammingDistanceBatch,
+} from './hash'
+export {
+  normalizeIdentifier,
+  normalizeHeadingTitle,
+  slugifyHeading,
+  tokenizeText,
+  structuredTextTokens,
+  extractNodeText,
+  buildInlineTokens,
+  buildInlineToken,
+  extractInlineStructure,
+  readTableData,
+  maxColumns,
+  pathHashInput,
+} from './text'
+export {
+  characterNgramSimilarity,
+  jaccardSimilarity,
+  multisetJaccardSimilarity,
+  sequenceSimilarity,
+} from './math'
 
 export function getBlockIdentifier(block: Block | undefined): string {
   return normalizeIdentifier(block?.identifier)
@@ -38,7 +63,9 @@ export function mergeSourceRanges(ranges: Array<SourceRange | undefined>): Sourc
   const filtered = ranges.filter((range): range is SourceRange => !!range)
   if (filtered.length === 0) return undefined
 
-  const starts = filtered.map((range) => range.start).filter((point): point is SourcePoint => !!point)
+  const starts = filtered
+    .map((range) => range.start)
+    .filter((point): point is SourcePoint => !!point)
   const ends = filtered.map((range) => range.end).filter((point): point is SourcePoint => !!point)
 
   return {
@@ -47,7 +74,11 @@ export function mergeSourceRanges(ranges: Array<SourceRange | undefined>): Sourc
   }
 }
 
-export function metadataDiff(oldValue: unknown, newValue: unknown, basePath = ''): MetadataChange[] {
+export function metadataDiff(
+  oldValue: unknown,
+  newValue: unknown,
+  basePath = '',
+): MetadataChange[] {
   if (deepEqual(oldValue, newValue)) return []
 
   if (!isRecordLike(oldValue) || !isRecordLike(newValue)) {

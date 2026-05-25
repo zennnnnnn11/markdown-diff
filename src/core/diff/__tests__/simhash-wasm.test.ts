@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { charikarSimHashWasm, estimateMinHashSimilarityWasm, simHashHammingDistanceBatchWasm } from '../simhash-wasm'
+import {
+  charikarSimHashWasm,
+  estimateMinHashSimilarityWasm,
+  simHashHammingDistanceBatchWasm,
+} from '../simhash-wasm'
 import { simHashHammingDistance } from '../utils'
 
 describe('simhash wasm helpers', () => {
@@ -28,7 +32,10 @@ describe('simhash wasm helpers', () => {
 
   it('matches the legacy minhash similarity semantics', () => {
     const left = Array.from({ length: 80 }, (_, index) => `token-${index}`)
-    const right = Array.from({ length: 80 }, (_, index) => `token-${index < 60 ? index : index + 20}`)
+    const right = Array.from(
+      { length: 80 },
+      (_, index) => `token-${index < 60 ? index : index + 20}`,
+    )
     const functions = 32
 
     expect(estimateMinHashSimilarityWasm(left, right, functions)).toBe(
@@ -40,12 +47,7 @@ describe('simhash wasm helpers', () => {
 
   it('computes one-to-many simhash distances equal to the scalar helper', () => {
     const query = 'ffedf9adb79bbeff'
-    const candidates = [
-      'ffedf9adb79bbeff',
-      '1d2475a58e7db019',
-      undefined,
-      'fdabfbfe94012d21',
-    ]
+    const candidates = ['ffedf9adb79bbeff', '1d2475a58e7db019', undefined, 'fdabfbfe94012d21']
 
     expect(simHashHammingDistanceBatchWasm(query, candidates)).toEqual(
       candidates.map((candidate) => simHashHammingDistance(query, candidate)),
@@ -71,7 +73,11 @@ describe('simhash wasm helpers', () => {
   })
 })
 
-function legacyMinHashSimilarity(left: readonly string[], right: readonly string[], functions: number): number {
+function legacyMinHashSimilarity(
+  left: readonly string[],
+  right: readonly string[],
+  functions: number,
+): number {
   const leftSketch = legacyMinHashSketch(left, functions)
   const rightSketch = legacyMinHashSketch(right, functions)
   let equal = 0
@@ -85,7 +91,10 @@ function legacyMinHashSketch(tokens: readonly string[], functions: number): numb
   if (tokens.length === 0) return []
   const unique = [...new Set(tokens)]
   return Array.from({ length: functions }, (_, seed) =>
-    unique.reduce((best, token) => Math.min(best, legacySeededHash(token, seed + 1)), Number.POSITIVE_INFINITY),
+    unique.reduce(
+      (best, token) => Math.min(best, legacySeededHash(token, seed + 1)),
+      Number.POSITIVE_INFINITY,
+    ),
   )
 }
 

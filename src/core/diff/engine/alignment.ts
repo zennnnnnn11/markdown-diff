@@ -2,12 +2,7 @@ import { DIFF_HEURISTICS } from '../heuristics'
 import { hungarianAssignment } from '../hungarian'
 import { alignSequence, longestIncreasingSubsequence } from '../sequence'
 import { computeNodeSimilarity, isSameShape } from '../similarity'
-import type {
-  AlignedPair,
-  DiffChange,
-  MatchPair,
-  SemanticIndex,
-} from '../types'
+import type { AlignedPair, DiffChange, MatchPair, SemanticIndex } from '../types'
 import { getBlockIdentifier, makePairKey } from '../utils'
 import type { DiffContext } from './context'
 import {
@@ -172,7 +167,6 @@ export async function flushGap(
     if (pairedNew.has(newId)) continue
     changes.push(buildInsertChange(context, newId))
   }
-
 }
 
 export function collectGapMatches(
@@ -218,7 +212,11 @@ export function definitionGapPairAllowed(
   return oldCount === 1 && newCount === 1
 }
 
-export function countDefinitionIdentifier(index: SemanticIndex, ids: string[], identifier: string): number {
+export function countDefinitionIdentifier(
+  index: SemanticIndex,
+  ids: string[],
+  identifier: string,
+): number {
   let count = 0
   for (const id of ids) {
     const node = index.byId.get(id)
@@ -321,7 +319,8 @@ export async function pairGapNodes(
     const key = `${oldId}\0${newId}`
     const candidate = candidateLookup.get(key)
     if (!candidate) continue
-    if (!candidate.shortHeadingFallback && (candidate.score ?? 0) < context.options.minSimilarity) continue
+    if (!candidate.shortHeadingFallback && (candidate.score ?? 0) < context.options.minSimilarity)
+      continue
     result.push(candidate)
   }
 
@@ -386,7 +385,7 @@ export async function buildAlignedChange(
     newNode: newNode.raw,
     pairKey: aligned.pairKey,
     pairKind: 'align',
-    primaryOp: (selfChanged || descendantChanged) ? 'replace' : 'equal',
+    primaryOp: selfChanged || descendantChanged ? 'replace' : 'equal',
     status: createStatus({
       isAlignedPair: true,
       selfChanged,

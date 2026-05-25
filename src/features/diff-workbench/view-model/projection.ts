@@ -1,18 +1,45 @@
 import { isSection } from '@/core/transformer'
 import type { Block, DiffChange, DiffResult, Section, SourceRange, Tone } from './types'
-import type { ProjectionAnnotation, ProjectionLine, ProjectionLineMatch, ProjectionSegment } from './types'
+import type {
+  ProjectionAnnotation,
+  ProjectionLine,
+  ProjectionLineMatch,
+  ProjectionSegment,
+} from './types'
 import { entityLabel, operationLabel, formatWarningLabel, toneLabels } from './labels'
-import { flattenChanges, getChangeReference, getAlignmentReference, tonesForChange, uniqueTones, uniqueStrings, rangeSpan } from './utils'
+import {
+  flattenChanges,
+  getChangeReference,
+  getAlignmentReference,
+  tonesForChange,
+  uniqueTones,
+  uniqueStrings,
+  rangeSpan,
+} from './utils'
 import { buildSideSegmentsFromSpans, headingPrefix } from './segments'
 
 type RangeLookup = (change: DiffChange, result: DiffResult) => SourceRange | undefined
 
-export function buildProjectionLines(newMarkdown: string, result: DiffResult, changes?: DiffChange[]): ProjectionLine[] {
+export function buildProjectionLines(
+  newMarkdown: string,
+  result: DiffResult,
+  changes?: DiffChange[],
+): ProjectionLine[] {
   return buildProjectionLinesFromMarkdown(newMarkdown, result, getProjectionRange, 'new', changes)
 }
 
-export function buildOldProjectionLines(oldMarkdown: string, result: DiffResult, changes?: DiffChange[]): ProjectionLine[] {
-  return buildProjectionLinesFromMarkdown(oldMarkdown, result, getOldProjectionRange, 'old', changes)
+export function buildOldProjectionLines(
+  oldMarkdown: string,
+  result: DiffResult,
+  changes?: DiffChange[],
+): ProjectionLine[] {
+  return buildProjectionLinesFromMarkdown(
+    oldMarkdown,
+    result,
+    getOldProjectionRange,
+    'old',
+    changes,
+  )
 }
 
 function buildProjectionLinesFromMarkdown(
@@ -39,7 +66,10 @@ function buildProjectionLinesFromMarkdown(
     const endLine = entry.range.end!.line!
     for (let ln = startLine; ln <= endLine; ln++) {
       let arr = changesByLine.get(ln)
-      if (!arr) { arr = []; changesByLine.set(ln, arr) }
+      if (!arr) {
+        arr = []
+        changesByLine.set(ln, arr)
+      }
       arr.push(entry)
     }
   }
@@ -76,12 +106,12 @@ function buildProjectionLinesFromMarkdown(
       warnings,
       annotations: buildProjectionAnnotations(matchedTones, warnings, changeKeys.length),
       lineMatches,
-      changeTooltip: dominant && dominant.tones[0] !== 'plain'
-        ? dominant.change.summary
-        : undefined,
-      movePeerLineNumber: dominant?.change.primaryOp === 'move'
-        ? resolvePeerLineNumber(dominant.change, result)
-        : undefined,
+      changeTooltip:
+        dominant && dominant.tones[0] !== 'plain' ? dominant.change.summary : undefined,
+      movePeerLineNumber:
+        dominant?.change.primaryOp === 'move'
+          ? resolvePeerLineNumber(dominant.change, result)
+          : undefined,
     }
   })
 }
@@ -91,9 +121,17 @@ function pickDominantMatch(
 ): { change: DiffChange; range: SourceRange; tones: Tone[] } | undefined {
   return [...matched].sort((left, right) => {
     const TONE_PRIORITY: Record<Tone, number> = {
-      delete: 0, replace: 1, move: 2, insert: 3, meta: 4, rename: 5, reorder: 6, plain: 7,
+      delete: 0,
+      replace: 1,
+      move: 2,
+      insert: 3,
+      meta: 4,
+      rename: 5,
+      reorder: 6,
+      plain: 7,
     }
-    const toneDiff = TONE_PRIORITY[left.tones[0] ?? 'plain'] - TONE_PRIORITY[right.tones[0] ?? 'plain']
+    const toneDiff =
+      TONE_PRIORITY[left.tones[0] ?? 'plain'] - TONE_PRIORITY[right.tones[0] ?? 'plain']
     if (toneDiff !== 0) return toneDiff
     return rangeSpan(left.range) - rangeSpan(right.range)
   })[0]
@@ -117,9 +155,7 @@ function buildProjectionSegments(
     const prefix = headingPrefix(change)
     const rendered = `${prefix}${title?.map((segment) => segment.text).join('') ?? ''}`
     if (title?.length && rendered === text) {
-      return prefix
-        ? [{ text: prefix, tone: 'plain' }, ...title]
-        : title
+      return prefix ? [{ text: prefix, tone: 'plain' }, ...title] : title
     }
   }
 
@@ -174,7 +210,11 @@ function getOldProjectionRange(change: DiffChange, result: DiffResult): SourceRa
   return undefined
 }
 
-function narrowSectionRange(change: DiffChange, sourceRange: SourceRange, node?: Section | Block): SourceRange {
+function narrowSectionRange(
+  change: DiffChange,
+  sourceRange: SourceRange,
+  node?: Section | Block,
+): SourceRange {
   const headingRange = getHeadingRange(node)
   if (!headingRange) return sourceRange
 
@@ -185,8 +225,11 @@ function narrowSectionRange(change: DiffChange, sourceRange: SourceRange, node?:
 
 function getHeadingRange(node: Section | Block | undefined): SourceRange | undefined {
   if (!node || !isSection(node) || !node.heading) return undefined
-  const position = (node.heading as Block & { position?: { start?: SourceRange['start']; end?: SourceRange['end'] } })
-    .position
+  const position = (
+    node.heading as Block & {
+      position?: { start?: SourceRange['start']; end?: SourceRange['end'] }
+    }
+  ).position
   if (!position) return undefined
   return {
     start: position.start,
@@ -194,10 +237,7 @@ function getHeadingRange(node: Section | Block | undefined): SourceRange | undef
   }
 }
 
-function resolvePeerLineNumber(
-  change: DiffChange,
-  result: DiffResult,
-): number | undefined {
+function resolvePeerLineNumber(change: DiffChange, result: DiffResult): number | undefined {
   const pairKey = change.pairKey
   if (!pairKey) return undefined
 

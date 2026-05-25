@@ -46,273 +46,363 @@ function lineClassName(baseTone: Tone): string {
 <template>
   <Teleport to="body">
     <transition name="modal-fade">
-      <div v-if="detail" class="modal-backdrop" data-testid="detail-modal-backdrop" @click.self="emit('close')">
-        <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="detail-modal-title">
-        <!-- Decoration light effects (Vercel style gradients) -->
-        <div class="glow-effect glow-top-left"></div>
-        <div class="glow-effect glow-bottom-right"></div>
+      <div
+        v-if="detail"
+        class="modal-backdrop"
+        data-testid="detail-modal-backdrop"
+        @click.self="emit('close')"
+      >
+        <section
+          class="modal-card"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="detail-modal-title"
+        >
+          <!-- Decoration light effects (Vercel style gradients) -->
+          <div class="glow-effect glow-top-left"></div>
+          <div class="glow-effect glow-bottom-right"></div>
 
-        <div class="modal-header">
-          <div class="title-area">
-            <h2 id="detail-modal-title">{{ detail.heading }}</h2>
+          <div class="modal-header">
+            <div class="title-area">
+              <h2 id="detail-modal-title">{{ detail.heading }}</h2>
+            </div>
+            <button type="button" class="close-button" @click="emit('close')" aria-label="关闭">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
           </div>
-          <button type="button" class="close-button" @click="emit('close')" aria-label="关闭">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18"></line>
-              <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-          </button>
-        </div>
 
-        <div class="badges-row" v-if="detail.pairKind || detail.matchKindLabel || detail.score !== undefined">
-          <span v-if="detail.pairKind" class="badge" :class="detail.pairKind === 'match' ? 'badge-success' : 'badge-warning'">
-            <span class="dot-indicator"></span>
-            {{ detail.pairKind === 'match' ? '确认匹配（实线）' : '对齐匹配（虚线）' }}
-          </span>
-          <span v-if="detail.matchKindLabel" class="badge badge-info">
-            证据: {{ detail.matchKindLabel }}
-          </span>
-          <span v-if="detail.score !== undefined" class="badge badge-score">
-            相似度: {{ (detail.score * 100).toFixed(0) }}%
-          </span>
-        </div>
-
-        <p v-if="detail.moveInfo" class="move-info">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-.7-2.7-1.4-4.5C14.3 4.7 13.5 4 12.5 4H9c-.6 0-1 .4-1 1v3"></path>
-            <polyline points="4 9 14 9 14 18 4 18"></polyline>
-            <path d="M4 9c0-1.1.9-2 2-2h6c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V9z"></path>
-          </svg>
-          <template v-if="detail.moveInfo.role === 'source'">
-            已移出到第 <strong class="line-number-ref">{{ detail.moveInfo.peerLineNumber ?? '?' }}</strong> 行
-            <template v-if="detail.moveInfo.peerHeading">
-              <span class="peer-heading">（{{ detail.moveInfo.peerHeading }}）</span>
-            </template>
-          </template>
-          <template v-else>
-            移入自第 <strong class="line-number-ref">{{ detail.moveInfo.peerLineNumber ?? '?' }}</strong> 行
-            <template v-if="detail.moveInfo.peerHeading">
-              <span class="peer-heading">（{{ detail.moveInfo.peerHeading }}）</span>
-            </template>
-          </template>
-        </p>
-
-        <p v-if="detail.backlinkInfo" class="backlink-info">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-          </svg>
-          <template v-if="detail.backlinkInfo.oldIdentifier && detail.backlinkInfo.newIdentifier && detail.backlinkInfo.oldIdentifier !== detail.backlinkInfo.newIdentifier">
-            标识符变更：<code>{{ detail.backlinkInfo.oldIdentifier }}</code> → <code>{{ detail.backlinkInfo.newIdentifier }}</code>
-          </template>
-          <template v-if="detail.backlinkInfo.affectedLines.length > 0">
-            <span class="separator-dot">·</span> 引用位置：第
-            <span class="affected-lines">
-              <span v-for="(line, index) in detail.backlinkInfo.affectedLines" :key="line" class="affected-line-tag">
-                <template v-if="index > 0">、</template>{{ line }}
-              </span>
-            </span> 行
-          </template>
-          <template v-if="detail.backlinkInfo.affectedLines.length === 0">
-            <span class="separator-dot">·</span> 无引用
-          </template>
-        </p>
-
-        <div v-if="detail.oldTitle !== undefined && detail.newTitle !== undefined" class="title-compare">
-          <div class="title-compare-row">
-            <span class="title-compare-label">旧标题</span>
-            <span class="title-compare-value old-title">{{ detail.oldTitle }}</span>
-          </div>
-          <div class="title-compare-row">
-            <span class="title-compare-label">新标题</span>
-            <span class="title-compare-value new-title">
-              <template v-if="detail.newTitleSegments?.length">
-                <span
-                  v-for="(segment, segmentIndex) in detail.newTitleSegments"
-                  :key="`title:segment:${segmentIndex}`"
-                  class="segment"
-                  :class="lineClassName(segment.tone)"
-                >{{ segment.text }}</span>
-              </template>
-              <template v-else>{{ detail.newTitle }}</template>
+          <div
+            class="badges-row"
+            v-if="detail.pairKind || detail.matchKindLabel || detail.score !== undefined"
+          >
+            <span
+              v-if="detail.pairKind"
+              class="badge"
+              :class="detail.pairKind === 'match' ? 'badge-success' : 'badge-warning'"
+            >
+              <span class="dot-indicator"></span>
+              {{ detail.pairKind === 'match' ? '确认匹配（实线）' : '对齐匹配（虚线）' }}
+            </span>
+            <span v-if="detail.matchKindLabel" class="badge badge-info">
+              证据: {{ detail.matchKindLabel }}
+            </span>
+            <span v-if="detail.score !== undefined" class="badge badge-score">
+              相似度: {{ (detail.score * 100).toFixed(0) }}%
             </span>
           </div>
-        </div>
 
-        <div class="detail-columns">
-          <section class="content-card terminal-style">
-            <div class="card-top-bar">
-              <div class="terminal-dots">
-                <span class="dot red"></span>
-                <span class="dot yellow"></span>
-                <span class="dot green"></span>
-              </div>
-              <span class="panel-label">旧内容</span>
-            </div>
+          <p v-if="detail.moveInfo" class="move-info">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path
+                d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-.7-2.7-1.4-4.5C14.3 4.7 13.5 4 12.5 4H9c-.6 0-1 .4-1 1v3"
+              ></path>
+              <polyline points="4 9 14 9 14 18 4 18"></polyline>
+              <path
+                d="M4 9c0-1.1.9-2 2-2h6c1.1 0 2 .9 2 2v9c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V9z"
+              ></path>
+            </svg>
+            <template v-if="detail.moveInfo.role === 'source'">
+              已移出到第
+              <strong class="line-number-ref">{{ detail.moveInfo.peerLineNumber ?? '?' }}</strong>
+              行
+              <template v-if="detail.moveInfo.peerHeading">
+                <span class="peer-heading">（{{ detail.moveInfo.peerHeading }}）</span>
+              </template>
+            </template>
+            <template v-else>
+              移入自第
+              <strong class="line-number-ref">{{ detail.moveInfo.peerLineNumber ?? '?' }}</strong>
+              行
+              <template v-if="detail.moveInfo.peerHeading">
+                <span class="peer-heading">（{{ detail.moveInfo.peerHeading }}）</span>
+              </template>
+            </template>
+          </p>
 
-            <div class="code-container">
-              <p v-if="detail.oldInlineSegments?.length" class="inline-preview">
+          <p v-if="detail.backlinkInfo" class="backlink-info">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            <template
+              v-if="
+                detail.backlinkInfo.oldIdentifier &&
+                detail.backlinkInfo.newIdentifier &&
+                detail.backlinkInfo.oldIdentifier !== detail.backlinkInfo.newIdentifier
+              "
+            >
+              标识符变更：<code>{{ detail.backlinkInfo.oldIdentifier }}</code> →
+              <code>{{ detail.backlinkInfo.newIdentifier }}</code>
+            </template>
+            <template v-if="detail.backlinkInfo.affectedLines.length > 0">
+              <span class="separator-dot">·</span> 引用位置：第
+              <span class="affected-lines">
                 <span
-                  v-for="(segment, segmentIndex) in detail.oldInlineSegments"
-                  :key="`detail:old-inline:${segmentIndex}`"
-                  class="segment"
-                  :class="lineClassName(segment.tone)"
-                >{{ segment.text }}</span>
-              </p>
+                  v-for="(line, index) in detail.backlinkInfo.affectedLines"
+                  :key="line"
+                  class="affected-line-tag"
+                >
+                  <template v-if="index > 0">、</template>{{ line }}
+                </span>
+              </span>
+              行
+            </template>
+            <template v-if="detail.backlinkInfo.affectedLines.length === 0">
+              <span class="separator-dot">·</span> 无引用
+            </template>
+          </p>
 
-              <div v-else-if="detail.oldCodeLines?.length" class="code-lines">
-                <pre
-                  v-for="line in detail.oldCodeLines"
-                  :key="line.key"
-                  class="code-line"
-                  :class="lineClassName(line.op === 'equal' ? 'plain' : 'delete')"
-                ><template v-if="line.segments?.length"><span
+          <div
+            v-if="detail.oldTitle !== undefined && detail.newTitle !== undefined"
+            class="title-compare"
+          >
+            <div class="title-compare-row">
+              <span class="title-compare-label">旧标题</span>
+              <span class="title-compare-value old-title">{{ detail.oldTitle }}</span>
+            </div>
+            <div class="title-compare-row">
+              <span class="title-compare-label">新标题</span>
+              <span class="title-compare-value new-title">
+                <template v-if="detail.newTitleSegments?.length">
+                  <span
+                    v-for="(segment, segmentIndex) in detail.newTitleSegments"
+                    :key="`title:segment:${segmentIndex}`"
+                    class="segment"
+                    :class="lineClassName(segment.tone)"
+                    >{{ segment.text }}</span
+                  >
+                </template>
+                <template v-else>{{ detail.newTitle }}</template>
+              </span>
+            </div>
+          </div>
+
+          <div class="detail-columns">
+            <section class="content-card terminal-style">
+              <div class="card-top-bar">
+                <div class="terminal-dots">
+                  <span class="dot red"></span>
+                  <span class="dot yellow"></span>
+                  <span class="dot green"></span>
+                </div>
+                <span class="panel-label">旧内容</span>
+              </div>
+
+              <div class="code-container">
+                <p v-if="detail.oldInlineSegments?.length" class="inline-preview">
+                  <span
+                    v-for="(segment, segmentIndex) in detail.oldInlineSegments"
+                    :key="`detail:old-inline:${segmentIndex}`"
+                    class="segment"
+                    :class="lineClassName(segment.tone)"
+                    >{{ segment.text }}</span
+                  >
+                </p>
+
+                <div v-else-if="detail.oldCodeLines?.length" class="code-lines">
+                  <pre
+                    v-for="line in detail.oldCodeLines"
+                    :key="line.key"
+                    class="code-line"
+                    :class="lineClassName(line.op === 'equal' ? 'plain' : 'delete')"
+                  ><template v-if="line.segments?.length"><span
                     v-for="(segment, segmentIndex) in line.segments"
                     :key="`${line.key}:old-segment:${segmentIndex}`"
                     class="segment"
                     :class="lineClassName(segment.tone)"
                   >{{ segment.text }}</span></template><template v-else>{{ line.oldLine ?? '' }}</template></pre>
-              </div>
+                </div>
 
-              <div v-else-if="detail.oldTableRows?.length" class="table-preview">
-                <table>
-                  <tbody>
-                    <tr v-for="row in detail.oldTableRows" :key="row.key">
-                      <td v-for="cell in row.cells" :key="cell.key" :class="lineClassName(cell.tone)">
-                        <template v-if="cell.segments?.length">
-                          <span
-                            v-for="(segment, segmentIndex) in cell.segments"
-                            :key="`${cell.key}:old-segment:${segmentIndex}`"
-                            class="segment"
-                            :class="lineClassName(segment.tone)"
-                          >{{ segment.text }}</span>
-                        </template>
-                        <template v-else>{{ cell.text }}</template>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                <div v-else-if="detail.oldTableRows?.length" class="table-preview">
+                  <table>
+                    <tbody>
+                      <tr v-for="row in detail.oldTableRows" :key="row.key">
+                        <td
+                          v-for="cell in row.cells"
+                          :key="cell.key"
+                          :class="lineClassName(cell.tone)"
+                        >
+                          <template v-if="cell.segments?.length">
+                            <span
+                              v-for="(segment, segmentIndex) in cell.segments"
+                              :key="`${cell.key}:old-segment:${segmentIndex}`"
+                              class="segment"
+                              :class="lineClassName(segment.tone)"
+                              >{{ segment.text }}</span
+                            >
+                          </template>
+                          <template v-else>{{ cell.text }}</template>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-              <div v-else-if="detail.oldHighlightedLines?.length" class="line-preview">
-                <pre
-                  v-for="line in detail.oldHighlightedLines"
-                  :key="line.key"
-                  class="detail-line"
-                  :class="lineClassName(line.tone)"
-                ><template v-if="line.segments?.length"><span
+                <div v-else-if="detail.oldHighlightedLines?.length" class="line-preview">
+                  <pre
+                    v-for="line in detail.oldHighlightedLines"
+                    :key="line.key"
+                    class="detail-line"
+                    :class="lineClassName(line.tone)"
+                  ><template v-if="line.segments?.length"><span
                       v-for="(segment, segmentIndex) in line.segments"
                       :key="`${line.key}:old-segment:${segmentIndex}`"
                       class="segment"
                       :class="lineClassName(segment.tone)"
                     >{{ segment.text }}</span></template><template v-else>{{ line.text }}</template></pre>
+                </div>
+
+                <pre v-else class="fallback-pre">{{ detail.oldContent ?? '无对应旧内容' }}</pre>
+              </div>
+            </section>
+
+            <section class="content-card terminal-style">
+              <div class="card-top-bar">
+                <div class="terminal-dots">
+                  <span class="dot red"></span>
+                  <span class="dot yellow"></span>
+                  <span class="dot green"></span>
+                </div>
+                <span class="panel-label">新内容</span>
               </div>
 
-              <pre v-else class="fallback-pre">{{ detail.oldContent ?? '无对应旧内容' }}</pre>
-            </div>
-          </section>
+              <div class="code-container">
+                <p v-if="detail.newInlineSegments?.length" class="inline-preview">
+                  <span
+                    v-for="(segment, segmentIndex) in detail.newInlineSegments"
+                    :key="`detail:new-inline:${segmentIndex}`"
+                    class="segment"
+                    :class="lineClassName(segment.tone)"
+                    >{{ segment.text }}</span
+                  >
+                </p>
 
-          <section class="content-card terminal-style">
-            <div class="card-top-bar">
-              <div class="terminal-dots">
-                <span class="dot red"></span>
-                <span class="dot yellow"></span>
-                <span class="dot green"></span>
-              </div>
-              <span class="panel-label">新内容</span>
-            </div>
-
-            <div class="code-container">
-              <p v-if="detail.newInlineSegments?.length" class="inline-preview">
-                <span
-                  v-for="(segment, segmentIndex) in detail.newInlineSegments"
-                  :key="`detail:new-inline:${segmentIndex}`"
-                  class="segment"
-                  :class="lineClassName(segment.tone)"
-                >{{ segment.text }}</span>
-              </p>
-
-              <div v-else-if="detail.codeLines?.length" class="code-lines">
-                <pre
-                  v-for="line in detail.codeLines"
-                  :key="line.key"
-                  class="code-line"
-                  :class="lineClassName(line.op === 'equal' ? 'plain' : detail.highlightTone)"
-                ><template v-if="line.segments?.length"><span
+                <div v-else-if="detail.codeLines?.length" class="code-lines">
+                  <pre
+                    v-for="line in detail.codeLines"
+                    :key="line.key"
+                    class="code-line"
+                    :class="lineClassName(line.op === 'equal' ? 'plain' : detail.highlightTone)"
+                  ><template v-if="line.segments?.length"><span
                     v-for="(segment, segmentIndex) in line.segments"
                     :key="`${line.key}:segment:${segmentIndex}`"
                     class="segment"
                     :class="lineClassName(segment.tone)"
                   >{{ segment.text }}</span></template><template v-else>{{ line.newLine ?? '' }}</template></pre>
-              </div>
+                </div>
 
-              <div v-else-if="detail.newTableRows?.length" class="table-preview">
-                <table>
-                  <tbody>
-                    <tr v-for="row in detail.newTableRows" :key="row.key">
-                      <td v-for="cell in row.cells" :key="cell.key" :class="lineClassName(cell.tone)">
-                        <template v-if="cell.segments?.length">
-                          <span
-                            v-for="(segment, segmentIndex) in cell.segments"
-                            :key="`${cell.key}:segment:${segmentIndex}`"
-                            class="segment"
-                            :class="lineClassName(segment.tone)"
-                          >{{ segment.text }}</span>
-                        </template>
-                        <template v-else>{{ cell.text }}</template>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                <div v-else-if="detail.newTableRows?.length" class="table-preview">
+                  <table>
+                    <tbody>
+                      <tr v-for="row in detail.newTableRows" :key="row.key">
+                        <td
+                          v-for="cell in row.cells"
+                          :key="cell.key"
+                          :class="lineClassName(cell.tone)"
+                        >
+                          <template v-if="cell.segments?.length">
+                            <span
+                              v-for="(segment, segmentIndex) in cell.segments"
+                              :key="`${cell.key}:segment:${segmentIndex}`"
+                              class="segment"
+                              :class="lineClassName(segment.tone)"
+                              >{{ segment.text }}</span
+                            >
+                          </template>
+                          <template v-else>{{ cell.text }}</template>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-              <div v-else-if="detail.newHighlightedLines?.length" class="line-preview">
-                <pre
-                  v-for="line in detail.newHighlightedLines"
-                  :key="line.key"
-                  class="detail-line"
-                  :class="lineClassName(line.tone)"
-                ><template v-if="line.segments?.length"><span
+                <div v-else-if="detail.newHighlightedLines?.length" class="line-preview">
+                  <pre
+                    v-for="line in detail.newHighlightedLines"
+                    :key="line.key"
+                    class="detail-line"
+                    :class="lineClassName(line.tone)"
+                  ><template v-if="line.segments?.length"><span
                       v-for="(segment, segmentIndex) in line.segments"
                       :key="`${line.key}:segment:${segmentIndex}`"
                       class="segment"
                       :class="lineClassName(segment.tone)"
                     >{{ segment.text }}</span></template><template v-else>{{ line.text }}</template></pre>
-              </div>
+                </div>
 
-              <pre v-else :class="[lineClassName(detail.highlightTone), 'fallback-pre']">{{ detail.newContent ?? '无对应新内容' }}</pre>
+                <pre v-else :class="[lineClassName(detail.highlightTone), 'fallback-pre']">{{
+                  detail.newContent ?? '无对应新内容'
+                }}</pre>
+              </div>
+            </section>
+          </div>
+
+          <section v-if="detail.metadataChanges?.length" class="content-card metadata-card">
+            <div class="card-top-bar">
+              <span class="panel-label">元数据变更</span>
+            </div>
+            <div class="table-container">
+              <table class="metadata-table">
+                <thead>
+                  <tr>
+                    <th>路径</th>
+                    <th>操作</th>
+                    <th>旧值</th>
+                    <th>新值</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in detail.metadataChanges" :key="item.path">
+                    <td>
+                      <code>{{ item.path }}</code>
+                    </td>
+                    <td>
+                      <span class="op-badge" :class="`op-${item.op.toLowerCase()}`">{{
+                        item.op
+                      }}</span>
+                    </td>
+                    <td>
+                      <pre>{{ item.oldValueText ?? '—' }}</pre>
+                    </td>
+                    <td>
+                      <pre>{{ item.newValueText ?? '—' }}</pre>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </section>
-        </div>
-
-        <section v-if="detail.metadataChanges?.length" class="content-card metadata-card">
-          <div class="card-top-bar">
-            <span class="panel-label">元数据变更</span>
-          </div>
-          <div class="table-container">
-            <table class="metadata-table">
-              <thead>
-                <tr>
-                  <th>路径</th>
-                  <th>操作</th>
-                  <th>旧值</th>
-                  <th>新值</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="item in detail.metadataChanges" :key="item.path">
-                  <td><code>{{ item.path }}</code></td>
-                  <td>
-                    <span class="op-badge" :class="`op-${item.op.toLowerCase()}`">{{ item.op }}</span>
-                  </td>
-                  <td><pre>{{ item.oldValueText ?? '—' }}</pre></td>
-                  <td><pre>{{ item.newValueText ?? '—' }}</pre></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
         </section>
-      </section>
       </div>
     </transition>
   </Teleport>
@@ -357,7 +447,7 @@ function lineClassName(baseTone: Tone): string {
 .dark .modal-card {
   background: rgba(10, 10, 10, 0.85);
   border-color: rgba(255, 255, 255, 0.08);
-  box-shadow: 
+  box-shadow:
     0 30px 60px rgba(0, 0, 0, 0.5),
     0 0 0 1px rgba(255, 255, 255, 0.05),
     inset 0 1px 0 rgba(255, 255, 255, 0.05);
@@ -686,9 +776,15 @@ function lineClassName(baseTone: Tone): string {
   background: var(--border);
 }
 
-.terminal-dots .dot.red { background: #ff5f56; }
-.terminal-dots .dot.yellow { background: #ffbd2e; }
-.terminal-dots .dot.green { background: #27c93f; }
+.terminal-dots .dot.red {
+  background: #ff5f56;
+}
+.terminal-dots .dot.yellow {
+  background: #ffbd2e;
+}
+.terminal-dots .dot.green {
+  background: #27c93f;
+}
 
 .panel-label {
   font-size: 10px;
@@ -867,7 +963,9 @@ function lineClassName(baseTone: Tone): string {
 
 .modal-fade-enter-active .modal-card,
 .modal-fade-leave-active .modal-card {
-  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition:
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .modal-fade-enter-from {

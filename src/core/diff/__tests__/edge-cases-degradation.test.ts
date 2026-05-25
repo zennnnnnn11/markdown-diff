@@ -90,7 +90,10 @@ describe('edge cases and degradation paths', () => {
 
     it('inline diff exceeding maxInlineDiffMatrixCost shows inline-deferred warning', async () => {
       const makeInlineHeavy = (prefix: string) =>
-        Array.from({ length: 30 }, (_, i) => `**${prefix}${i}** _${prefix}${i}_ [${prefix}${i}](url${i})`).join(' ')
+        Array.from(
+          { length: 30 },
+          (_, i) => `**${prefix}${i}** _${prefix}${i}_ [${prefix}${i}](url${i})`,
+        ).join(' ')
       const oldMd = `# Title\n\n${makeInlineHeavy('old')}`
       const newMd = `# Title\n\n${makeInlineHeavy('new')}`
       const result = await diffMarkdown(oldMd, newMd, { maxInlineDiffMatrixCost: 1 })

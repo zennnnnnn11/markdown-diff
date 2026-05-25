@@ -164,24 +164,48 @@ describe('withinTextRecallWindow', () => {
   })
 
   it('returns true when headingBodyHash matches', () => {
-    const a = makeDiffNode({ selfHash: 'a', identityHash: 'a', contentOnlyHash: 'a', headingBodyHash: 'xyz' })
-    const b = makeDiffNode({ selfHash: 'b', identityHash: 'b', contentOnlyHash: 'b', headingBodyHash: 'xyz' })
+    const a = makeDiffNode({
+      selfHash: 'a',
+      identityHash: 'a',
+      contentOnlyHash: 'a',
+      headingBodyHash: 'xyz',
+    })
+    const b = makeDiffNode({
+      selfHash: 'b',
+      identityHash: 'b',
+      contentOnlyHash: 'b',
+      headingBodyHash: 'xyz',
+    })
     expect(withinTextRecallWindow(a, b)).toBe(true)
   })
 
   it('returns true when neither has textSimHash (distance is undefined)', () => {
-    const a = makeDiffNode({ selfHash: 'a', identityHash: 'a', contentOnlyHash: 'a', textSimHash: undefined })
-    const b = makeDiffNode({ selfHash: 'b', identityHash: 'b', contentOnlyHash: 'b', textSimHash: undefined })
+    const a = makeDiffNode({
+      selfHash: 'a',
+      identityHash: 'a',
+      contentOnlyHash: 'a',
+      textSimHash: undefined,
+    })
+    const b = makeDiffNode({
+      selfHash: 'b',
+      identityHash: 'b',
+      contentOnlyHash: 'b',
+      textSimHash: undefined,
+    })
     expect(withinTextRecallWindow(a, b)).toBe(true)
   })
 
   it('returns false when simHash distance exceeds threshold', () => {
     const a = makeDiffNode({
-      selfHash: 'a', identityHash: 'a', contentOnlyHash: 'a',
+      selfHash: 'a',
+      identityHash: 'a',
+      contentOnlyHash: 'a',
       textSimHash: '0000000000000000',
     })
     const b = makeDiffNode({
-      selfHash: 'b', identityHash: 'b', contentOnlyHash: 'b',
+      selfHash: 'b',
+      identityHash: 'b',
+      contentOnlyHash: 'b',
       textSimHash: 'ffffffffffffffff',
     })
     expect(withinTextRecallWindow(a, b)).toBe(false)
@@ -271,20 +295,30 @@ describe('computeAptedRelabelScore', () => {
 
   it('adds pathBonus when pathHash matches', () => {
     const a = makeDiffNode({
-      entity: 'block', blockType: 'paragraph', selfHash: 'a1',
-      pathHash: 'path1', textTokens: ['alpha', 'beta'],
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'a1',
+      pathHash: 'path1',
+      textTokens: ['alpha', 'beta'],
       structuredTokens: ['alpha', 'beta'],
     })
     const b = makeDiffNode({
-      entity: 'block', blockType: 'paragraph', selfHash: 'b1',
-      pathHash: 'path1', textTokens: ['alpha', 'gamma'],
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'b1',
+      pathHash: 'path1',
+      textTokens: ['alpha', 'gamma'],
       structuredTokens: ['alpha', 'gamma'],
     })
     const aNoPath = makeDiffNode({
-      ...a, id: 'a2', pathHash: 'pathA',
+      ...a,
+      id: 'a2',
+      pathHash: 'pathA',
     })
     const bNoPath = makeDiffNode({
-      ...b, id: 'b2', pathHash: 'pathB',
+      ...b,
+      id: 'b2',
+      pathHash: 'pathB',
     })
     const ctx = makeDiffContext({
       oldNodes: [a, aNoPath],
@@ -319,25 +353,73 @@ describe('computeStructuralFallbackScore', () => {
   it('adds structuralBonus when children count and shape match', () => {
     const oldChild = makeDiffNode({ id: 'oc1', entity: 'block', blockType: 'paragraph' })
     const newChild = makeDiffNode({ id: 'nc1', entity: 'block', blockType: 'paragraph' })
-    const oldParent = makeDiffNode({ id: 'op', entity: 'block', blockType: 'paragraph', selfHash: 'a', logicalChildren: ['oc1'] })
-    const newParent = makeDiffNode({ id: 'np', entity: 'block', blockType: 'paragraph', selfHash: 'b', logicalChildren: ['nc1'] })
+    const oldParent = makeDiffNode({
+      id: 'op',
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'a',
+      logicalChildren: ['oc1'],
+    })
+    const newParent = makeDiffNode({
+      id: 'np',
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'b',
+      logicalChildren: ['nc1'],
+    })
     const ctx = makeDiffContext({
       oldNodes: [oldParent, oldChild],
       newNodes: [newParent, newChild],
     })
 
-    const noChildOld = makeDiffNode({ id: 'op2', entity: 'block', blockType: 'paragraph', selfHash: 'a', logicalChildren: [] })
-    const noChildNew = makeDiffNode({ id: 'np2', entity: 'block', blockType: 'paragraph', selfHash: 'b', logicalChildren: [] })
+    const noChildOld = makeDiffNode({
+      id: 'op2',
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'a',
+      logicalChildren: [],
+    })
+    const noChildNew = makeDiffNode({
+      id: 'np2',
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'b',
+      logicalChildren: [],
+    })
     const ctx2 = makeDiffContext({ oldNodes: [noChildOld], newNodes: [noChildNew] })
 
-    const withChildren = computeStructuralFallbackScore(ctx, oldParent, newParent, 'root-old', 'root-new')
-    const withoutChildren = computeStructuralFallbackScore(ctx2, noChildOld, noChildNew, 'root-old', 'root-new')
+    const withChildren = computeStructuralFallbackScore(
+      ctx,
+      oldParent,
+      newParent,
+      'root-old',
+      'root-new',
+    )
+    const withoutChildren = computeStructuralFallbackScore(
+      ctx2,
+      noChildOld,
+      noChildNew,
+      'root-old',
+      'root-new',
+    )
     expect(withChildren).toBeGreaterThanOrEqual(withoutChildren)
   })
 
   it('uses pathMismatchScore when paths differ', () => {
-    const a = makeDiffNode({ id: 'a', entity: 'block', blockType: 'paragraph', selfHash: 'x', pathHash: 'pA' })
-    const b = makeDiffNode({ id: 'b', entity: 'block', blockType: 'paragraph', selfHash: 'y', pathHash: 'pB' })
+    const a = makeDiffNode({
+      id: 'a',
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'x',
+      pathHash: 'pA',
+    })
+    const b = makeDiffNode({
+      id: 'b',
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'y',
+      pathHash: 'pB',
+    })
     const ctx = makeDiffContext({ oldNodes: [a], newNodes: [b] })
     const score = computeStructuralFallbackScore(ctx, a, b, 'root-old', 'root-new')
     expect(score).toBeGreaterThanOrEqual(0)
@@ -351,7 +433,17 @@ describe('collectStructuralFallbackPairs', () => {
     const change = {
       entity: 'block' as const,
       primaryOp: 'replace' as const,
-      status: { isMatchPair: false, isAlignedPair: false, moved: false, movedWithinParent: false, renamed: false, selfChanged: true, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
+      status: {
+        isMatchPair: false,
+        isAlignedPair: false,
+        moved: false,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: true,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
       summary: '',
       children: [],
       warnings: [],
@@ -361,13 +453,28 @@ describe('collectStructuralFallbackPairs', () => {
   })
 
   it('filters out pairs with different shapes', () => {
-    const oldNode = makeDiffNode({ id: 'o1', entity: 'block', blockType: 'paragraph', selfHash: 'a' })
+    const oldNode = makeDiffNode({
+      id: 'o1',
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'a',
+    })
     const newNode = makeDiffNode({ id: 'n1', entity: 'section', kind: 'heading', selfHash: 'b' })
     const ctx = makeDiffContext({ oldNodes: [oldNode], newNodes: [newNode] })
     const change = {
       entity: 'block' as const,
       primaryOp: 'replace' as const,
-      status: { isMatchPair: false, isAlignedPair: false, moved: false, movedWithinParent: false, renamed: false, selfChanged: true, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
+      status: {
+        isMatchPair: false,
+        isAlignedPair: false,
+        moved: false,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: true,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
       summary: '',
       children: [],
       warnings: [],
@@ -379,14 +486,42 @@ describe('collectStructuralFallbackPairs', () => {
   })
 
   it('performs greedy 1:1 dedup', () => {
-    const o1 = makeDiffNode({ id: 'o1', entity: 'block', blockType: 'paragraph', selfHash: 'a', textTokens: ['hello', 'world'] })
-    const o2 = makeDiffNode({ id: 'o2', entity: 'block', blockType: 'paragraph', selfHash: 'c', textTokens: ['hello', 'world'] })
-    const n1 = makeDiffNode({ id: 'n1', entity: 'block', blockType: 'paragraph', selfHash: 'b', textTokens: ['hello', 'world'] })
+    const o1 = makeDiffNode({
+      id: 'o1',
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'a',
+      textTokens: ['hello', 'world'],
+    })
+    const o2 = makeDiffNode({
+      id: 'o2',
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'c',
+      textTokens: ['hello', 'world'],
+    })
+    const n1 = makeDiffNode({
+      id: 'n1',
+      entity: 'block',
+      blockType: 'paragraph',
+      selfHash: 'b',
+      textTokens: ['hello', 'world'],
+    })
     const ctx = makeDiffContext({ oldNodes: [o1, o2], newNodes: [n1] })
     const change = {
       entity: 'block' as const,
       primaryOp: 'replace' as const,
-      status: { isMatchPair: false, isAlignedPair: false, moved: false, movedWithinParent: false, renamed: false, selfChanged: true, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
+      status: {
+        isMatchPair: false,
+        isAlignedPair: false,
+        moved: false,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: true,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
       summary: '',
       children: [],
       warnings: [],

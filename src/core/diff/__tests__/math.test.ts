@@ -139,10 +139,7 @@ describe('math module', () => {
     it('math.ts has no imports from the diff layer', async () => {
       const fs = await import('fs')
       const path = await import('path')
-      const source = fs.readFileSync(
-        path.resolve(__dirname, '../math.ts'),
-        'utf-8',
-      )
+      const source = fs.readFileSync(path.resolve(__dirname, '../math.ts'), 'utf-8')
       expect(source).not.toMatch(/from\s+['"]\.\//m)
     })
   })

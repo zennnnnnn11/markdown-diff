@@ -84,7 +84,9 @@ describe('matching layer — diverse examples', () => {
       expect(replaced).toHaveLength(2)
 
       const alphaChange = replaced.find((p) =>
-        p.inlineSpans?.some((s) => s.oldText?.includes('algorithms') || s.newText?.includes('sorting')),
+        p.inlineSpans?.some(
+          (s) => s.oldText?.includes('algorithms') || s.newText?.includes('sorting'),
+        ),
       )
       expect(alphaChange).toBeDefined()
       expect(alphaChange!.score).toBeGreaterThan(0.5)
@@ -124,19 +126,8 @@ describe('matching layer — diverse examples', () => {
     })
 
     it('detects exactly one inserted list item', async () => {
-      const oldMd = [
-        '# Lists',
-        '',
-        '- Item A',
-        '- Item C',
-      ].join('\n')
-      const newMd = [
-        '# Lists',
-        '',
-        '- Item A',
-        '- Item B (new)',
-        '- Item C',
-      ].join('\n')
+      const oldMd = ['# Lists', '', '- Item A', '- Item C'].join('\n')
+      const newMd = ['# Lists', '', '- Item A', '- Item B (new)', '- Item C'].join('\n')
       const result = await diffMarkdown(oldMd, newMd)
 
       expect(result.stats.inserts).toBeGreaterThanOrEqual(1)
@@ -180,9 +171,7 @@ describe('matching layer — diverse examples', () => {
       const result = await diffMarkdown(oldMd, newMd)
       const changes = flatten(result.root)
 
-      const betaPara = changes.find(
-        (c) => c.blockType === 'paragraph' && c.primaryOp === 'replace',
-      )
+      const betaPara = changes.find((c) => c.blockType === 'paragraph' && c.primaryOp === 'replace')
       expect(betaPara).toBeDefined()
       expect(betaPara!.oldId && betaPara!.newId).toBeTruthy()
 
@@ -255,13 +244,7 @@ describe('matching layer — diverse examples', () => {
     })
 
     it('detects row insertion as structural change', async () => {
-      const oldMd = [
-        '# Data',
-        '',
-        '| Name | Age |',
-        '|------|-----|',
-        '| Alice | 30 |',
-      ].join('\n')
+      const oldMd = ['# Data', '', '| Name | Age |', '|------|-----|', '| Alice | 30 |'].join('\n')
       const newMd = [
         '# Data',
         '',
@@ -283,20 +266,12 @@ describe('matching layer — diverse examples', () => {
 
   describe('footnote matching', () => {
     it('matches footnote by identifier, not as delete+insert', async () => {
-      const oldMd = [
-        '# Article',
-        '',
-        'Some text[^1].',
-        '',
-        '[^1]: Old footnote content.',
-      ].join('\n')
-      const newMd = [
-        '# Article',
-        '',
-        'Some text[^1].',
-        '',
-        '[^1]: Updated footnote content.',
-      ].join('\n')
+      const oldMd = ['# Article', '', 'Some text[^1].', '', '[^1]: Old footnote content.'].join(
+        '\n',
+      )
+      const newMd = ['# Article', '', 'Some text[^1].', '', '[^1]: Updated footnote content.'].join(
+        '\n',
+      )
       const result = await diffMarkdown(oldMd, newMd)
       const changes = flatten(result.root)
       const footnote = changes.find((c) => c.kind === 'footnote')
@@ -442,9 +417,7 @@ describe('matching layer — diverse examples', () => {
       const result = await diffMarkdown(oldMd, newMd)
       const changes = flatten(result.root)
 
-      const movedHeadings = changes.filter(
-        (c) => c.kind === 'heading' && c.status.moved,
-      )
+      const movedHeadings = changes.filter((c) => c.kind === 'heading' && c.status.moved)
       expect(movedHeadings.length).toBeGreaterThanOrEqual(1)
 
       const subsectionMove = movedHeadings.find(

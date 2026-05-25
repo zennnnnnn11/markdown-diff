@@ -2,14 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { diffMarkdown, flatten } from './test-helpers'
 
 function sectionTitle(node: unknown): string | undefined {
-  return node && typeof node === 'object' && 'title' in node ? String((node as { title?: unknown }).title ?? '') : undefined
+  return node && typeof node === 'object' && 'title' in node
+    ? String((node as { title?: unknown }).title ?? '')
+    : undefined
 }
 
 function nodeText(node: unknown): string {
   if (!node || typeof node !== 'object') return ''
   if ('value' in node) return String((node as { value?: unknown }).value ?? '')
   if ('children' in node && Array.isArray((node as { children?: unknown[] }).children)) {
-    return ((node as { children: unknown[] }).children)
+    return (node as { children: unknown[] }).children
       .map((child) => nodeText(child))
       .filter(Boolean)
       .join(' ')
@@ -68,7 +70,9 @@ describe('diff integration', () => {
     expect(paragraph?.primaryOp).toBe('replace')
     expect(paragraph?.score).toBeLessThan(1)
     expect(replaceSpan?.wordSpans?.length).toBeGreaterThan(0)
-    expect(replaceSpan?.wordSpans?.every((span) => (span.oldText ?? span.newText ?? '').length <= 3)).toBe(true)
+    expect(
+      replaceSpan?.wordSpans?.every((span) => (span.oldText ?? span.newText ?? '').length <= 3),
+    ).toBe(true)
   })
 
   it('keeps exact-subtree matches at the maximal covered level only', async () => {
@@ -162,7 +166,8 @@ describe('diff integration', () => {
       ].join('\n'),
     )
     const topHeading = flatten(result.root).find(
-      (change) => change.kind === 'heading' && sectionTitle(change.oldNode) === 'Semantic Markdown Diff',
+      (change) =>
+        change.kind === 'heading' && sectionTitle(change.oldNode) === 'Semantic Markdown Diff',
     )
 
     expect(topHeading?.pairKind).toBe('match')
@@ -239,7 +244,9 @@ describe('diff integration', () => {
     expect(context?.pairKind).toBe('match')
     expect(context?.primaryOp).toBe('equal')
     expect(context?.status.renamed).toBe(true)
-    expect(headings.some((change) => change.primaryOp === 'insert' || change.primaryOp === 'delete')).toBe(false)
+    expect(
+      headings.some((change) => change.primaryOp === 'insert' || change.primaryOp === 'delete'),
+    ).toBe(false)
   })
 
   it('keeps a top-level heading rename while still leaving weak descendants unmatched', async () => {
@@ -280,7 +287,14 @@ describe('diff integration', () => {
 
     expect(topHeading?.pairKind).toBe('match')
     expect(topHeading?.status.renamed).toBe(true)
-    expect(flatten(result.root).some((change) => change.kind === 'heading' && sectionTitle(change.oldNode) === 'Shared Two' && change.primaryOp === 'delete')).toBe(true)
+    expect(
+      flatten(result.root).some(
+        (change) =>
+          change.kind === 'heading' &&
+          sectionTitle(change.oldNode) === 'Shared Two' &&
+          change.primaryOp === 'delete',
+      ),
+    ).toBe(true)
     expect(newOnlyHeading?.primaryOp).toBe('replace')
   })
 
@@ -380,10 +394,14 @@ describe('diff integration', () => {
     )
     const headings = flatten(result.root).filter((change) => change.kind === 'heading')
     const rendering = headings.find(
-      (change) => sectionTitle(change.oldNode) === 'Rendering' || sectionTitle(change.newNode) === 'Rendering',
+      (change) =>
+        sectionTitle(change.oldNode) === 'Rendering' ||
+        sectionTitle(change.newNode) === 'Rendering',
     )
     const matchingRules = headings.find(
-      (change) => sectionTitle(change.oldNode) === 'Matching Rules' || sectionTitle(change.newNode) === 'Matching Rules',
+      (change) =>
+        sectionTitle(change.oldNode) === 'Matching Rules' ||
+        sectionTitle(change.newNode) === 'Matching Rules',
     )
 
     expect(rendering?.pairKind).toBe('match')
@@ -395,14 +413,16 @@ describe('diff integration', () => {
     expect(
       headings.some(
         (change) =>
-          (sectionTitle(change.oldNode) === 'Rendering' || sectionTitle(change.newNode) === 'Rendering') &&
+          (sectionTitle(change.oldNode) === 'Rendering' ||
+            sectionTitle(change.newNode) === 'Rendering') &&
           (change.primaryOp === 'delete' || change.primaryOp === 'insert'),
       ),
     ).toBe(false)
     expect(
       headings.some(
         (change) =>
-          (sectionTitle(change.oldNode) === 'Matching Rules' || sectionTitle(change.newNode) === 'Matching Rules') &&
+          (sectionTitle(change.oldNode) === 'Matching Rules' ||
+            sectionTitle(change.newNode) === 'Matching Rules') &&
           (change.primaryOp === 'delete' || change.primaryOp === 'insert'),
       ),
     ).toBe(false)
@@ -439,7 +459,10 @@ content`
   })
 
   it('recovers footnote rename from identity match', async () => {
-    const result = await diffMarkdown('Text[^1]\n\n[^1]: same body', 'Text[^note]\n\n[^note]: same body')
+    const result = await diffMarkdown(
+      'Text[^1]\n\n[^1]: same body',
+      'Text[^note]\n\n[^note]: same body',
+    )
     const footnote = flatten(result.root).find((change) => change.kind === 'footnote')
 
     expect(footnote?.status.renamed).toBe(true)
@@ -483,7 +506,9 @@ content`
     const definitions = flatten(result.root).filter((change) => change.blockType === 'definition')
     const definition = definitions.find((change) => change.oldId && change.newId)
 
-    expect(definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert')).toBe(false)
+    expect(
+      definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert'),
+    ).toBe(false)
     expect(definition?.pairKind).toBe('match')
     expect(definition?.primaryOp).toBe('equal')
     expect(definition?.status.renamed).toBe(true)
@@ -498,7 +523,9 @@ content`
     const definitions = flatten(result.root).filter((change) => change.blockType === 'definition')
     const definition = definitions.find((change) => change.oldId && change.newId)
 
-    expect(definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert')).toBe(false)
+    expect(
+      definitions.some((change) => change.primaryOp === 'delete' || change.primaryOp === 'insert'),
+    ).toBe(false)
     expect(definition?.pairKind).toBe('match')
     expect(definition?.primaryOp).toBe('meta-update')
     expect(definition?.status.metaChanged).toBe(true)
@@ -518,8 +545,8 @@ content`
 
   it('treats fenced code language changes with stable title and content as a code metadata update', async () => {
     const result = await diffMarkdown(
-      '```js title=\"diff.config\"\nexport default {}\n```',
-      '```ts title=\"diff.config\"\nexport default {}\n```',
+      '```js title="diff.config"\nexport default {}\n```',
+      '```ts title="diff.config"\nexport default {}\n```',
     )
     const code = flatten(result.root).find((change) => change.blockType === 'code')
 
@@ -542,14 +569,23 @@ meta:
 ---`
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
     const frontmatter = flatten(result.root).find((change) => change.kind === 'frontmatter')
-    const metadataChildren = frontmatter?.children.filter((change) => change.entity === 'metadata') ?? []
+    const metadataChildren =
+      frontmatter?.children.filter((change) => change.entity === 'metadata') ?? []
 
     expect(frontmatter?.primaryOp).toBe('meta-update')
-    expect(frontmatter?.metadataChanges?.map((entry) => entry.path)).toEqual(['$.meta.b', '$.title'])
-    expect(metadataChildren.map((change) => change.metadataChanges?.[0]?.path)).toEqual(['$.meta.b', '$.title'])
+    expect(frontmatter?.metadataChanges?.map((entry) => entry.path)).toEqual([
+      '$.meta.b',
+      '$.title',
+    ])
+    expect(metadataChildren.map((change) => change.metadataChanges?.[0]?.path)).toEqual([
+      '$.meta.b',
+      '$.title',
+    ])
     expect(metadataChildren.every((change) => change.status.metaChanged)).toBe(true)
     expect(result.stats.metaUpdates).toBe(1)
-    expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual([])
+    expect(result.warnings.filter((warning) => warning.startsWith('invalid-meta-pair:'))).toEqual(
+      [],
+    )
   })
 
   it('captures nested frontmatter meta-updates without flagging unchanged nested fields', async () => {
@@ -597,7 +633,9 @@ limits:
       '$.status',
       '$.version',
     ])
-    expect(frontmatter?.metadataChanges?.some((entry) => entry.path === '$.limits.timeoutMs')).toBe(false)
+    expect(frontmatter?.metadataChanges?.some((entry) => entry.path === '$.limits.timeoutMs')).toBe(
+      false,
+    )
     expect(result.quality.warningCount).toBe(0)
   })
 
@@ -656,7 +694,9 @@ limits:
 | body |`
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
     const table = flatten(result.root).find((change) => change.blockType === 'table')
-    const headerCell = table?.tableDiff?.cellDiffs.find((cell) => cell.row === 0 && cell.column === 0)
+    const headerCell = table?.tableDiff?.cellDiffs.find(
+      (cell) => cell.row === 0 && cell.column === 0,
+    )
 
     expect(headerCell?.spans.some((span) => span.oldTokens?.[0]?.type === 'strong')).toBe(true)
     expect(headerCell?.spans.some((span) => span.newTokens?.[0]?.type === 'emphasis')).toBe(true)
@@ -669,7 +709,9 @@ limits:
     const code = flatten(result.root).find((change) => change.blockType === 'code')
 
     expect(code?.primaryOp).toBe('replace')
-    expect(code?.codeSpans?.some((span) => span.op === 'replace' && span.charSpans?.length)).toBe(true)
+    expect(code?.codeSpans?.some((span) => span.op === 'replace' && span.charSpans?.length)).toBe(
+      true,
+    )
   })
 
   it('marks deferred inline diffs without inventing inline structure changes', async () => {
@@ -709,16 +751,31 @@ limits:
 > new quote
 
 - second`
-    const withoutFallback = await diffMarkdown(oldMarkdown, newMarkdown, { enhancedLocalRecovery: false, minSimilarity: 0.55 })
+    const withoutFallback = await diffMarkdown(oldMarkdown, newMarkdown, {
+      enhancedLocalRecovery: false,
+      minSimilarity: 0.55,
+    })
     const withFallback = await diffMarkdown(oldMarkdown, newMarkdown, {
       enhancedLocalRecovery: true,
       minSimilarity: 0.55,
     })
-    const oldHeading = flatten(withoutFallback.root).find((change) => change.kind === 'heading' && change.oldId && change.newId)
-    const newHeading = flatten(withFallback.root).find((change) => change.kind === 'heading' && change.oldId && change.newId)
+    const oldHeading = flatten(withoutFallback.root).find(
+      (change) => change.kind === 'heading' && change.oldId && change.newId,
+    )
+    const newHeading = flatten(withFallback.root).find(
+      (change) => change.kind === 'heading' && change.oldId && change.newId,
+    )
 
-    expect(oldHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(true)
-    expect(newHeading?.children.some((child) => child.kind === 'blockquote' && child.primaryOp === 'replace')).toBe(true)
+    expect(
+      oldHeading?.children.some(
+        (child) => child.kind === 'blockquote' && child.primaryOp === 'replace',
+      ),
+    ).toBe(true)
+    expect(
+      newHeading?.children.some(
+        (child) => child.kind === 'blockquote' && child.primaryOp === 'replace',
+      ),
+    ).toBe(true)
   })
 
   it('tracks degraded aligned sections in quality summary', async () => {
@@ -761,8 +818,12 @@ limits:
     expect(
       [replacedParagraph, replacedLeafItem, deepMatchedItem].filter(Boolean).length,
     ).toBeGreaterThanOrEqual(1)
-    expect(flatten(result.root).some((change) => change.warnings.includes('local-window-exceeded'))).toBe(false)
-    expect(flatten(result.root).some((change) => change.warnings.includes('subtree-budget-exceeded'))).toBe(false)
+    expect(
+      flatten(result.root).some((change) => change.warnings.includes('local-window-exceeded')),
+    ).toBe(false)
+    expect(
+      flatten(result.root).some((change) => change.warnings.includes('subtree-budget-exceeded')),
+    ).toBe(false)
   })
 
   it('bounds local similarity recall to the anchored sibling interval', async () => {
@@ -788,7 +849,8 @@ limits:
       '# A\n\n## Stable\n\nkeep\n\n## Insert 1\n\na\n\n## Insert 2\n\nb\n\n## Insert 3\n\nc\n\n## Insert 4\n\nd\n\n## Insert 5\n\ne\n\n# B\n\n## Moved\n\ncontent',
     )
     const moveChanges = flatten(result.root).filter(
-      (change) => change.kind === 'heading' && sectionTitle(change.oldNode ?? change.newNode) === 'Moved',
+      (change) =>
+        change.kind === 'heading' && sectionTitle(change.oldNode ?? change.newNode) === 'Moved',
     )
 
     expect(moveChanges.map((change) => change.primaryOp).sort()).toEqual(['move', 'move'])
@@ -801,7 +863,8 @@ limits:
       '# Wrapper\n\n## Layer Two\n\n### Layer Three\n\n#### Notes\n\n##### Moved\n\ncontent\n\n# Other\n\nstable',
     )
     const moveChanges = flatten(result.root).filter(
-      (change) => change.kind === 'heading' && sectionTitle(change.oldNode ?? change.newNode) === 'Notes',
+      (change) =>
+        change.kind === 'heading' && sectionTitle(change.oldNode ?? change.newNode) === 'Notes',
     )
 
     expect(moveChanges.map((change) => change.primaryOp).sort()).toEqual(['move', 'move'])
@@ -812,39 +875,17 @@ limits:
 describe('hungarian gap matching integration', () => {
   it('matches gap nodes optimally across similar paragraphs', async () => {
     const result = await diffMarkdown(
-      [
-        '# Section',
-        '',
-        'alpha one',
-        '',
-        'beta two',
-        '',
-        'gamma three',
-      ].join('\n'),
-      [
-        '# Section',
-        '',
-        'alpha ONE',
-        '',
-        'gamma THREE',
-        '',
-        'beta TWO',
-      ].join('\n'),
+      ['# Section', '', 'alpha one', '', 'beta two', '', 'gamma three'].join('\n'),
+      ['# Section', '', 'alpha ONE', '', 'gamma THREE', '', 'beta TWO'].join('\n'),
     )
     const changes = flatten(result.root).filter(
       (change) => change.blockType === 'paragraph' && change.primaryOp === 'replace',
     )
 
     // Each old paragraph should pair with its matching new paragraph
-    const alphaChange = changes.find(
-      (change) => nodeText(change.oldNode).includes('alpha one'),
-    )
-    const betaChange = changes.find(
-      (change) => nodeText(change.oldNode).includes('beta two'),
-    )
-    const gammaChange = changes.find(
-      (change) => nodeText(change.oldNode).includes('gamma three'),
-    )
+    const alphaChange = changes.find((change) => nodeText(change.oldNode).includes('alpha one'))
+    const betaChange = changes.find((change) => nodeText(change.oldNode).includes('beta two'))
+    const gammaChange = changes.find((change) => nodeText(change.oldNode).includes('gamma three'))
 
     expect(alphaChange).toBeDefined()
     expect(nodeText(alphaChange!.newNode)).toContain('alpha')
@@ -856,24 +897,10 @@ describe('hungarian gap matching integration', () => {
 
   it('single candidate per node produces same result as greedy (regression)', async () => {
     const result = await diffMarkdown(
-      [
-        '# Section',
-        '',
-        'A unique paragraph here',
-        '',
-        '```js',
-        'const x = 1',
-        '```',
-      ].join('\n'),
-      [
-        '# Section',
-        '',
-        'A unique paragraph here modified',
-        '',
-        '```js',
-        'const x = 2',
-        '```',
-      ].join('\n'),
+      ['# Section', '', 'A unique paragraph here', '', '```js', 'const x = 1', '```'].join('\n'),
+      ['# Section', '', 'A unique paragraph here modified', '', '```js', 'const x = 2', '```'].join(
+        '\n',
+      ),
     )
     const paragraph = flatten(result.root).find(
       (change) => change.blockType === 'paragraph' && change.primaryOp === 'replace',
@@ -893,9 +920,7 @@ describe('hungarian gap matching integration', () => {
       '[foo]: https://example.com "Foo"',
       '[foo]: https://example.com/updated "Foo Updated"',
     )
-    const definition = flatten(result.root).find(
-      (change) => change.blockType === 'definition',
-    )
+    const definition = flatten(result.root).find((change) => change.blockType === 'definition')
 
     expect(definition?.oldId).toBeDefined()
     expect(definition?.newId).toBeDefined()
@@ -905,20 +930,8 @@ describe('hungarian gap matching integration', () => {
 
   it('preserves short heading fallback', async () => {
     const result = await diffMarkdown(
-      [
-        '# Parent',
-        '',
-        '## AB',
-        '',
-        'stable body content for matching',
-      ].join('\n'),
-      [
-        '# Parent',
-        '',
-        '## XY',
-        '',
-        'stable body content for matching',
-      ].join('\n'),
+      ['# Parent', '', '## AB', '', 'stable body content for matching'].join('\n'),
+      ['# Parent', '', '## XY', '', 'stable body content for matching'].join('\n'),
     )
     const heading = flatten(result.root).find(
       (change) => change.kind === 'heading' && sectionTitle(change.newNode) === 'XY',
@@ -942,13 +955,7 @@ describe('hungarian gap matching integration', () => {
         '',
         'The quick brown fox jumps over the lazy dog on a sunny day',
       ].join('\n'),
-      [
-        '# Section',
-        '',
-        'stable paragraph that stays the same',
-        '',
-        '!@#$%^&*()_+',
-      ].join('\n'),
+      ['# Section', '', 'stable paragraph that stays the same', '', '!@#$%^&*()_+'].join('\n'),
       { minSimilarity: 0.9 },
     )
     const changes = flatten(result.root)
@@ -963,10 +970,7 @@ describe('hungarian gap matching integration', () => {
   })
 
   it('handles empty gap gracefully', async () => {
-    const result = await diffMarkdown(
-      '# Title\n\nBody text here',
-      '# Title\n\nBody text here',
-    )
+    const result = await diffMarkdown('# Title\n\nBody text here', '# Title\n\nBody text here')
     const changes = flatten(result.root)
 
     // All nodes are equal — no aligns needed
@@ -978,24 +982,8 @@ describe('hungarian gap matching integration', () => {
 
   it('never cross-pairs different shapes in gap', async () => {
     const result = await diffMarkdown(
-      [
-        '# Section',
-        '',
-        'old paragraph text',
-        '',
-        '```',
-        'old code block',
-        '```',
-      ].join('\n'),
-      [
-        '# Section',
-        '',
-        'new paragraph text',
-        '',
-        '```',
-        'new code block',
-        '```',
-      ].join('\n'),
+      ['# Section', '', 'old paragraph text', '', '```', 'old code block', '```'].join('\n'),
+      ['# Section', '', 'new paragraph text', '', '```', 'new code block', '```'].join('\n'),
     )
     const changes = flatten(result.root)
     const paragraph = changes.find(

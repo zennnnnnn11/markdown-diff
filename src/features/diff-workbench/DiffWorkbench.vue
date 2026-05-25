@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+} from 'vue'
 
 import DiffChangeNav from './components/DiffChangeNav.vue'
 import DiffInputPanel from './components/DiffInputPanel.vue'
@@ -35,7 +43,9 @@ const activeFilter = computed(() => workbench.activeFilter.value)
 const detail = computed(() => workbench.detail.value)
 const peerHighlightKey = computed(() => workbench.peerHighlightKey.value)
 const peerSide = computed(() => workbench.peerSide.value)
-const debugVisible = computed(() => !!workbench.result.value && workbench.viewMode.value === 'debug')
+const debugVisible = computed(
+  () => !!workbench.result.value && workbench.viewMode.value === 'debug',
+)
 const debugSnapshot = computed(() => workbench.debugSnapshot.value)
 const inputCollapsed = computed(() => workbench.inputCollapsed.value)
 const currentChangeIndex = computed(() => workbench.currentChangeIndex.value)
@@ -50,11 +60,13 @@ const displayWarnings = computed(() => {
   const globalWarnings = workbench.result.value.warnings
   const idx = workbench.result.value.changeIndex
   const perChangeWarnings = idx
-    ? [...idx.byOldId.values(), ...idx.byNewId.values()]
-        .flatMap((c) => c.warnings)
-        .filter((w) => w)
+    ? [...idx.byOldId.values(), ...idx.byNewId.values()].flatMap((c) => c.warnings).filter((w) => w)
     : []
-  return [...new Set([...globalWarnings, ...perChangeWarnings].map((warning) => formatWarningLabel(warning)))]
+  return [
+    ...new Set(
+      [...globalWarnings, ...perChangeWarnings].map((warning) => formatWarningLabel(warning)),
+    ),
+  ]
 })
 const unifiedTableRef = ref<InstanceType<typeof UnifiedDiffTable> | null>(null)
 
@@ -64,9 +76,10 @@ watch(
     if (!nextKey || !nextSide) return
     await nextTick()
     if (workbench.viewMode.value === 'unified') {
-      const targetIndex = mergedRows.value.findIndex((row) =>
-        (nextSide === 'old' && row.oldLine?.changeKey === nextKey) ||
-        (nextSide === 'new' && row.newLine?.changeKey === nextKey),
+      const targetIndex = mergedRows.value.findIndex(
+        (row) =>
+          (nextSide === 'old' && row.oldLine?.changeKey === nextKey) ||
+          (nextSide === 'new' && row.newLine?.changeKey === nextKey),
       )
       if (targetIndex >= 0) {
         const exposed = unifiedTableRef.value as unknown as ScrollableExposed | null
@@ -136,7 +149,8 @@ function setHighlight(filter: HighlightFilter | null): void {
   if (filter) workbench.scrollToFirstMatch(filter)
 }
 
-function selectLine(changeKey?: string, _side?: 'old' | 'new'): void { // eslint-disable-line @typescript-eslint/no-unused-vars
+function selectLine(changeKey?: string, _side?: 'old' | 'new'): void {
+  // eslint-disable-line @typescript-eslint/no-unused-vars
   workbench.selectLine(changeKey)
 }
 
@@ -178,15 +192,65 @@ function onKeyDown(e: KeyboardEvent): void {
         >
           <transition name="icon-pop" mode="out-in">
             <!-- Moon Icon (shows in light mode) -->
-            <svg v-if="!isDarkMode" key="moon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            <svg
+              v-if="!isDarkMode"
+              key="moon"
+              xmlns="http://www.w3.org/2000/svg"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
             <!-- Sun Icon (shows in dark mode) -->
-            <svg v-else key="sun" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+            <svg
+              v-else
+              key="sun"
+              xmlns="http://www.w3.org/2000/svg"
+              width="15"
+              height="15"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
           </transition>
         </button>
 
         <div class="view-tabs" role="tablist" aria-label="视图切换">
-          <button type="button" class="secondary-button" :class="{ active: viewMode === 'unified' }" @click="setViewMode('unified')">左右对齐</button>
-          <button type="button" class="secondary-button" :class="{ active: viewMode === 'debug' }" @click="setViewMode('debug')">调试视图</button>
+          <button
+            type="button"
+            class="secondary-button"
+            :class="{ active: viewMode === 'unified' }"
+            @click="setViewMode('unified')"
+          >
+            左右对齐
+          </button>
+          <button
+            type="button"
+            class="secondary-button"
+            :class="{ active: viewMode === 'debug' }"
+            @click="setViewMode('debug')"
+          >
+            调试视图
+          </button>
         </div>
       </div>
     </header>
@@ -214,7 +278,9 @@ function onKeyDown(e: KeyboardEvent): void {
 
     <div v-if="isDiffStale" class="stale-banner">
       <span>内容已修改，结果可能不准确</span>
-      <button type="button" class="primary-button locate-button" @click="workbench.executeDiff">重新比对</button>
+      <button type="button" class="primary-button locate-button" @click="workbench.executeDiff">
+        重新比对
+      </button>
     </div>
 
     <details v-if="resultVisible && displayWarnings.length > 0" class="warnings-banner">
@@ -224,7 +290,9 @@ function onKeyDown(e: KeyboardEvent): void {
           type="button"
           class="secondary-button locate-button"
           @click.stop="workbench.scrollToFirstMatch('warning')"
-        >定位第一处</button>
+        >
+          定位第一处
+        </button>
       </summary>
       <ul class="warnings-list">
         <li v-for="(warning, index) in displayWarnings" :key="index">{{ warning }}</li>
@@ -248,11 +316,7 @@ function onKeyDown(e: KeyboardEvent): void {
       @select="selectLine"
     />
 
-    <DiffDetailModal
-      v-if="detail"
-      :detail="detail"
-      @close="workbench.closeDetail"
-    />
+    <DiffDetailModal v-if="detail" :detail="detail" @close="workbench.closeDetail" />
 
     <DiffDebugPanel
       v-if="debugVisible && debugSnapshot"

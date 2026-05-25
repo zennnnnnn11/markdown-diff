@@ -64,9 +64,10 @@ export async function seedLocalMatches(
     )
     if (comparables.length === 0) continue
 
-    const scores = comparables.map((newNode) =>
-      computeNodeSimilarity(oldNode, newNode, context.options, 1) +
-      DIFF_HEURISTICS.childMatch.bonusWeight * childMatchOverlap(context, oldNode.id, newNode.id),
+    const scores = comparables.map(
+      (newNode) =>
+        computeNodeSimilarity(oldNode, newNode, context.options, 1) +
+        DIFF_HEURISTICS.childMatch.bonusWeight * childMatchOverlap(context, oldNode.id, newNode.id),
     )
     const bestIndex = indexOfMaxScore(scores)
     const bestScore = scores[bestIndex] ?? 0
@@ -79,9 +80,11 @@ export async function seedLocalMatches(
     const reverseCandidates = unmatchedOldNodes.filter((candidate) =>
       isSameShape(candidate, bestNew),
     )
-    const reverseScores = reverseCandidates.map((candidate) =>
-      computeNodeSimilarity(candidate, bestNew, context.options, 1) +
-      DIFF_HEURISTICS.childMatch.bonusWeight * childMatchOverlap(context, candidate.id, bestNew.id),
+    const reverseScores = reverseCandidates.map(
+      (candidate) =>
+        computeNodeSimilarity(candidate, bestNew, context.options, 1) +
+        DIFF_HEURISTICS.childMatch.bonusWeight *
+          childMatchOverlap(context, candidate.id, bestNew.id),
     )
     if (uniquenessMargin(reverseScores) < context.options.minUniquenessMargin) continue
 

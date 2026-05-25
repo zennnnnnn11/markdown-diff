@@ -18,7 +18,10 @@ export type SequenceStrategy = 'auto' | 'myers' | 'heckel' | 'histogram'
 export function alignSequence<T>(
   oldValues: readonly T[],
   newValues: readonly T[],
-  options: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
+  options: Pick<
+    DiffOptions,
+    'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'
+  >,
   strategy: SequenceStrategy = 'auto',
 ): SequenceEdit<T>[] {
   if (strategy === 'myers') return myersShortestEditScript(oldValues, newValues)
@@ -71,14 +74,20 @@ export function longestIncreasingSubsequence(values: readonly number[]): number[
   return result.reverse()
 }
 
-export function longestCommonSubsequence<T>(oldValues: readonly T[], newValues: readonly T[]): SequenceMatch[] {
+export function longestCommonSubsequence<T>(
+  oldValues: readonly T[],
+  newValues: readonly T[],
+): SequenceMatch[] {
   return toMatches(myersShortestEditScript(oldValues, newValues))
 }
 
 const WASM_MIN_TOTAL_LENGTH = 30
 let wasmFailed = false
 
-function myersShortestEditScript<T>(oldValues: readonly T[], newValues: readonly T[]): SequenceEdit<T>[] {
+function myersShortestEditScript<T>(
+  oldValues: readonly T[],
+  newValues: readonly T[],
+): SequenceEdit<T>[] {
   if (!wasmFailed && oldValues.length + newValues.length >= WASM_MIN_TOTAL_LENGTH) {
     try {
       return myersDiffWasm(oldValues, newValues)
@@ -89,7 +98,10 @@ function myersShortestEditScript<T>(oldValues: readonly T[], newValues: readonly
   return myersShortestEditScriptJs(oldValues, newValues)
 }
 
-function myersShortestEditScriptJs<T>(oldValues: readonly T[], newValues: readonly T[]): SequenceEdit<T>[] {
+function myersShortestEditScriptJs<T>(
+  oldValues: readonly T[],
+  newValues: readonly T[],
+): SequenceEdit<T>[] {
   const maxDistance = oldValues.length + newValues.length
   const offset = maxDistance
   const vectorLength = maxDistance * 2 + 1
@@ -104,7 +116,9 @@ function myersShortestEditScriptJs<T>(oldValues: readonly T[], newValues: readon
 
       if (
         diagonal === -distance ||
-        (diagonal !== distance && (paths[vectorIndex - 1] ?? Number.NEGATIVE_INFINITY) < (paths[vectorIndex + 1] ?? Number.NEGATIVE_INFINITY))
+        (diagonal !== distance &&
+          (paths[vectorIndex - 1] ?? Number.NEGATIVE_INFINITY) <
+            (paths[vectorIndex + 1] ?? Number.NEGATIVE_INFINITY))
       ) {
         x = paths[vectorIndex + 1] ?? 0
       } else {
@@ -144,7 +158,8 @@ function backtrackMyers<T>(
     const chooseInsert =
       diagonal === -currentDistance ||
       (diagonal !== currentDistance &&
-        (snapshot[diagonal - 1 + offset] ?? Number.NEGATIVE_INFINITY) < (snapshot[diagonal + 1 + offset] ?? Number.NEGATIVE_INFINITY))
+        (snapshot[diagonal - 1 + offset] ?? Number.NEGATIVE_INFINITY) <
+          (snapshot[diagonal + 1 + offset] ?? Number.NEGATIVE_INFINITY))
 
     const previousDiagonal = chooseInsert ? diagonal + 1 : diagonal - 1
     const previousX = snapshot[previousDiagonal + offset] ?? 0
@@ -207,7 +222,12 @@ function heckelAlign<T>(oldValues: readonly T[], newValues: readonly T[]): Seque
   if (anchors.length === 0) return myersShortestEditScript(oldValues, newValues)
 
   const lis = longestIncreasingSubsequence(anchors.map((anchor) => anchor.newIndex))
-  return stitchFromAnchors(oldValues, newValues, lis.map((index) => anchors[index]!), 'myers')
+  return stitchFromAnchors(
+    oldValues,
+    newValues,
+    lis.map((index) => anchors[index]!),
+    'myers',
+  )
 }
 
 function histogramAlign<T>(oldValues: readonly T[], newValues: readonly T[]): SequenceEdit<T>[] {
@@ -246,7 +266,9 @@ function stitchSegment<T>(
   const newSlice = newValues.slice(newStart, newEnd)
   const pivot = bestHistogramAnchor(oldSlice, newSlice)
   if (!pivot) {
-    return myersShortestEditScript(oldSlice, newSlice).map((edit) => rebaseEdit(edit, oldStart, newStart))
+    return myersShortestEditScript(oldSlice, newSlice).map((edit) =>
+      rebaseEdit(edit, oldStart, newStart),
+    )
   }
 
   const rebasedPivot = {
@@ -255,7 +277,14 @@ function stitchSegment<T>(
   }
 
   return [
-    ...stitchSegment(oldValues, newValues, oldStart, rebasedPivot.oldIndex, newStart, rebasedPivot.newIndex),
+    ...stitchSegment(
+      oldValues,
+      newValues,
+      oldStart,
+      rebasedPivot.oldIndex,
+      newStart,
+      rebasedPivot.newIndex,
+    ),
     {
       op: 'equal',
       oldIndex: rebasedPivot.oldIndex,
@@ -273,7 +302,10 @@ function stitchSegment<T>(
   ]
 }
 
-function bestHistogramAnchor<T>(oldValues: readonly T[], newValues: readonly T[]): SequenceMatch | undefined {
+function bestHistogramAnchor<T>(
+  oldValues: readonly T[],
+  newValues: readonly T[],
+): SequenceMatch | undefined {
   const oldCounts = countOccurrences(oldValues)
   const newCounts = countOccurrences(newValues)
   let best: SequenceMatch | undefined
@@ -385,7 +417,11 @@ function toMatches<T>(edits: SequenceEdit<T>[]): SequenceMatch[] {
     .map((edit) => ({ oldIndex: edit.oldIndex, newIndex: edit.newIndex }))
 }
 
-function rebaseEdit<T>(edit: SequenceEdit<T>, oldOffset: number, newOffset: number): SequenceEdit<T> {
+function rebaseEdit<T>(
+  edit: SequenceEdit<T>,
+  oldOffset: number,
+  newOffset: number,
+): SequenceEdit<T> {
   return {
     ...edit,
     oldIndex: edit.oldIndex === undefined ? undefined : edit.oldIndex + oldOffset,

@@ -1,22 +1,16 @@
 import type { InlineContent } from '../../transformer'
 import { DIFF_HEURISTICS } from '../heuristics'
 import { forEachChange } from '../summary'
-import type {
-  DiffChange,
-  DiffChangeIndex,
-  DiffStatus,
-  MatchPair,
-  SemanticIndex,
-} from '../types'
-import {
-  extractNodeText,
-  getBlockIdentifier,
-  getSectionIdentifier,
-} from '../utils'
+import type { DiffChange, DiffChangeIndex, DiffStatus, MatchPair, SemanticIndex } from '../types'
+import { extractNodeText, getBlockIdentifier, getSectionIdentifier } from '../utils'
 import type { DiffContext, SiblingAnchorBounds } from './context'
 
 export { addMatch, convertChangeToMove, upgradeToMatch } from './context-ops'
-export { estimateSectionAlignmentCost, estimateAptedRecoveryCost, estimateInlineDiffCost } from './cost'
+export {
+  estimateSectionAlignmentCost,
+  estimateAptedRecoveryCost,
+  estimateInlineDiffCost,
+} from './cost'
 
 export function createStatus(overrides?: Partial<DiffStatus>): DiffStatus {
   return {
@@ -74,7 +68,10 @@ export function buildChangeIndex(root: DiffChange): DiffChangeIndex {
     if (change.pairKey && !byPairKey.has(change.pairKey)) byPairKey.set(change.pairKey, change)
     if (change.logicalMoveId) {
       let arr = byLogicalMoveId.get(change.logicalMoveId)
-      if (!arr) { arr = []; byLogicalMoveId.set(change.logicalMoveId, arr) }
+      if (!arr) {
+        arr = []
+        byLogicalMoveId.set(change.logicalMoveId, arr)
+      }
       arr.push(change)
     }
   })
@@ -125,11 +122,7 @@ export function indexOfMaxScore(scores: readonly number[]): number {
   return bestIndex
 }
 
-export function childMatchOverlap(
-  context: DiffContext,
-  oldId: string,
-  newId: string,
-): number {
+export function childMatchOverlap(context: DiffContext, oldId: string, newId: string): number {
   const oldChildren = context.oldIndex.childrenById.get(oldId) ?? []
   const newChildren = context.newIndex.childrenById.get(newId) ?? []
   if (oldChildren.length === 0 || newChildren.length === 0) return 0

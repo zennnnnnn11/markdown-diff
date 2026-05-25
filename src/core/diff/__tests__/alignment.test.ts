@@ -61,12 +61,14 @@ function makePair(oldId: string, newId: string, matchKind = 'exact-self' as cons
   }
 }
 
-function makeContext(overrides: Partial<DiffContext> & {
-  oldNodes?: Record<string, any>[]
-  newNodes?: Record<string, any>[]
-  oldChildren?: Map<string, string[]>
-  newChildren?: Map<string, string[]>
-} = {}): DiffContext {
+function makeContext(
+  overrides: Partial<DiffContext> & {
+    oldNodes?: Record<string, any>[]
+    newNodes?: Record<string, any>[]
+    oldChildren?: Map<string, string[]>
+    newChildren?: Map<string, string[]>
+  } = {},
+): DiffContext {
   const oldByIdEntries = (overrides.oldNodes ?? []).map((n) => {
     const node = makeMockNode(n)
     return [node.id, node] as const
@@ -187,7 +189,10 @@ describe('alignment module', () => {
       const pair1 = makePair('o1', 'n1')
       const pair2 = makePair('o2', 'n1')
       const context = makeContext({
-        matchesByOld: new Map([['o1', pair1], ['o2', pair2]]),
+        matchesByOld: new Map([
+          ['o1', pair1],
+          ['o2', pair2],
+        ]),
         matchesByNew: new Map([['n1', pair1]]),
       })
       const result = collectGapMatches(context, ['o1', 'o2'], ['n1'])
@@ -228,7 +233,9 @@ describe('alignment module', () => {
         oldNodes: [old, old2],
         newNodes: [nw],
       })
-      expect(definitionGapPairAllowed(context, old as any, nw as any, ['o1', 'o2'], ['n1'])).toBe(false)
+      expect(definitionGapPairAllowed(context, old as any, nw as any, ['o1', 'o2'], ['n1'])).toBe(
+        false,
+      )
     })
   })
 
@@ -243,7 +250,13 @@ describe('alignment module', () => {
       const n1 = makeMockNode({ id: 'o1', blockType: 'definition', block: { identifier: 'foo' } })
       const n2 = makeMockNode({ id: 'o2', blockType: 'definition', block: { identifier: 'foo' } })
       const n3 = makeMockNode({ id: 'o3', blockType: 'definition', block: { identifier: 'bar' } })
-      const index = { byId: new Map([['o1', n1], ['o2', n2], ['o3', n3]]) } as unknown as SemanticIndex
+      const index = {
+        byId: new Map([
+          ['o1', n1],
+          ['o2', n2],
+          ['o3', n3],
+        ]),
+      } as unknown as SemanticIndex
       expect(countDefinitionIdentifier(index, ['o1', 'o2', 'o3'], 'foo')).toBe(2)
     })
   })
@@ -295,8 +308,18 @@ describe('alignment module', () => {
     })
 
     it('returns true when headingBodyHash matches and all conditions met', () => {
-      const old = makeHeadingNode({ id: 'o1', siblingIndex: 0, parentId: 'p1', normalizedTitle: 'a' })
-      const nw = makeHeadingNode({ id: 'n1', siblingIndex: 0, parentId: 'p2', normalizedTitle: 'b' })
+      const old = makeHeadingNode({
+        id: 'o1',
+        siblingIndex: 0,
+        parentId: 'p1',
+        normalizedTitle: 'a',
+      })
+      const nw = makeHeadingNode({
+        id: 'n1',
+        siblingIndex: 0,
+        parentId: 'p2',
+        normalizedTitle: 'b',
+      })
       const parentPair = makePair('p1', 'p2')
       const context = makeContext({
         oldNodes: [old],
@@ -309,8 +332,22 @@ describe('alignment module', () => {
     })
 
     it('returns true when both have 0 logicalChildren', () => {
-      const old = makeHeadingNode({ id: 'o1', siblingIndex: 0, parentId: 'p1', normalizedTitle: 'a', logicalChildren: [], headingBodyHash: 'different-1' })
-      const nw = makeHeadingNode({ id: 'n1', siblingIndex: 0, parentId: 'p2', normalizedTitle: 'b', logicalChildren: [], headingBodyHash: 'different-2' })
+      const old = makeHeadingNode({
+        id: 'o1',
+        siblingIndex: 0,
+        parentId: 'p1',
+        normalizedTitle: 'a',
+        logicalChildren: [],
+        headingBodyHash: 'different-1',
+      })
+      const nw = makeHeadingNode({
+        id: 'n1',
+        siblingIndex: 0,
+        parentId: 'p2',
+        normalizedTitle: 'b',
+        logicalChildren: [],
+        headingBodyHash: 'different-2',
+      })
       const parentPair = makePair('p1', 'p2')
       const context = makeContext({
         oldNodes: [old],
@@ -332,8 +369,26 @@ describe('alignment module', () => {
         ],
       })
       const changes = [
-        { oldId: 'o1', newId: 'n1', status: makeStatus({ isMatchPair: true }), primaryOp: 'equal' as const, entity: 'block' as const, summary: '', children: [], warnings: [] },
-        { oldId: 'o2', newId: 'n2', status: makeStatus({ isMatchPair: true }), primaryOp: 'equal' as const, entity: 'block' as const, summary: '', children: [], warnings: [] },
+        {
+          oldId: 'o1',
+          newId: 'n1',
+          status: makeStatus({ isMatchPair: true }),
+          primaryOp: 'equal' as const,
+          entity: 'block' as const,
+          summary: '',
+          children: [],
+          warnings: [],
+        },
+        {
+          oldId: 'o2',
+          newId: 'n2',
+          status: makeStatus({ isMatchPair: true }),
+          primaryOp: 'equal' as const,
+          entity: 'block' as const,
+          summary: '',
+          children: [],
+          warnings: [],
+        },
       ]
       markReorderedChildren(context, changes as any)
       expect((changes[0] as any).reordered).toBeUndefined()
@@ -348,8 +403,26 @@ describe('alignment module', () => {
         ],
       })
       const changes = [
-        { oldId: 'o1', newId: 'n1', status: makeStatus({ isMatchPair: true }), primaryOp: 'equal' as const, entity: 'block' as const, summary: '', children: [], warnings: [] },
-        { oldId: 'o2', newId: 'n2', status: makeStatus({ isMatchPair: true }), primaryOp: 'equal' as const, entity: 'block' as const, summary: '', children: [], warnings: [] },
+        {
+          oldId: 'o1',
+          newId: 'n1',
+          status: makeStatus({ isMatchPair: true }),
+          primaryOp: 'equal' as const,
+          entity: 'block' as const,
+          summary: '',
+          children: [],
+          warnings: [],
+        },
+        {
+          oldId: 'o2',
+          newId: 'n2',
+          status: makeStatus({ isMatchPair: true }),
+          primaryOp: 'equal' as const,
+          entity: 'block' as const,
+          summary: '',
+          children: [],
+          warnings: [],
+        },
       ]
       markReorderedChildren(context, changes as any)
       const reordered = changes.filter((c: any) => c.reordered)
@@ -367,8 +440,24 @@ describe('alignment module', () => {
     it('ignores unpaired changes', () => {
       const context = makeContext({})
       const changes = [
-        { primaryOp: 'delete' as const, oldId: 'o1', status: makeStatus({ selfChanged: true }), entity: 'block' as const, summary: '', children: [], warnings: [] },
-        { primaryOp: 'insert' as const, newId: 'n1', status: makeStatus({ selfChanged: true }), entity: 'block' as const, summary: '', children: [], warnings: [] },
+        {
+          primaryOp: 'delete' as const,
+          oldId: 'o1',
+          status: makeStatus({ selfChanged: true }),
+          entity: 'block' as const,
+          summary: '',
+          children: [],
+          warnings: [],
+        },
+        {
+          primaryOp: 'insert' as const,
+          newId: 'n1',
+          status: makeStatus({ selfChanged: true }),
+          entity: 'block' as const,
+          summary: '',
+          children: [],
+          warnings: [],
+        },
       ]
       markReorderedChildren(context, changes as any)
       expect((changes[0] as any).reordered).toBeUndefined()
@@ -378,7 +467,9 @@ describe('alignment module', () => {
   describe('buildDeleteChange', () => {
     it('creates delete change with correct entity and blockType', () => {
       const context = makeContext({
-        oldNodes: [{ id: 'o1', entity: 'block', blockType: 'paragraph', raw: { type: 'paragraph' } }],
+        oldNodes: [
+          { id: 'o1', entity: 'block', blockType: 'paragraph', raw: { type: 'paragraph' } },
+        ],
       })
       const change = buildDeleteChange(context, 'o1')
       expect(change.primaryOp).toBe('delete')
@@ -490,12 +581,22 @@ describe('alignment module', () => {
 
     it('pairs single old and new nodes when they pass similarity threshold', async () => {
       const old = makeMockNode({
-        id: 'o1', entity: 'block', blockType: 'paragraph', siblingIndex: 0,
-        selfHash: 'same', textTokens: ['hello', 'world'], structuredTokens: ['hello', 'world'],
+        id: 'o1',
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: 0,
+        selfHash: 'same',
+        textTokens: ['hello', 'world'],
+        structuredTokens: ['hello', 'world'],
       })
       const nw = makeMockNode({
-        id: 'n1', entity: 'block', blockType: 'paragraph', siblingIndex: 0,
-        selfHash: 'same', textTokens: ['hello', 'world'], structuredTokens: ['hello', 'world'],
+        id: 'n1',
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: 0,
+        selfHash: 'same',
+        textTokens: ['hello', 'world'],
+        structuredTokens: ['hello', 'world'],
       })
       const context = makeContext({
         oldNodes: [old],
@@ -517,7 +618,11 @@ describe('alignment module', () => {
   })
 
   describe('buildAlignedChange', () => {
-    function makeAligned(oldId: string, newId: string, overrides: Partial<AlignedPair> = {}): AlignedPair {
+    function makeAligned(
+      oldId: string,
+      newId: string,
+      overrides: Partial<AlignedPair> = {},
+    ): AlignedPair {
       return {
         oldId,
         newId,
@@ -561,17 +666,24 @@ describe('alignment module', () => {
     it('sets primaryOp to equal for identical section in local mode', async () => {
       const hash = 'same'
       const old = makeMockNode({
-        id: 'o1', entity: 'section', kind: 'heading',
-        selfHash: hash, subtreeHash: hash,
+        id: 'o1',
+        entity: 'section',
+        kind: 'heading',
+        selfHash: hash,
+        subtreeHash: hash,
         section: { kind: 'heading', headingDepth: 1 },
       })
       const nw = makeMockNode({
-        id: 'n1', entity: 'section', kind: 'heading',
-        selfHash: hash, subtreeHash: hash,
+        id: 'n1',
+        entity: 'section',
+        kind: 'heading',
+        selfHash: hash,
+        subtreeHash: hash,
         section: { kind: 'heading', headingDepth: 1 },
       })
       const context = makeContext({
-        oldNodes: [old], newNodes: [nw],
+        oldNodes: [old],
+        newNodes: [nw],
         oldChildren: new Map([['o1', []]]),
         newChildren: new Map([['n1', []]]),
       })

@@ -52,7 +52,10 @@ const overlapCases = buildOverlapCases()
 describe('aligned diff view matrix', () => {
   it.each(pairedCases)('$name', (testCase) => {
     const fixture = buildPairedFixture(testCase)
-    const rows = buildMergedRows(buildOldProjectionLines(fixture.oldMarkdown, fixture.result), buildProjectionLines(fixture.newMarkdown, fixture.result))
+    const rows = buildMergedRows(
+      buildOldProjectionLines(fixture.oldMarkdown, fixture.result),
+      buildProjectionLines(fixture.newMarkdown, fixture.result),
+    )
     const expectedTone = toneForScenario(testCase.scenario)
     const changedRows = rows.filter(
       (row) => row.oldLine?.baseTone === expectedTone || row.newLine?.baseTone === expectedTone,
@@ -63,13 +66,20 @@ describe('aligned diff view matrix', () => {
     expect(changedRows[0]?.oldLine?.text).toBe(fixture.oldChangedLines[0])
     expect(changedRows[0]?.newLine?.text).toBe(fixture.newChangedLines[0])
     expect(changedRows.some((row) => row.oldLine && row.newLine)).toBe(true)
-    expect(changedRows.every((row) => row.oldLine?.baseTone === expectedTone || !row.oldLine)).toBe(true)
-    expect(changedRows.every((row) => row.newLine?.baseTone === expectedTone || !row.newLine)).toBe(true)
+    expect(changedRows.every((row) => row.oldLine?.baseTone === expectedTone || !row.oldLine)).toBe(
+      true,
+    )
+    expect(changedRows.every((row) => row.newLine?.baseTone === expectedTone || !row.newLine)).toBe(
+      true,
+    )
   })
 
   it.each(deleteCases)('$name', (testCase) => {
     const fixture = buildOneSidedFixture(testCase)
-    const rows = buildMergedRows(buildOldProjectionLines(fixture.oldMarkdown, fixture.result), buildProjectionLines(fixture.newMarkdown, fixture.result))
+    const rows = buildMergedRows(
+      buildOldProjectionLines(fixture.oldMarkdown, fixture.result),
+      buildProjectionLines(fixture.newMarkdown, fixture.result),
+    )
     const removedRows = rows.filter((row) => row.oldLine?.text.startsWith('removed-'))
 
     expectValidRows(rows)
@@ -80,7 +90,10 @@ describe('aligned diff view matrix', () => {
 
   it.each(insertCases)('$name', (testCase) => {
     const fixture = buildOneSidedFixture(testCase)
-    const rows = buildMergedRows(buildOldProjectionLines(fixture.oldMarkdown, fixture.result), buildProjectionLines(fixture.newMarkdown, fixture.result))
+    const rows = buildMergedRows(
+      buildOldProjectionLines(fixture.oldMarkdown, fixture.result),
+      buildProjectionLines(fixture.newMarkdown, fixture.result),
+    )
     const insertedRows = rows.filter((row) => row.newLine?.text.startsWith('inserted-'))
 
     expectValidRows(rows)
@@ -91,17 +104,28 @@ describe('aligned diff view matrix', () => {
 
   it.each(moveCases)('$name', (testCase) => {
     const fixture = buildMoveFixture(testCase)
-    const rows = buildMergedRows(buildOldProjectionLines(fixture.oldMarkdown, fixture.result), buildProjectionLines(fixture.newMarkdown, fixture.result))
+    const rows = buildMergedRows(
+      buildOldProjectionLines(fixture.oldMarkdown, fixture.result),
+      buildProjectionLines(fixture.newMarkdown, fixture.result),
+    )
     const movedOutRows = rows.filter((row) => row.oldLine?.text.startsWith('moved-'))
     const movedInRows = rows.filter((row) => row.newLine?.text.startsWith('moved-'))
 
     expectValidRows(rows)
     expect(movedOutRows).toHaveLength(testCase.length)
     expect(movedInRows).toHaveLength(testCase.length)
-    expect(movedOutRows.every((row) => row.oldLine?.baseTone === 'move' && row.newLine === null)).toBe(true)
-    expect(movedInRows.every((row) => row.newLine?.baseTone === 'move' && row.oldLine === null)).toBe(true)
+    expect(
+      movedOutRows.every((row) => row.oldLine?.baseTone === 'move' && row.newLine === null),
+    ).toBe(true)
+    expect(
+      movedInRows.every((row) => row.newLine?.baseTone === 'move' && row.oldLine === null),
+    ).toBe(true)
     expect(movedOutRows[0]?.oldLine?.alignmentKey).toBe(movedInRows[0]?.newLine?.alignmentKey)
-    expect(rows.some((row) => row.oldLine?.text === row.newLine?.text && row.oldLine?.text.startsWith('stable-'))).toBe(true)
+    expect(
+      rows.some(
+        (row) => row.oldLine?.text === row.newLine?.text && row.oldLine?.text.startsWith('stable-'),
+      ),
+    ).toBe(true)
 
     const outRowIndex = rows.indexOf(movedOutRows[0]!)
     const inRowIndex = rows.indexOf(movedInRows[0]!)
@@ -120,10 +144,18 @@ describe('aligned diff view matrix', () => {
 
     expect(line?.baseTone).toBe(testCase.tone)
     expect(line?.lineMatches).toHaveLength(testCase.overlapCount)
-    expect(line?.annotations.some((annotation) => annotation.label === toneLabel(testCase.tone))).toBe(true)
-    expect(line?.annotations.some((annotation) => annotation.kind === 'overlap')).toBe(testCase.overlapCount > 1)
+    expect(
+      line?.annotations.some((annotation) => annotation.label === toneLabel(testCase.tone)),
+    ).toBe(true)
+    expect(line?.annotations.some((annotation) => annotation.kind === 'overlap')).toBe(
+      testCase.overlapCount > 1,
+    )
     if (testCase.warning) {
-      expect(line?.annotations.some((annotation) => annotation.label === formatWarningLabel(testCase.warning!))).toBe(true)
+      expect(
+        line?.annotations.some(
+          (annotation) => annotation.label === formatWarningLabel(testCase.warning!),
+        ),
+      ).toBe(true)
     }
   })
 })
@@ -171,9 +203,8 @@ function buildMoveCases(): MoveCase[] {
   for (let length = 1; length <= 4; length += 1) {
     for (let oldInsertIndex = 0; oldInsertIndex < 5; oldInsertIndex += 1) {
       for (let rawNewInsertIndex = 0; rawNewInsertIndex < 5; rawNewInsertIndex += 1) {
-        const newInsertIndex = rawNewInsertIndex === oldInsertIndex
-          ? (rawNewInsertIndex + 1) % 5
-          : rawNewInsertIndex
+        const newInsertIndex =
+          rawNewInsertIndex === oldInsertIndex ? (rawNewInsertIndex + 1) % 5 : rawNewInsertIndex
         cases.push({
           name: `moves length:${length} oldAt:${oldInsertIndex} newAt:${newInsertIndex} raw:${rawNewInsertIndex}`,
           length,
@@ -225,7 +256,15 @@ function buildPairedFixture(testCase: PairCase) {
 
   const oldSuffixStart = prefixLines.length + oldChangedLines.length + 1
   const newSuffixStart = prefixLines.length + newChangedLines.length + 1
-  addEqualLineChanges(changes, oldRanges, newRanges, suffixLines, oldSuffixStart, newSuffixStart, 'suffix')
+  addEqualLineChanges(
+    changes,
+    oldRanges,
+    newRanges,
+    suffixLines,
+    oldSuffixStart,
+    newSuffixStart,
+    'suffix',
+  )
 
   return {
     oldMarkdown: oldLines.join('\n'),
@@ -240,12 +279,14 @@ function buildOneSidedFixture(testCase: OneSidedCase) {
   const prefixLines = makeLines('stable-prefix', testCase.prefixLength)
   const suffixLines = makeLines('stable-suffix', testCase.suffixLength)
   const changedLines = makeLines(testCase.side === 'old' ? 'removed' : 'inserted', testCase.length)
-  const oldLines = testCase.side === 'old'
-    ? [...prefixLines, ...changedLines, ...suffixLines]
-    : [...prefixLines, ...suffixLines]
-  const newLines = testCase.side === 'new'
-    ? [...prefixLines, ...changedLines, ...suffixLines]
-    : [...prefixLines, ...suffixLines]
+  const oldLines =
+    testCase.side === 'old'
+      ? [...prefixLines, ...changedLines, ...suffixLines]
+      : [...prefixLines, ...suffixLines]
+  const newLines =
+    testCase.side === 'new'
+      ? [...prefixLines, ...changedLines, ...suffixLines]
+      : [...prefixLines, ...suffixLines]
   const oldRanges = new Map<string, SourceRange>()
   const newRanges = new Map<string, SourceRange>()
   const changes: DiffChange[] = []
@@ -253,25 +294,39 @@ function buildOneSidedFixture(testCase: OneSidedCase) {
   addEqualLineChanges(changes, oldRanges, newRanges, prefixLines, 1, 1, 'prefix')
   if (testCase.side === 'old') {
     oldRanges.set('old-side-only', makeRange(prefixLines.length + 1, testCase.length))
-    changes.push(makeChange({
-      primaryOp: 'delete',
-      oldId: 'old-side-only',
-      summary: 'deleted side-only block',
-      status: makeStatus({ selfChanged: true }),
-    }))
+    changes.push(
+      makeChange({
+        primaryOp: 'delete',
+        oldId: 'old-side-only',
+        summary: 'deleted side-only block',
+        status: makeStatus({ selfChanged: true }),
+      }),
+    )
   } else {
     newRanges.set('new-side-only', makeRange(prefixLines.length + 1, testCase.length))
-    changes.push(makeChange({
-      primaryOp: 'insert',
-      newId: 'new-side-only',
-      summary: 'inserted side-only block',
-      status: makeStatus({ selfChanged: true }),
-    }))
+    changes.push(
+      makeChange({
+        primaryOp: 'insert',
+        newId: 'new-side-only',
+        summary: 'inserted side-only block',
+        status: makeStatus({ selfChanged: true }),
+      }),
+    )
   }
 
-  const oldSuffixStart = prefixLines.length + (testCase.side === 'old' ? changedLines.length : 0) + 1
-  const newSuffixStart = prefixLines.length + (testCase.side === 'new' ? changedLines.length : 0) + 1
-  addEqualLineChanges(changes, oldRanges, newRanges, suffixLines, oldSuffixStart, newSuffixStart, 'suffix')
+  const oldSuffixStart =
+    prefixLines.length + (testCase.side === 'old' ? changedLines.length : 0) + 1
+  const newSuffixStart =
+    prefixLines.length + (testCase.side === 'new' ? changedLines.length : 0) + 1
+  addEqualLineChanges(
+    changes,
+    oldRanges,
+    newRanges,
+    suffixLines,
+    oldSuffixStart,
+    newSuffixStart,
+    'suffix',
+  )
 
   return {
     oldMarkdown: oldLines.join('\n'),
@@ -292,34 +347,46 @@ function buildMoveFixture(testCase: MoveCase) {
   for (const stableLine of stableLines) {
     const oldLineNumber = oldLines.indexOf(stableLine) + 1
     const newLineNumber = newLines.indexOf(stableLine) + 1
-    addEqualLineChanges(changes, oldRanges, newRanges, [stableLine], oldLineNumber, newLineNumber, stableLine)
+    addEqualLineChanges(
+      changes,
+      oldRanges,
+      newRanges,
+      [stableLine],
+      oldLineNumber,
+      newLineNumber,
+      stableLine,
+    )
   }
 
   const logicalMoveId = `move:${testCase.length}:${testCase.oldInsertIndex}:${testCase.newInsertIndex}`
   oldRanges.set('old-move', makeRange(testCase.oldInsertIndex + 1, testCase.length))
   newRanges.set('new-move', makeRange(testCase.newInsertIndex + 1, testCase.length))
-  changes.push(makeChange({
-    primaryOp: 'move',
-    oldId: 'old-move',
-    pairKey: 'pair:move',
-    pairKind: 'match',
-    logicalMoveId,
-    movePeerKey: logicalMoveId,
-    moveRole: 'source',
-    summary: 'move source',
-    status: makeStatus({ isMatchPair: true, moved: true }),
-  }))
-  changes.push(makeChange({
-    primaryOp: 'move',
-    newId: 'new-move',
-    pairKey: 'pair:move',
-    pairKind: 'match',
-    logicalMoveId,
-    movePeerKey: logicalMoveId,
-    moveRole: 'target',
-    summary: 'move target',
-    status: makeStatus({ isMatchPair: true, moved: true }),
-  }))
+  changes.push(
+    makeChange({
+      primaryOp: 'move',
+      oldId: 'old-move',
+      pairKey: 'pair:move',
+      pairKind: 'match',
+      logicalMoveId,
+      movePeerKey: logicalMoveId,
+      moveRole: 'source',
+      summary: 'move source',
+      status: makeStatus({ isMatchPair: true, moved: true }),
+    }),
+  )
+  changes.push(
+    makeChange({
+      primaryOp: 'move',
+      newId: 'new-move',
+      pairKey: 'pair:move',
+      pairKind: 'match',
+      logicalMoveId,
+      movePeerKey: logicalMoveId,
+      moveRole: 'target',
+      summary: 'move target',
+      status: makeStatus({ isMatchPair: true, moved: true }),
+    }),
+  )
 
   return {
     oldMarkdown: oldLines.join('\n'),
@@ -468,19 +535,23 @@ function addEqualLineChanges(
     const newId = `new-${idPrefix}-${index}-${newStart}`
     oldRanges.set(oldId, makeRange(oldStart + index, 1))
     newRanges.set(newId, makeRange(newStart + index, 1))
-    changes.push(makeChange({
-      primaryOp: 'equal',
-      oldId,
-      newId,
-      pairKey: `pair:${idPrefix}:${index}:${oldStart}:${newStart}`,
-      pairKind: 'match',
-      summary: `equal ${idPrefix} ${index}`,
-      status: makeStatus({ isMatchPair: true }),
-    }))
+    changes.push(
+      makeChange({
+        primaryOp: 'equal',
+        oldId,
+        newId,
+        pairKey: `pair:${idPrefix}:${index}:${oldStart}:${newStart}`,
+        pairKind: 'match',
+        summary: `equal ${idPrefix} ${index}`,
+        status: makeStatus({ isMatchPair: true }),
+      }),
+    )
   })
 }
 
-function makeChange(change: Partial<DiffChange> & Pick<DiffChange, 'primaryOp' | 'summary' | 'status'>): DiffChange {
+function makeChange(
+  change: Partial<DiffChange> & Pick<DiffChange, 'primaryOp' | 'summary' | 'status'>,
+): DiffChange {
   return {
     entity: 'block',
     blockType: 'paragraph',
@@ -506,8 +577,21 @@ function makeResult(
     oldIndex: makeIndex(oldRanges, 'old'),
     newIndex: makeIndex(newRanges, 'new'),
     matches: [],
-    changeIndex: { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map(), byLogicalMoveId: new Map() },
-    stats: { inserts: 0, deletes: 0, replaces: 0, moves: 0, metaUpdates: 0, renames: 0, reorders: 0 },
+    changeIndex: {
+      byOldId: new Map(),
+      byNewId: new Map(),
+      byPairKey: new Map(),
+      byLogicalMoveId: new Map(),
+    },
+    stats: {
+      inserts: 0,
+      deletes: 0,
+      replaces: 0,
+      moves: 0,
+      metaUpdates: 0,
+      renames: 0,
+      reorders: 0,
+    },
     quality: { degradedCount: 0, inlineDeferredCount: 0, warningCount: 0 },
     warnings: [],
   }

@@ -39,7 +39,10 @@ export function buildMergedRows(
       for (let i = 0; i < oldBlocks.length; i++) {
         if (consumedOld.has(i) || oldBlocks[i]!.mode !== 'plain') continue
         const score = plainBlockSimilarity(oldBlocks[i]!, newBlock)
-        if (score > bestScore) { bestScore = score; bestIndex = i }
+        if (score > bestScore) {
+          bestScore = score
+          bestIndex = i
+        }
       }
       if (bestIndex >= 0) {
         consumedOld.add(bestIndex)
@@ -56,13 +59,17 @@ export function buildMergedRows(
     mergedBlocks.splice(insertionIndex, 0, { oldBlock })
   }
 
-  const rawRows = mergedBlocks.flatMap(({ oldBlock, newBlock }) => alignBlockRows(oldBlock, newBlock))
+  const rawRows = mergedBlocks.flatMap(({ oldBlock, newBlock }) =>
+    alignBlockRows(oldBlock, newBlock),
+  )
   resolveMovePeerRowIndices(rawRows)
-  return rawRows.map((row): MergedRow => ({
-    key: `${row.oldLine?.key ?? '_'}|${row.newLine?.key ?? '_'}`,
-    oldLine: row.oldLine,
-    newLine: row.newLine,
-  }))
+  return rawRows.map(
+    (row): MergedRow => ({
+      key: `${row.oldLine?.key ?? '_'}|${row.newLine?.key ?? '_'}`,
+      oldLine: row.oldLine,
+      newLine: row.newLine,
+    }),
+  )
 }
 
 export function tokenizeForSimilarity(text: string): string[] {
@@ -73,10 +80,16 @@ function resolveMovePeerRowIndices(rows: RawRow[]): void {
   const byAlignmentKey = new Map<string, { oldIndices: number[]; newIndices: number[] }>()
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!
-    for (const [line, side] of [[row.oldLine, 'old'], [row.newLine, 'new']] as const) {
+    for (const [line, side] of [
+      [row.oldLine, 'old'],
+      [row.newLine, 'new'],
+    ] as const) {
       if (!line?.alignmentKey || line.baseTone !== 'move') continue
       let entry = byAlignmentKey.get(line.alignmentKey)
-      if (!entry) { entry = { oldIndices: [], newIndices: [] }; byAlignmentKey.set(line.alignmentKey, entry) }
+      if (!entry) {
+        entry = { oldIndices: [], newIndices: [] }
+        byAlignmentKey.set(line.alignmentKey, entry)
+      }
       if (side === 'old') entry.oldIndices.push(i)
       else entry.newIndices.push(i)
     }
@@ -94,10 +107,7 @@ function resolveMovePeerRowIndices(rows: RawRow[]): void {
   }
 }
 
-function buildProjectionBlocks(
-  lines: ProjectionLine[],
-  side: 'old' | 'new',
-): ProjectionBlock[] {
+function buildProjectionBlocks(lines: ProjectionLine[], side: 'old' | 'new'): ProjectionBlock[] {
   const blocks: ProjectionBlock[] = []
 
   for (const line of lines) {
@@ -128,17 +138,28 @@ function buildProjectionBlocks(
 function blockAnchorKey(line: ProjectionLine): string | undefined {
   if (!line.alignmentKey || line.alignmentKey === 'match:root:root') return undefined
   if (line.baseTone === 'move' || line.baseTone === 'reorder') return undefined
-  if (line.baseTone === 'plain' && !line.pairKind && !line.hasDescendantChange && line.warnings.length === 0) {
+  if (
+    line.baseTone === 'plain' &&
+    !line.pairKind &&
+    !line.hasDescendantChange &&
+    line.warnings.length === 0
+  ) {
     return undefined
   }
   return line.alignmentKey
 }
 
 function blockMode(line: ProjectionLine, side: 'old' | 'new'): ProjectionBlock['mode'] {
-  if (side === 'old' && (line.baseTone === 'delete' || line.baseTone === 'move' || line.baseTone === 'reorder')) {
+  if (
+    side === 'old' &&
+    (line.baseTone === 'delete' || line.baseTone === 'move' || line.baseTone === 'reorder')
+  ) {
     return 'old-only'
   }
-  if (side === 'new' && (line.baseTone === 'insert' || line.baseTone === 'move' || line.baseTone === 'reorder')) {
+  if (
+    side === 'new' &&
+    (line.baseTone === 'insert' || line.baseTone === 'move' || line.baseTone === 'reorder')
+  ) {
     return 'new-only'
   }
   if (blockAnchorKey(line)) return 'pair'
@@ -153,17 +174,17 @@ function findInsertionIndexForOldBlock(
   for (let index = oldIndex + 1; index < oldBlocks.length; index++) {
     const nextAnchorKey = oldBlocks[index]?.anchorKey
     if (!nextAnchorKey) continue
-    const mergedIndex = mergedBlocks.findIndex((entry) => entry.oldBlock?.anchorKey === nextAnchorKey)
+    const mergedIndex = mergedBlocks.findIndex(
+      (entry) => entry.oldBlock?.anchorKey === nextAnchorKey,
+    )
     if (mergedIndex >= 0) return mergedIndex
   }
   return mergedBlocks.length
 }
 
-function alignBlockRows(
-  oldBlock?: ProjectionBlock,
-  newBlock?: ProjectionBlock,
-): RawRow[] {
-  if (!oldBlock) return newBlock?.lines.map((line): RawRow => ({ oldLine: null, newLine: line })) ?? []
+function alignBlockRows(oldBlock?: ProjectionBlock, newBlock?: ProjectionBlock): RawRow[] {
+  if (!oldBlock)
+    return newBlock?.lines.map((line): RawRow => ({ oldLine: null, newLine: line })) ?? []
   if (!newBlock) return oldBlock.lines.map((line): RawRow => ({ oldLine: line, newLine: null }))
 
   const oldLines = oldBlock.lines
@@ -195,7 +216,10 @@ function alignBlockRows(
       merged.push({ oldLine: null, newLine: newLines[newIdx] ?? null })
       newIdx += 1
     }
-    merged.push({ oldLine: oldLines[matchedOldIndex] ?? null, newLine: newLines[matchedNewIndex] ?? null })
+    merged.push({
+      oldLine: oldLines[matchedOldIndex] ?? null,
+      newLine: newLines[matchedNewIndex] ?? null,
+    })
     oldIdx = matchedOldIndex + 1
     newIdx = matchedNewIndex + 1
   }
@@ -241,7 +265,10 @@ function computeLineMatches(
     const sigMap = new Map<string, number[]>()
     signaturesOld.forEach((sig, i) => {
       let arr = sigMap.get(sig)
-      if (!arr) { arr = []; sigMap.set(sig, arr) }
+      if (!arr) {
+        arr = []
+        sigMap.set(sig, arr)
+      }
       arr.push(i)
     })
     const matches: Array<[number, number]> = []
@@ -250,7 +277,10 @@ function computeLineMatches(
       const candidates = sigMap.get(signaturesNew[j]!)
       if (!candidates) continue
       const idx = candidates.find((i) => !usedOld.has(i))
-      if (idx !== undefined) { usedOld.add(idx); matches.push([idx, j]) }
+      if (idx !== undefined) {
+        usedOld.add(idx)
+        matches.push([idx, j])
+      }
     }
     matches.sort((a, b) => a[0] - b[0])
     return removeNewIndexCrossings(matches)
@@ -333,9 +363,7 @@ function computeLineMatches(
   return matches
 }
 
-export function removeNewIndexCrossings(
-  sorted: Array<[number, number]>,
-): Array<[number, number]> {
+export function removeNewIndexCrossings(sorted: Array<[number, number]>): Array<[number, number]> {
   const result: Array<[number, number]> = []
   let maxNewIndex = -1
   for (const match of sorted) {
@@ -349,7 +377,11 @@ export function removeNewIndexCrossings(
 
 function plainBlockSimilarity(a: ProjectionBlock, b: ProjectionBlock): number {
   const normalize = (block: ProjectionBlock) =>
-    block.lines.map((l) => l.text).join(' ').trim().replace(/\s+/g, ' ')
+    block.lines
+      .map((l) => l.text)
+      .join(' ')
+      .trim()
+      .replace(/\s+/g, ' ')
   const textA = normalize(a)
   const textB = normalize(b)
   if (textA === '' && textB === '') return 1
@@ -380,9 +412,8 @@ function charLevenshtein(a: string, b: string): number {
   for (let i = 1; i <= sa.length; i++) {
     curr[0] = i
     for (let j = 1; j <= sb.length; j++) {
-      curr[j] = sa[i - 1] === sb[j - 1]
-        ? prev[j - 1]!
-        : Math.min(prev[j - 1]!, prev[j]!, curr[j - 1]!) + 1
+      curr[j] =
+        sa[i - 1] === sb[j - 1] ? prev[j - 1]! : Math.min(prev[j - 1]!, prev[j]!, curr[j - 1]!) + 1
     }
     ;[prev, curr] = [curr, prev]
   }

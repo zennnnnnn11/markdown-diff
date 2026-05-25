@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  addMatch,
-  convertChangeToMove,
-  upgradeToMatch,
-} from '../engine/context-ops'
+import { addMatch, convertChangeToMove, upgradeToMatch } from '../engine/context-ops'
 import { makeChange, makeStatus } from './test-helpers'
 import type { DiffContext } from '../engine/context'
 import type { MatchPair } from '../types'
@@ -204,10 +200,7 @@ describe('context-ops module', () => {
     it('context-ops.ts only imports from types and utils', async () => {
       const fs = await import('fs')
       const path = await import('path')
-      const source = fs.readFileSync(
-        path.resolve(__dirname, '../engine/context-ops.ts'),
-        'utf-8',
-      )
+      const source = fs.readFileSync(path.resolve(__dirname, '../engine/context-ops.ts'), 'utf-8')
       expect(source).not.toContain("from './helpers'")
       expect(source).not.toContain("from './alignment'")
       expect(source).not.toContain("from './presentation'")

@@ -26,7 +26,15 @@ describe('hungarianAssignment (JS fallback)', () => {
       [1, 4],
       [3, 2],
     ])
-    expect(totalCost([[1, 4], [3, 2]], result)).toBe(3)
+    expect(
+      totalCost(
+        [
+          [1, 4],
+          [3, 2],
+        ],
+        result,
+      ),
+    ).toBe(3)
     expect(result).toHaveLength(2)
   })
 
@@ -85,7 +93,15 @@ describe('hungarianAssignment (JS fallback)', () => {
       [0, 0],
     ])
     expect(result).toHaveLength(2)
-    expect(totalCost([[0, 0], [0, 0]], result)).toBe(0)
+    expect(
+      totalCost(
+        [
+          [0, 0],
+          [0, 0],
+        ],
+        result,
+      ),
+    ).toBe(0)
   })
 
   it('returns empty for empty matrix', () => {

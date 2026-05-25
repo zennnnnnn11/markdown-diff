@@ -12,7 +12,10 @@ export function jaccardSimilarity(left: readonly string[], right: readonly strin
   return union === 0 ? 1 : intersection / union
 }
 
-export function multisetJaccardSimilarity(left: readonly string[], right: readonly string[]): number {
+export function multisetJaccardSimilarity(
+  left: readonly string[],
+  right: readonly string[],
+): number {
   if (left.length === 0 && right.length === 0) return 1
 
   const leftCounts = countTokens(left)

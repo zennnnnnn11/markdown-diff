@@ -1,14 +1,7 @@
 import type { InlineContent } from '../../transformer'
 import { alignSequence } from '../sequence'
-import type {
-  DiffOptions,
-  InlineSpan,
-  InlineToken,
-} from '../types'
-import {
-  buildInlineTokens,
-  tokenizeText,
-} from '../utils'
+import type { DiffOptions, InlineSpan, InlineToken } from '../types'
+import { buildInlineTokens, tokenizeText } from '../utils'
 import { estimateInlineDiffCost, extractInlineText } from './helpers'
 
 export async function diffInlineNodes(
@@ -218,7 +211,11 @@ export function coalesceTextSpans(
   return spans
 }
 
-export function hasMeaningfulInlineDiff(spans: InlineSpan[], oldText: string, newText: string): boolean {
+export function hasMeaningfulInlineDiff(
+  spans: InlineSpan[],
+  oldText: string,
+  newText: string,
+): boolean {
   if (spans.some((span) => span.op !== 'equal')) return true
   return oldText !== newText
 }

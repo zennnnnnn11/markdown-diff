@@ -20,7 +20,15 @@ describe('hungarianAssignment', () => {
       [3, 2],
     ])
     // Optimal: (0,0)=1 + (1,1)=2 = 3
-    expect(totalCost([[1, 4], [3, 2]], result)).toBe(3)
+    expect(
+      totalCost(
+        [
+          [1, 4],
+          [3, 2],
+        ],
+        result,
+      ),
+    ).toBe(3)
     expect(result).toHaveLength(2)
     const rows = result.map(([r]) => r).sort()
     const cols = result.map(([, c]) => c).sort()

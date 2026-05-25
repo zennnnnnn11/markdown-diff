@@ -16,17 +16,17 @@ const props = defineProps<{
 }>()
 
 const rowHeights = computed(() =>
-  tableWidth.value > 0
-    ? computeAllRowHeights(props.mergedRows, tableWidth.value)
-    : [],
+  tableWidth.value > 0 ? computeAllRowHeights(props.mergedRows, tableWidth.value) : [],
 )
 
-const rowVirtualizer = useVirtualizer(computed(() => ({
-  count: props.mergedRows.length,
-  getScrollElement: () => scrollBody.value,
-  estimateSize: (index: number) => rowHeights.value[index] ?? 44,
-  overscan: 8,
-})))
+const rowVirtualizer = useVirtualizer(
+  computed(() => ({
+    count: props.mergedRows.length,
+    getScrollElement: () => scrollBody.value,
+    estimateSize: (index: number) => rowHeights.value[index] ?? 44,
+    overscan: 8,
+  })),
+)
 
 const virtualRows = computed(() => rowVirtualizer.value.getVirtualItems())
 const totalSize = computed(() => rowVirtualizer.value.getTotalSize())
@@ -43,7 +43,10 @@ onBeforeUnmount(() => {
   resizeObserver?.disconnect()
 })
 
-defineExpose({ scrollBody, scrollToIndex: (index: number) => rowVirtualizer.value.scrollToIndex(index, { align: 'center' }) })
+defineExpose({
+  scrollBody,
+  scrollToIndex: (index: number) => rowVirtualizer.value.scrollToIndex(index, { align: 'center' }),
+})
 
 const emit = defineEmits<{
   (e: 'select', changeKey: string | undefined, side: 'old' | 'new'): void
@@ -53,15 +56,22 @@ function onSelect(changeKey: string | undefined, side: 'old' | 'new'): void {
   emit('select', changeKey, side)
 }
 
-watch(() => props.peerHighlightKey, (newKey, oldKey) => {
-  if (!scrollBody.value) return
-  if (oldKey) {
-    scrollBody.value.querySelectorAll('.cell.peer-highlight').forEach((el) => el.classList.remove('peer-highlight'))
-  }
-  if (newKey) {
-    scrollBody.value.querySelectorAll(`.cell[data-change-key="${CSS.escape(newKey)}"]`).forEach((el) => el.classList.add('peer-highlight'))
-  }
-})
+watch(
+  () => props.peerHighlightKey,
+  (newKey, oldKey) => {
+    if (!scrollBody.value) return
+    if (oldKey) {
+      scrollBody.value
+        .querySelectorAll('.cell.peer-highlight')
+        .forEach((el) => el.classList.remove('peer-highlight'))
+    }
+    if (newKey) {
+      scrollBody.value
+        .querySelectorAll(`.cell[data-change-key="${CSS.escape(newKey)}"]`)
+        .forEach((el) => el.classList.add('peer-highlight'))
+    }
+  },
+)
 </script>
 
 <template>
@@ -282,7 +292,9 @@ watch(() => props.peerHighlightKey, (newKey, oldKey) => {
   border-radius: var(--radius-sm);
   font-size: 9px;
   font-weight: 600;
-  transition: color var(--transition-fast), background-color var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    background-color var(--transition-fast);
 }
 
 :deep(.move-peer-flag:hover) {
@@ -299,7 +311,9 @@ watch(() => props.peerHighlightKey, (newKey, oldKey) => {
   justify-content: space-between;
   gap: 8px;
   line-height: 1.5;
-  transition: background-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    background-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 :deep(.cell-old) {
@@ -326,10 +340,14 @@ watch(() => props.peerHighlightKey, (newKey, oldKey) => {
 
 @keyframes pulse-glow {
   0% {
-    box-shadow: inset 0 0 0 2px var(--accent-blue), 0 0 4px rgba(0, 112, 243, 0.2);
+    box-shadow:
+      inset 0 0 0 2px var(--accent-blue),
+      0 0 4px rgba(0, 112, 243, 0.2);
   }
   100% {
-    box-shadow: inset 0 0 0 2.5px var(--accent-blue), 0 0 12px rgba(0, 112, 243, 0.45);
+    box-shadow:
+      inset 0 0 0 2.5px var(--accent-blue),
+      0 0 12px rgba(0, 112, 243, 0.45);
     background: rgba(0, 112, 243, 0.15);
   }
 }
@@ -363,21 +381,37 @@ watch(() => props.peerHighlightKey, (newKey, oldKey) => {
 }
 
 /* CSS-driven activeFilter highlighting */
-.unified-table[data-active-filter="insert"] :deep(.cell[data-base-tone="insert"]),
-.unified-table[data-active-filter="insert"] :deep(.cell[data-matched-tones~="insert"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
-.unified-table[data-active-filter="delete"] :deep(.cell[data-base-tone="delete"]),
-.unified-table[data-active-filter="delete"] :deep(.cell[data-matched-tones~="delete"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
-.unified-table[data-active-filter="replace"] :deep(.cell[data-base-tone="replace"]),
-.unified-table[data-active-filter="replace"] :deep(.cell[data-matched-tones~="replace"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
-.unified-table[data-active-filter="move"] :deep(.cell[data-base-tone="move"]),
-.unified-table[data-active-filter="move"] :deep(.cell[data-matched-tones~="move"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
-.unified-table[data-active-filter="meta"] :deep(.cell[data-base-tone="meta"]),
-.unified-table[data-active-filter="meta"] :deep(.cell[data-matched-tones~="meta"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
-.unified-table[data-active-filter="rename"] :deep(.cell[data-base-tone="rename"]),
-.unified-table[data-active-filter="rename"] :deep(.cell[data-matched-tones~="rename"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
-.unified-table[data-active-filter="reorder"] :deep(.cell[data-base-tone="reorder"]),
-.unified-table[data-active-filter="reorder"] :deep(.cell[data-matched-tones~="reorder"]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
-.unified-table[data-active-filter="warning"] :deep(.cell[data-has-warning]) { box-shadow: inset 0 0 0 2px var(--accent-blue); }
+.unified-table[data-active-filter='insert'] :deep(.cell[data-base-tone='insert']),
+.unified-table[data-active-filter='insert'] :deep(.cell[data-matched-tones~='insert']) {
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
+}
+.unified-table[data-active-filter='delete'] :deep(.cell[data-base-tone='delete']),
+.unified-table[data-active-filter='delete'] :deep(.cell[data-matched-tones~='delete']) {
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
+}
+.unified-table[data-active-filter='replace'] :deep(.cell[data-base-tone='replace']),
+.unified-table[data-active-filter='replace'] :deep(.cell[data-matched-tones~='replace']) {
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
+}
+.unified-table[data-active-filter='move'] :deep(.cell[data-base-tone='move']),
+.unified-table[data-active-filter='move'] :deep(.cell[data-matched-tones~='move']) {
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
+}
+.unified-table[data-active-filter='meta'] :deep(.cell[data-base-tone='meta']),
+.unified-table[data-active-filter='meta'] :deep(.cell[data-matched-tones~='meta']) {
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
+}
+.unified-table[data-active-filter='rename'] :deep(.cell[data-base-tone='rename']),
+.unified-table[data-active-filter='rename'] :deep(.cell[data-matched-tones~='rename']) {
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
+}
+.unified-table[data-active-filter='reorder'] :deep(.cell[data-base-tone='reorder']),
+.unified-table[data-active-filter='reorder'] :deep(.cell[data-matched-tones~='reorder']) {
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
+}
+.unified-table[data-active-filter='warning'] :deep(.cell[data-has-warning]) {
+  box-shadow: inset 0 0 0 2px var(--accent-blue);
+}
 
 @media (max-width: 960px) {
   .unified-header-row,

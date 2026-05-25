@@ -25,7 +25,13 @@ import type {
   ProjectionSegment,
 } from './types'
 import { entityLabel, matchKindLabels, operationLabel } from './labels'
-import { flattenChanges, formatMetadataValue, getChangeReference, tonesForChange, uniqueStrings } from './utils'
+import {
+  flattenChanges,
+  formatMetadataValue,
+  getChangeReference,
+  tonesForChange,
+  uniqueStrings,
+} from './utils'
 import {
   buildCodeSegment,
   buildSegmentsFromRanges,
@@ -47,8 +53,10 @@ export function buildDetailPanel(
   const highlightTone = tonesForChange(change)[0] ?? 'replace'
 
   const isHeadingRename = change.status.renamed && change.kind === 'heading'
-  const oldSection = isHeadingRename && change.oldNode && isSection(change.oldNode) ? change.oldNode : undefined
-  const newSection = isHeadingRename && change.newNode && isSection(change.newNode) ? change.newNode : undefined
+  const oldSection =
+    isHeadingRename && change.oldNode && isSection(change.oldNode) ? change.oldNode : undefined
+  const newSection =
+    isHeadingRename && change.newNode && isSection(change.newNode) ? change.newNode : undefined
   const rawTitleSegments = isHeadingRename ? buildSideInlineSegments(change, 'new') : undefined
 
   return {
@@ -183,7 +191,10 @@ function buildHighlightedLines(
   return undefined
 }
 
-function buildHighlightedNewLines(change: DiffChange, highlightTone: Tone): DetailRenderedLine[] | undefined {
+function buildHighlightedNewLines(
+  change: DiffChange,
+  highlightTone: Tone,
+): DetailRenderedLine[] | undefined {
   return buildHighlightedLines(change, highlightTone, 'new')
 }
 
@@ -294,7 +305,9 @@ function buildTableRows(
     }
   })
 
-  return renderedRows.some((row) => row.cells.some((cell) => cell.tone !== 'plain')) ? renderedRows : undefined
+  return renderedRows.some((row) => row.cells.some((cell) => cell.tone !== 'plain'))
+    ? renderedRows
+    : undefined
 }
 
 function buildAlignedTableRows(
@@ -338,7 +351,12 @@ function buildAlignedTableRows(
           segments = buildSideSegmentsFromSpans(diffCell.spans, side, highlightTone)
           tone = highlightTone
         }
-      } else if (re.op === 'insert' || re.op === 'delete' || ce.op === 'insert' || ce.op === 'delete') {
+      } else if (
+        re.op === 'insert' ||
+        re.op === 'delete' ||
+        ce.op === 'insert' ||
+        ce.op === 'delete'
+      ) {
         tone = highlightTone
       }
 
@@ -379,7 +397,8 @@ function previewNode(node: Section | Block | undefined): string | undefined {
 
 function previewSection(section: Section): string {
   if (section.kind === 'frontmatter') return `---\n${section.frontmatterValue ?? ''}\n---`
-  if (section.kind === 'heading') return `${'#'.repeat(section.headingDepth ?? 1)} ${section.title}`.trim()
+  if (section.kind === 'heading')
+    return `${'#'.repeat(section.headingDepth ?? 1)} ${section.title}`.trim()
   if (section.kind === 'listItem') return buildListItemPreview(section)
   if (section.kind === 'blockquote') return `> ${section.title}`.trim()
   if (section.kind === 'footnote') {
@@ -408,7 +427,12 @@ function previewBlock(block: Block): string {
     const depth = typeof block.depth === 'number' ? block.depth : 1
     return `${'#'.repeat(depth)} ${collectInlineText(block.children)}`.trim()
   }
-  if (block.type === 'yaml' || block.type === 'toml' || block.type === 'html' || block.type === 'math') {
+  if (
+    block.type === 'yaml' ||
+    block.type === 'toml' ||
+    block.type === 'html' ||
+    block.type === 'math'
+  ) {
     return String(block.value ?? '')
   }
   const inlineText = collectInlineText(block.children)
@@ -439,8 +463,7 @@ function collectInlineText(children: Block[] | undefined): string {
 }
 
 function buildListItemPreview(section: Section): string {
-  const checkbox =
-    section.checked === true ? '[x] ' : section.checked === false ? '[ ] ' : ''
+  const checkbox = section.checked === true ? '[x] ' : section.checked === false ? '[ ] ' : ''
   const prefix = section.ordered ? `${(section.index ?? 0) + 1}. ` : '- '
   return `${prefix}${checkbox}${section.title}`.trim()
 }
@@ -450,7 +473,13 @@ function collectChangedFields(change: DiffChange, side: 'old' | 'new'): string[]
   const oldNode = change.oldNode
   const newNode = change.newNode
 
-  if (newNode && !isSection(newNode) && change.blockType === 'definition' && oldNode && !isSection(oldNode)) {
+  if (
+    newNode &&
+    !isSection(newNode) &&
+    change.blockType === 'definition' &&
+    oldNode &&
+    !isSection(oldNode)
+  ) {
     const oldIdentifier = typeof oldNode.identifier === 'string' ? oldNode.identifier : ''
     const newIdentifier = typeof newNode.identifier === 'string' ? newNode.identifier : ''
     const oldUrl = typeof oldNode.url === 'string' ? oldNode.url : ''
@@ -463,7 +492,13 @@ function collectChangedFields(change: DiffChange, side: 'old' | 'new'): string[]
     if (oldTitle !== newTitle) fields.push(side === 'old' ? oldTitle : newTitle)
   }
 
-  if (newNode && !isSection(newNode) && change.blockType === 'code' && oldNode && !isSection(oldNode)) {
+  if (
+    newNode &&
+    !isSection(newNode) &&
+    change.blockType === 'code' &&
+    oldNode &&
+    !isSection(oldNode)
+  ) {
     const oldLang = typeof oldNode.lang === 'string' ? oldNode.lang : ''
     const newLang = typeof newNode.lang === 'string' ? newNode.lang : ''
     const oldMeta = typeof oldNode.meta === 'string' ? oldNode.meta : ''
@@ -473,9 +508,17 @@ function collectChangedFields(change: DiffChange, side: 'old' | 'new'): string[]
     if (oldMeta !== newMeta) fields.push(side === 'old' ? oldMeta : newMeta)
   }
 
-  if (newNode && isSection(newNode) && change.kind === 'footnote' && oldNode && isSection(oldNode)) {
-    const oldIdentifier = typeof oldNode.heading?.identifier === 'string' ? oldNode.heading.identifier : ''
-    const newIdentifier = typeof newNode.heading?.identifier === 'string' ? newNode.heading.identifier : ''
+  if (
+    newNode &&
+    isSection(newNode) &&
+    change.kind === 'footnote' &&
+    oldNode &&
+    isSection(oldNode)
+  ) {
+    const oldIdentifier =
+      typeof oldNode.heading?.identifier === 'string' ? oldNode.heading.identifier : ''
+    const newIdentifier =
+      typeof newNode.heading?.identifier === 'string' ? newNode.heading.identifier : ''
     if (oldIdentifier !== newIdentifier) fields.push(side === 'old' ? oldIdentifier : newIdentifier)
   }
 
@@ -501,7 +544,9 @@ function collectMetadataLineRanges(
     })
   }
 
-  const valueText = formatMetadataValue(side === 'old' ? metadataChange.oldValue : metadataChange.newValue)
+  const valueText = formatMetadataValue(
+    side === 'old' ? metadataChange.oldValue : metadataChange.newValue,
+  )
   if (valueText && !valueText.includes('\n')) {
     const valueIndex = line.indexOf(valueText)
     if (valueIndex >= 0) {
@@ -557,7 +602,11 @@ function extractMetadataKey(path: string): string | undefined {
 
 function shouldHighlightMetadataBlock(change: MetadataChange): boolean {
   const parts = parseMetadataPath(change.path)
-  return parts.some((part) => /^\d+$/.test(part)) || isStructuredValue(change.newValue) || isStructuredValue(change.oldValue)
+  return (
+    parts.some((part) => /^\d+$/.test(part)) ||
+    isStructuredValue(change.newValue) ||
+    isStructuredValue(change.oldValue)
+  )
 }
 
 function findMetadataBlockLineIndexes(lines: string[], path: string): number[] {
@@ -616,8 +665,12 @@ function buildMoveInfo(
 
   const peerRange =
     change.moveRole === 'source'
-      ? (peerChange.newId && newIndex ? newIndex.byId.get(peerChange.newId)?.sourceRange : undefined)
-      : (peerChange.oldId && oldIndex ? oldIndex.byId.get(peerChange.oldId)?.sourceRange : undefined)
+      ? peerChange.newId && newIndex
+        ? newIndex.byId.get(peerChange.newId)?.sourceRange
+        : undefined
+      : peerChange.oldId && oldIndex
+        ? oldIndex.byId.get(peerChange.oldId)?.sourceRange
+        : undefined
   const peerHeading = extractMoveHeading(peerChange)
 
   return {
@@ -628,10 +681,7 @@ function buildMoveInfo(
   }
 }
 
-function findPeerChange(
-  change: DiffChange,
-  changeIndex?: DiffChangeIndex,
-): DiffChange | undefined {
+function findPeerChange(change: DiffChange, changeIndex?: DiffChangeIndex): DiffChange | undefined {
   if (!changeIndex || !change.logicalMoveId) return undefined
   const peers = changeIndex.byLogicalMoveId.get(change.logicalMoveId)
   if (!peers) return undefined
@@ -675,9 +725,7 @@ function extractRefIdentifier(
   isFootnote: boolean,
 ): string | undefined {
   if (!node) return undefined
-  const raw = isFootnote
-    ? (node as Section).heading?.identifier
-    : (node as Block).identifier
+  const raw = isFootnote ? (node as Section).heading?.identifier : (node as Block).identifier
   return typeof raw === 'string' ? normalizeId(raw) : undefined
 }
 

@@ -22,7 +22,8 @@ export function flattenChanges(root: DiffChange): DiffChange[] {
 
 export function getChangeReference(change: DiffChange): string {
   if (change.pairKey) {
-    if (change.moveRole && change.primaryOp === 'move') return `${change.pairKey}:${change.moveRole}`
+    if (change.moveRole && change.primaryOp === 'move')
+      return `${change.pairKey}:${change.moveRole}`
     return change.pairKey
   }
   if (change.oldId && change.newId) return `pair:${change.oldId}:${change.newId}`
@@ -78,7 +79,8 @@ export function rangeSpan(range: SourceRange): number {
 export function formatMetadataValue(value: unknown): string | undefined {
   if (value === undefined) return undefined
   if (typeof value === 'string') return value
-  if (typeof value === 'number' || typeof value === 'boolean' || value === null) return String(value)
+  if (typeof value === 'number' || typeof value === 'boolean' || value === null)
+    return String(value)
   try {
     return JSON.stringify(value, null, 2)
   } catch {

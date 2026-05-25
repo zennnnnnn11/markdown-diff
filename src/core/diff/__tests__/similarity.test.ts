@@ -41,7 +41,11 @@ function makeNode(overrides: Partial<DiffNode> = {}): DiffNode {
 
 describe('node similarity', () => {
   it('checks shape compatibility before computing similarity', () => {
-    const section = makeNode({ entity: 'section', kind: 'heading', section: { kind: 'heading', title: 'A', items: [], children: [] } as any })
+    const section = makeNode({
+      entity: 'section',
+      kind: 'heading',
+      section: { kind: 'heading', title: 'A', items: [], children: [] } as any,
+    })
     const block = makeNode({ entity: 'block', blockType: 'paragraph' })
     const otherBlock = makeNode({ blockType: 'code', block: { type: 'code', value: 'x' } as any })
 
@@ -122,7 +126,11 @@ describe('node similarity', () => {
       block: {
         type: 'paragraph',
         children: [
-          { type: 'link', url: 'https://example.com', children: [{ type: 'text', value: 'omega' }] },
+          {
+            type: 'link',
+            url: 'https://example.com',
+            children: [{ type: 'text', value: 'omega' }],
+          },
         ],
       } as any,
     })
@@ -145,7 +153,9 @@ describe('node similarity', () => {
       block: { type: 'paragraph', children: [{ type: 'text', value: 'world' }] } as any,
     })
 
-    expect(computeNodeSimilarity(oldParagraph, newParagraph, OPTIONS, 1)).toBeGreaterThanOrEqual(0.75)
+    expect(computeNodeSimilarity(oldParagraph, newParagraph, OPTIONS, 1)).toBeGreaterThanOrEqual(
+      0.75,
+    )
   })
 
   it('keeps punctuation-only paragraph replacements pairable without treating them as perfect matches', () => {
@@ -204,7 +214,13 @@ describe('node similarity', () => {
     const closeHeading = makeNode({
       entity: 'section',
       kind: 'heading',
-      section: { kind: 'heading', title: 'Alpha Project', headingDepth: 2, items: [], children: [] } as any,
+      section: {
+        kind: 'heading',
+        title: 'Alpha Project',
+        headingDepth: 2,
+        items: [],
+        children: [],
+      } as any,
       raw: { kind: 'heading' } as any,
       selfHash: 'close',
       headingBodyHash: 'body',
@@ -214,7 +230,13 @@ describe('node similarity', () => {
     const weakerHeading = makeNode({
       entity: 'section',
       kind: 'heading',
-      section: { kind: 'heading', title: 'Alpha Project', headingDepth: 3, items: [], children: [] } as any,
+      section: {
+        kind: 'heading',
+        title: 'Alpha Project',
+        headingDepth: 3,
+        items: [],
+        children: [],
+      } as any,
       raw: { kind: 'heading' } as any,
       selfHash: 'weak',
       headingBodyHash: 'other',
@@ -234,7 +256,13 @@ describe('node similarity', () => {
     const leafVariant = makeNode({
       entity: 'section',
       kind: 'heading',
-      section: { kind: 'heading', title: 'Leaf Next', headingDepth: 3, items: [], children: [] } as any,
+      section: {
+        kind: 'heading',
+        title: 'Leaf Next',
+        headingDepth: 3,
+        items: [],
+        children: [],
+      } as any,
       raw: { kind: 'heading' } as any,
       selfHash: 'leaf-new',
       headingBodyHash: 'leaf-other',
@@ -302,7 +330,9 @@ describe('node similarity', () => {
       textTokens: ['new'],
     })
 
-    expect(computeNodeSimilarity(oldBlockquote, newBlockquote, OPTIONS, 1)).toBeGreaterThanOrEqual(0.75)
+    expect(computeNodeSimilarity(oldBlockquote, newBlockquote, OPTIONS, 1)).toBeGreaterThanOrEqual(
+      0.75,
+    )
     expect(computeNodeSimilarity(oldListItem, newListItem, OPTIONS, 1)).toBeGreaterThanOrEqual(0.75)
   })
 
@@ -360,8 +390,20 @@ describe('node similarity', () => {
         type: 'table',
         align: ['left', 'right'],
         children: [
-          { type: 'tableRow', children: [{ type: 'tableCell', children: [{ type: 'text', value: 'A1' }] }, { type: 'tableCell', children: [{ type: 'text', value: 'B1' }] }] },
-          { type: 'tableRow', children: [{ type: 'tableCell', children: [{ type: 'text', value: 'A2' }] }, { type: 'tableCell', children: [{ type: 'text', value: 'B2' }] }] },
+          {
+            type: 'tableRow',
+            children: [
+              { type: 'tableCell', children: [{ type: 'text', value: 'A1' }] },
+              { type: 'tableCell', children: [{ type: 'text', value: 'B1' }] },
+            ],
+          },
+          {
+            type: 'tableRow',
+            children: [
+              { type: 'tableCell', children: [{ type: 'text', value: 'A2' }] },
+              { type: 'tableCell', children: [{ type: 'text', value: 'B2' }] },
+            ],
+          },
         ],
       } as any,
       selfHash: 'old',
@@ -372,8 +414,20 @@ describe('node similarity', () => {
         type: 'table',
         align: ['left', 'right'],
         children: [
-          { type: 'tableRow', children: [{ type: 'tableCell', children: [{ type: 'text', value: 'A1' }] }, { type: 'tableCell', children: [{ type: 'text', value: 'B1 updated' }] }] },
-          { type: 'tableRow', children: [{ type: 'tableCell', children: [{ type: 'text', value: 'A2' }] }, { type: 'tableCell', children: [{ type: 'text', value: 'B2' }] }] },
+          {
+            type: 'tableRow',
+            children: [
+              { type: 'tableCell', children: [{ type: 'text', value: 'A1' }] },
+              { type: 'tableCell', children: [{ type: 'text', value: 'B1 updated' }] },
+            ],
+          },
+          {
+            type: 'tableRow',
+            children: [
+              { type: 'tableCell', children: [{ type: 'text', value: 'A2' }] },
+              { type: 'tableCell', children: [{ type: 'text', value: 'B2' }] },
+            ],
+          },
         ],
       } as any,
       selfHash: 'aligned',
@@ -384,7 +438,13 @@ describe('node similarity', () => {
         type: 'table',
         align: ['center', 'center'],
         children: [
-          { type: 'tableRow', children: [{ type: 'tableCell', children: [{ type: 'text', value: 'A1' }] }, { type: 'tableCell', children: [{ type: 'text', value: 'B1 updated' }] }] },
+          {
+            type: 'tableRow',
+            children: [
+              { type: 'tableCell', children: [{ type: 'text', value: 'A1' }] },
+              { type: 'tableCell', children: [{ type: 'text', value: 'B1 updated' }] },
+            ],
+          },
         ],
       } as any,
       selfHash: 'misaligned',
@@ -521,16 +581,25 @@ describe('node similarity', () => {
 
   it('uses the minhash approximation path for very large token sets', () => {
     const oldTokens = Array.from({ length: 80 }, (_, index) => `token-${index}`)
-    const newTokens = Array.from({ length: 80 }, (_, index) => `token-${index < 60 ? index : index + 20}`)
+    const newTokens = Array.from(
+      { length: 80 },
+      (_, index) => `token-${index < 60 ? index : index + 20}`,
+    )
     const oldParagraph = makeNode({
       selfHash: 'old',
       textTokens: oldTokens,
-      block: { type: 'paragraph', children: oldTokens.map((token) => ({ type: 'text', value: token })) } as any,
+      block: {
+        type: 'paragraph',
+        children: oldTokens.map((token) => ({ type: 'text', value: token })),
+      } as any,
     })
     const newParagraph = makeNode({
       selfHash: 'new',
       textTokens: newTokens,
-      block: { type: 'paragraph', children: newTokens.map((token) => ({ type: 'text', value: token })) } as any,
+      block: {
+        type: 'paragraph',
+        children: newTokens.map((token) => ({ type: 'text', value: token })),
+      } as any,
     })
 
     const score = computeNodeSimilarity(oldParagraph, newParagraph, {
@@ -588,17 +657,41 @@ describe('codeSimilarity size guard', () => {
 describe('type-specific similarity via computeNodeSimilarity', () => {
   it('headingSimilarity: same heading returns 1', () => {
     const a = makeNode({
-      entity: 'section', kind: 'heading',
-      section: { kind: 'heading', title: 'Introduction', headingDepth: 2, items: [], children: [] } as any,
-      block: { type: 'heading', depth: 2, children: [{ type: 'text', value: 'Introduction' }] } as any,
-      titleTokens: ['introduction'], textTokens: ['introduction'],
+      entity: 'section',
+      kind: 'heading',
+      section: {
+        kind: 'heading',
+        title: 'Introduction',
+        headingDepth: 2,
+        items: [],
+        children: [],
+      } as any,
+      block: {
+        type: 'heading',
+        depth: 2,
+        children: [{ type: 'text', value: 'Introduction' }],
+      } as any,
+      titleTokens: ['introduction'],
+      textTokens: ['introduction'],
       contentOnlyHash: 'h1',
     })
     const b = makeNode({
-      entity: 'section', kind: 'heading',
-      section: { kind: 'heading', title: 'Introduction', headingDepth: 2, items: [], children: [] } as any,
-      block: { type: 'heading', depth: 2, children: [{ type: 'text', value: 'Introduction' }] } as any,
-      titleTokens: ['introduction'], textTokens: ['introduction'],
+      entity: 'section',
+      kind: 'heading',
+      section: {
+        kind: 'heading',
+        title: 'Introduction',
+        headingDepth: 2,
+        items: [],
+        children: [],
+      } as any,
+      block: {
+        type: 'heading',
+        depth: 2,
+        children: [{ type: 'text', value: 'Introduction' }],
+      } as any,
+      titleTokens: ['introduction'],
+      textTokens: ['introduction'],
       contentOnlyHash: 'h1',
     })
     expect(computeNodeSimilarity(a, b, OPTIONS)).toBe(1)
@@ -606,18 +699,24 @@ describe('type-specific similarity via computeNodeSimilarity', () => {
 
   it('headingSimilarity: different depth reduces score', () => {
     const a = makeNode({
-      entity: 'section', kind: 'heading',
+      entity: 'section',
+      kind: 'heading',
       section: { kind: 'heading', title: 'Test', headingDepth: 1, items: [], children: [] } as any,
       block: { type: 'heading', depth: 1, children: [{ type: 'text', value: 'Test' }] } as any,
-      titleTokens: ['test'], textTokens: ['test'],
-      selfHash: 'sha', contentOnlyHash: 'ha',
+      titleTokens: ['test'],
+      textTokens: ['test'],
+      selfHash: 'sha',
+      contentOnlyHash: 'ha',
     })
     const b = makeNode({
-      entity: 'section', kind: 'heading',
+      entity: 'section',
+      kind: 'heading',
       section: { kind: 'heading', title: 'Test', headingDepth: 3, items: [], children: [] } as any,
       block: { type: 'heading', depth: 3, children: [{ type: 'text', value: 'Test' }] } as any,
-      titleTokens: ['test'], textTokens: ['test'],
-      selfHash: 'shb', contentOnlyHash: 'hb',
+      titleTokens: ['test'],
+      textTokens: ['test'],
+      selfHash: 'shb',
+      contentOnlyHash: 'hb',
     })
     const score = computeNodeSimilarity(a, b, OPTIONS)
     expect(score).toBeGreaterThan(0)
@@ -627,11 +726,13 @@ describe('type-specific similarity via computeNodeSimilarity', () => {
   it('paragraphSimilarity: identical text returns 1', () => {
     const text = 'This is a test paragraph with some content.'
     const a = makeNode({
-      textTokens: text.split(/\s+/), contentOnlyHash: 'p1',
+      textTokens: text.split(/\s+/),
+      contentOnlyHash: 'p1',
       block: { type: 'paragraph', children: [{ type: 'text', value: text }] } as any,
     })
     const b = makeNode({
-      textTokens: text.split(/\s+/), contentOnlyHash: 'p1',
+      textTokens: text.split(/\s+/),
+      contentOnlyHash: 'p1',
       block: { type: 'paragraph', children: [{ type: 'text', value: text }] } as any,
     })
     expect(computeNodeSimilarity(a, b, OPTIONS)).toBe(1)
@@ -639,11 +740,15 @@ describe('type-specific similarity via computeNodeSimilarity', () => {
 
   it('paragraphSimilarity: minor edit gives high score', () => {
     const a = makeNode({
-      textTokens: ['hello', 'world', 'test'], selfHash: 'spa', contentOnlyHash: 'pa',
+      textTokens: ['hello', 'world', 'test'],
+      selfHash: 'spa',
+      contentOnlyHash: 'pa',
       block: { type: 'paragraph', children: [{ type: 'text', value: 'hello world test' }] } as any,
     })
     const b = makeNode({
-      textTokens: ['hello', 'earth', 'test'], selfHash: 'spb', contentOnlyHash: 'pb',
+      textTokens: ['hello', 'earth', 'test'],
+      selfHash: 'spb',
+      contentOnlyHash: 'pb',
       block: { type: 'paragraph', children: [{ type: 'text', value: 'hello earth test' }] } as any,
     })
     const score = computeNodeSimilarity(a, b, OPTIONS)
@@ -652,7 +757,9 @@ describe('type-specific similarity via computeNodeSimilarity', () => {
 
   it('paragraphSimilarity: completely different text and structure gives low score', () => {
     const a = makeNode({
-      textTokens: ['alpha', 'beta', 'gamma'], selfHash: 'spc', contentOnlyHash: 'pa',
+      textTokens: ['alpha', 'beta', 'gamma'],
+      selfHash: 'spc',
+      contentOnlyHash: 'pa',
       block: {
         type: 'paragraph',
         children: [
@@ -663,11 +770,17 @@ describe('type-specific similarity via computeNodeSimilarity', () => {
       } as any,
     })
     const b = makeNode({
-      textTokens: ['one', 'two', 'three', 'four', 'five'], selfHash: 'spd', contentOnlyHash: 'pb',
+      textTokens: ['one', 'two', 'three', 'four', 'five'],
+      selfHash: 'spd',
+      contentOnlyHash: 'pb',
       block: {
         type: 'paragraph',
         children: [
-          { type: 'link', url: 'https://example.com', children: [{ type: 'text', value: 'one two three four five' }] },
+          {
+            type: 'link',
+            url: 'https://example.com',
+            children: [{ type: 'text', value: 'one two three four five' }],
+          },
         ],
       } as any,
     })
@@ -679,16 +792,30 @@ describe('type-specific similarity via computeNodeSimilarity', () => {
     const tableBlock = {
       type: 'table',
       children: [
-        { children: [{ children: [{ type: 'text', value: 'A' }] }, { children: [{ type: 'text', value: 'B' }] }] },
-        { children: [{ children: [{ type: 'text', value: '1' }] }, { children: [{ type: 'text', value: '2' }] }] },
+        {
+          children: [
+            { children: [{ type: 'text', value: 'A' }] },
+            { children: [{ type: 'text', value: 'B' }] },
+          ],
+        },
+        {
+          children: [
+            { children: [{ type: 'text', value: '1' }] },
+            { children: [{ type: 'text', value: '2' }] },
+          ],
+        },
       ],
     } as any
     const a = makeNode({
-      blockType: 'table', block: tableBlock, contentOnlyHash: 't1',
+      blockType: 'table',
+      block: tableBlock,
+      contentOnlyHash: 't1',
       textTokens: ['a', 'b', '1', '2'],
     })
     const b = makeNode({
-      blockType: 'table', block: tableBlock, contentOnlyHash: 't1',
+      blockType: 'table',
+      block: tableBlock,
+      contentOnlyHash: 't1',
       textTokens: ['a', 'b', '1', '2'],
     })
     expect(computeNodeSimilarity(a, b, OPTIONS)).toBe(1)

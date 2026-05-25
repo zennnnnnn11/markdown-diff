@@ -10,20 +10,14 @@ describe('uniqueHeadingSiblingNames moved to helpers', () => {
   it('alignment.ts no longer defines uniqueHeadingSiblingNames', async () => {
     const fs = await import('fs')
     const path = await import('path')
-    const source = fs.readFileSync(
-      path.resolve(__dirname, '../engine/alignment.ts'),
-      'utf-8',
-    )
+    const source = fs.readFileSync(path.resolve(__dirname, '../engine/alignment.ts'), 'utf-8')
     expect(source).not.toMatch(/^export function uniqueHeadingSiblingNames/m)
   })
 
   it('renames.ts imports from helpers, not alignment', async () => {
     const fs = await import('fs')
     const path = await import('path')
-    const source = fs.readFileSync(
-      path.resolve(__dirname, '../engine/renames.ts'),
-      'utf-8',
-    )
+    const source = fs.readFileSync(path.resolve(__dirname, '../engine/renames.ts'), 'utf-8')
     expect(source).toMatch(/uniqueHeadingSiblingNames[\s\S]*from\s+['"]\.\/helpers['"]/)
   })
 
@@ -38,21 +32,9 @@ describe('uniqueHeadingSiblingNames moved to helpers', () => {
   })
 
   it('short heading fallback still uses uniqueHeadingSiblingNames', async () => {
-    const oldMd = [
-      '# Root',
-      '',
-      '## Unique Heading',
-      '',
-      'Some content.',
-    ].join('\n')
+    const oldMd = ['# Root', '', '## Unique Heading', '', 'Some content.'].join('\n')
 
-    const newMd = [
-      '# Root',
-      '',
-      '## Different Heading',
-      '',
-      'Some content.',
-    ].join('\n')
+    const newMd = ['# Root', '', '## Different Heading', '', 'Some content.'].join('\n')
 
     const result = await diffMarkdown(oldMd, newMd)
     const changes = flatten(result.root)

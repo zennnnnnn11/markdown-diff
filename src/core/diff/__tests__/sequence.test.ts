@@ -24,15 +24,16 @@ describe('sequence alignment', () => {
   it('honors the explicit Myers strategy', () => {
     const edits = alignSequence(['a', 'b'], ['a', 'c', 'b'], DEFAULT_OPTIONS, 'myers')
 
-    expect(simplify(edits)).toEqual([
-      'equal:a:0:0',
-      'insert:c::1',
-      'equal:b:1:2',
-    ])
+    expect(simplify(edits)).toEqual(['equal:a:0:0', 'insert:c::1', 'equal:b:1:2'])
   })
 
   it('honors the explicit Heckel strategy and stitches around unique anchors', () => {
-    const edits = alignSequence(['x', 'a', 'b', 'c', 'y'], ['a', 'z', 'c'], DEFAULT_OPTIONS, 'heckel')
+    const edits = alignSequence(
+      ['x', 'a', 'b', 'c', 'y'],
+      ['a', 'z', 'c'],
+      DEFAULT_OPTIONS,
+      'heckel',
+    )
 
     expect(simplify(edits)).toEqual([
       'delete:x:0:',
@@ -54,12 +55,7 @@ describe('sequence alignment', () => {
   it('honors the explicit Histogram strategy', () => {
     const edits = alignSequence(['a', 'b', 'c'], ['b', 'c', 'd'], DEFAULT_OPTIONS, 'histogram')
 
-    expect(simplify(edits)).toEqual([
-      'delete:a:0:',
-      'equal:b:1:0',
-      'equal:c:2:1',
-      'insert:d::2',
-    ])
+    expect(simplify(edits)).toEqual(['delete:a:0:', 'equal:b:1:0', 'equal:c:2:1', 'insert:d::2'])
   })
 
   it('prefers Myers for short sequences in auto mode', () => {

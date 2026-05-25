@@ -33,17 +33,26 @@ function makeMockNode(overrides: Record<string, any> = {}) {
 }
 
 function makePair(oldId: string, newId: string): MatchPair {
-  return { oldId, newId, pairKind: 'match', pairKey: `match:${oldId}:${newId}`, matchKind: 'exact-self', score: 1 }
+  return {
+    oldId,
+    newId,
+    pairKind: 'match',
+    pairKey: `match:${oldId}:${newId}`,
+    matchKind: 'exact-self',
+    score: 1,
+  }
 }
 
-function makeContext(overrides: {
-  oldNodes?: Record<string, any>[]
-  newNodes?: Record<string, any>[]
-  oldChildren?: Map<string, string[]>
-  newChildren?: Map<string, string[]>
-  matchesByOld?: Map<string, MatchPair>
-  matchesByNew?: Map<string, MatchPair>
-} = {}): DiffContext {
+function makeContext(
+  overrides: {
+    oldNodes?: Record<string, any>[]
+    newNodes?: Record<string, any>[]
+    oldChildren?: Map<string, string[]>
+    newChildren?: Map<string, string[]>
+    matchesByOld?: Map<string, MatchPair>
+    matchesByNew?: Map<string, MatchPair>
+  } = {},
+): DiffContext {
   const oldByIdEntries = (overrides.oldNodes ?? []).map((n) => {
     const node = makeMockNode(n)
     return [node.id, node] as const
@@ -158,7 +167,10 @@ describe('renames module', () => {
         newNodes: [nw],
         oldChildren: new Map([['o1', ['oc1', 'oc2', 'oc3', 'oc4']]]),
         newChildren: new Map([['n1', ['nc1', 'nc2', 'nc3', 'nc4']]]),
-        matchesByOld: new Map([['oc1', pair1], ['oc2', pair2]]),
+        matchesByOld: new Map([
+          ['oc1', pair1],
+          ['oc2', pair2],
+        ]),
       })
       expect(hasStrongHeadingDirectMatchEvidence(context, old as any, nw as any)).toBe(true)
     })
@@ -173,7 +185,10 @@ describe('renames module', () => {
         newNodes: [nw],
         oldChildren: new Map([['o1', ['oc1', 'oc2', 'oc3', 'oc4', 'oc5', 'oc6']]]),
         newChildren: new Map([['n1', ['nc1', 'nc2', 'nc3', 'nc4', 'nc5', 'nc6']]]),
-        matchesByOld: new Map([['oc1', pair1], ['oc2', pair2]]),
+        matchesByOld: new Map([
+          ['oc1', pair1],
+          ['oc2', pair2],
+        ]),
       })
       expect(hasStrongHeadingDirectMatchEvidence(context, old as any, nw as any)).toBe(false)
     })
@@ -230,24 +245,65 @@ describe('renames module', () => {
 
   describe('hasUniqueIdentityRenameCandidate', () => {
     it('returns true when both identity hash groups have exactly 1 same-shape candidate', () => {
-      const old = makeMockNode({ id: 'o1', identityHash: 'ih-1', entity: 'section', kind: 'footnote' })
-      const nw = makeMockNode({ id: 'n1', identityHash: 'ih-1', entity: 'section', kind: 'footnote' })
+      const old = makeMockNode({
+        id: 'o1',
+        identityHash: 'ih-1',
+        entity: 'section',
+        kind: 'footnote',
+      })
+      const nw = makeMockNode({
+        id: 'n1',
+        identityHash: 'ih-1',
+        entity: 'section',
+        kind: 'footnote',
+      })
       const context = makeContext({ oldNodes: [old], newNodes: [nw] })
       expect(hasUniqueIdentityRenameCandidate(context, old as any, nw as any)).toBe(true)
     })
 
     it('returns false when old hash group has 2 same-shape candidates', () => {
-      const old = makeMockNode({ id: 'o1', identityHash: 'ih-1', entity: 'section', kind: 'footnote' })
-      const old2 = makeMockNode({ id: 'o2', identityHash: 'ih-1', entity: 'section', kind: 'footnote' })
-      const nw = makeMockNode({ id: 'n1', identityHash: 'ih-1', entity: 'section', kind: 'footnote' })
+      const old = makeMockNode({
+        id: 'o1',
+        identityHash: 'ih-1',
+        entity: 'section',
+        kind: 'footnote',
+      })
+      const old2 = makeMockNode({
+        id: 'o2',
+        identityHash: 'ih-1',
+        entity: 'section',
+        kind: 'footnote',
+      })
+      const nw = makeMockNode({
+        id: 'n1',
+        identityHash: 'ih-1',
+        entity: 'section',
+        kind: 'footnote',
+      })
       const context = makeContext({ oldNodes: [old, old2], newNodes: [nw] })
       expect(hasUniqueIdentityRenameCandidate(context, old as any, nw as any)).toBe(false)
     })
 
     it('returns true when extra candidates are filtered by shape mismatch', () => {
-      const old = makeMockNode({ id: 'o1', identityHash: 'ih-1', entity: 'section', kind: 'footnote' })
-      const old2 = makeMockNode({ id: 'o2', identityHash: 'ih-1', entity: 'block', kind: undefined, blockType: 'paragraph' })
-      const nw = makeMockNode({ id: 'n1', identityHash: 'ih-1', entity: 'section', kind: 'footnote' })
+      const old = makeMockNode({
+        id: 'o1',
+        identityHash: 'ih-1',
+        entity: 'section',
+        kind: 'footnote',
+      })
+      const old2 = makeMockNode({
+        id: 'o2',
+        identityHash: 'ih-1',
+        entity: 'block',
+        kind: undefined,
+        blockType: 'paragraph',
+      })
+      const nw = makeMockNode({
+        id: 'n1',
+        identityHash: 'ih-1',
+        entity: 'section',
+        kind: 'footnote',
+      })
       const context = makeContext({ oldNodes: [old, old2], newNodes: [nw] })
       expect(hasUniqueIdentityRenameCandidate(context, old as any, nw as any)).toBe(true)
     })

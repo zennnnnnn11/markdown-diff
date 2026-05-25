@@ -60,17 +60,25 @@ export function extractNodeText(node: Section | Block | InlineContent | undefine
   if (!node) return ''
   if (isSection(node)) {
     if (node.kind === 'heading') {
-      return collapseWhitespace([node.title, ...node.items.map((item) => extractNodeText(item))].join(' '))
+      return collapseWhitespace(
+        [node.title, ...node.items.map((item) => extractNodeText(item))].join(' '),
+      )
     }
     if (node.kind === 'frontmatter') return node.frontmatterValue ?? ''
     return collapseWhitespace(node.items.map((item) => extractNodeText(item)).join(' '))
   }
 
   if (node.type === 'text') return String(node.value ?? '')
-  if (node.type === 'inlineCode' || node.type === 'code' || node.type === 'math' || node.type === 'inlineMath') {
+  if (
+    node.type === 'inlineCode' ||
+    node.type === 'code' ||
+    node.type === 'math' ||
+    node.type === 'inlineMath'
+  ) {
     return String(node.value ?? '')
   }
-  if (node.type === 'image') return collapseWhitespace([node.alt, node.url].filter(Boolean).join(' '))
+  if (node.type === 'image')
+    return collapseWhitespace([node.alt, node.url].filter(Boolean).join(' '))
   if (node.type === 'definition') {
     return collapseWhitespace([node.identifier, node.url, node.title].filter(Boolean).join(' '))
   }
@@ -119,7 +127,10 @@ export function extractInlineStructure(node: Block | InlineContent | undefined):
   return [...own, ...children]
 }
 
-export function readTableData(block: Block | undefined): { cells: string[][]; structured: InlineContent[][][] } {
+export function readTableData(block: Block | undefined): {
+  cells: string[][]
+  structured: InlineContent[][][]
+} {
   if (!block || !Array.isArray(block.children)) return { cells: [], structured: [] }
   const cells: string[][] = []
   const structured: InlineContent[][][] = []
@@ -190,7 +201,9 @@ function cjkFallbackTokens(value: string): string[] {
   if (!cleaned) return []
 
   const chars = [...cleaned]
-  const looksCjk = chars.some((char) => /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}/u.test(char))
+  const looksCjk = chars.some((char) =>
+    /\p{Script=Han}|\p{Script=Hiragana}|\p{Script=Katakana}/u.test(char),
+  )
   if (!looksCjk) return []
   if (chars.length === 1) return chars.map((char) => char.toLowerCase())
 

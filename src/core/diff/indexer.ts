@@ -32,7 +32,10 @@ interface IndexedRawNode {
   subtreeSize: number
 }
 
-export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Promise<SemanticIndex> {
+export async function buildSemanticIndex(
+  root: Section,
+  tree: 'old' | 'new',
+): Promise<SemanticIndex> {
   const hctx = createHashContext()
   const blockSelfHashCache = new Map<Block, string>()
   const byId = new Map<string, DiffNode>()
@@ -98,10 +101,14 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
 
     byId.set(baseNode.id, baseNode)
     nodesInPreorder[preorder] = baseNode
-    childrenById.set(baseNode.id, childNodes.map((child) => child.id))
+    childrenById.set(
+      baseNode.id,
+      childNodes.map((child) => child.id),
+    )
     if (baseNode.kind) addToMap(byKind, baseNode.kind, baseNode.id)
     if (baseNode.blockType) addToMap(byBlockType, baseNode.blockType, baseNode.id)
-    if (baseNode.section?.headingDepth !== undefined) addToMap(byHeadingDepth, baseNode.section.headingDepth, baseNode.id)
+    if (baseNode.section?.headingDepth !== undefined)
+      addToMap(byHeadingDepth, baseNode.section.headingDepth, baseNode.id)
     addToMap(bySelfHash, baseNode.selfHash, baseNode.id)
     addToMap(byDirectHash, baseNode.directHash, baseNode.id)
     addToMap(bySubtreeHash, baseNode.subtreeHash, baseNode.id)
@@ -123,7 +130,11 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
     if (block.type === 'footnoteReference') {
       addToMap(backlinks.footnotes, normalizeIdentifier(block.identifier), holderId)
     }
-    if (block.type === 'linkReference' || block.type === 'imageReference' || block.type === 'definition') {
+    if (
+      block.type === 'linkReference' ||
+      block.type === 'imageReference' ||
+      block.type === 'definition'
+    ) {
       addToMap(backlinks.definitions, normalizeIdentifier(block.identifier), holderId)
     }
     if (Array.isArray(block.children)) {
@@ -137,7 +148,8 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
     preorder: number,
     headingPath: string[],
   ): Promise<DiffNode> {
-    const pathHash = headingPath.length > 0 ? await hctx.hashText(pathHashInput(headingPath)) : undefined
+    const pathHash =
+      headingPath.length > 0 ? await hctx.hashText(pathHashInput(headingPath)) : undefined
     if (current.entity === 'block') {
       const block = current.raw as Block
       const selfHash = await computeBlockSelfHash(block)
@@ -227,7 +239,10 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
     }
   }
 
-  async function computeSectionSelfHash(section: Section, normalizedTitle: string): Promise<string> {
+  async function computeSectionSelfHash(
+    section: Section,
+    normalizedTitle: string,
+  ): Promise<string> {
     return hctx.hashCanonical({
       kind: section.kind,
       title: normalizedTitle,
@@ -244,7 +259,11 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
     })
   }
 
-  async function computeSectionIdentityHash(section: Section, childNodes: DiffNode[], selfHash: string): Promise<string> {
+  async function computeSectionIdentityHash(
+    section: Section,
+    childNodes: DiffNode[],
+    selfHash: string,
+  ): Promise<string> {
     if (section.kind === 'footnote') {
       return hctx.hashCanonical({
         kind: section.kind,
@@ -254,7 +273,10 @@ export async function buildSemanticIndex(root: Section, tree: 'old' | 'new'): Pr
     return selfHash
   }
 
-  async function computeHeadingBodyHash(section: Section, childNodes: DiffNode[]): Promise<string | undefined> {
+  async function computeHeadingBodyHash(
+    section: Section,
+    childNodes: DiffNode[],
+  ): Promise<string | undefined> {
     if (section.kind !== 'heading') return undefined
     return hctx.hashCanonical({
       headingDepth: section.headingDepth,
@@ -384,7 +406,9 @@ function mergeRootLogicalItems(root: Section, tree: 'old' | 'new'): Array<Block 
 
   if (syntheticItems.length === 0) return existingItems
 
-  syntheticItems.sort((left, right) => compareSourceOffsets(getItemSourceOffset(left), getItemSourceOffset(right)))
+  syntheticItems.sort((left, right) =>
+    compareSourceOffsets(getItemSourceOffset(left), getItemSourceOffset(right)),
+  )
 
   const merged: Array<Block | Section> = []
   let syntheticIndex = 0

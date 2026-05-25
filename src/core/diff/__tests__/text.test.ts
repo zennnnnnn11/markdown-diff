@@ -243,10 +243,7 @@ describe('text module', () => {
     it('text.ts does not import from utils.ts', async () => {
       const fs = await import('fs')
       const path = await import('path')
-      const source = fs.readFileSync(
-        path.resolve(__dirname, '../text.ts'),
-        'utf-8',
-      )
+      const source = fs.readFileSync(path.resolve(__dirname, '../text.ts'), 'utf-8')
       expect(source).not.toContain("from './utils'")
       expect(source).not.toContain("from '../utils'")
     })

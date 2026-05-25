@@ -30,7 +30,10 @@ describe('testing philosophy exception matrix', () => {
   })
 
   it('EX-004: many headings remain structurally traversable', async () => {
-    const markdown = Array.from({ length: 100 }, (_, index) => `## H${index}\n\nbody ${index}`).join('\n\n')
+    const markdown = Array.from(
+      { length: 100 },
+      (_, index) => `## H${index}\n\nbody ${index}`,
+    ).join('\n\n')
     const tree = transformMarkdown(await parseMarkdown(markdown))
     const headings = allSections(tree).filter((section) => section.kind === 'heading')
 

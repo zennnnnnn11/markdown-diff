@@ -143,7 +143,10 @@ export const DIFF_HEURISTICS = {
 } as const
 
 export function sequenceTuning(
-  options: Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'>,
+  options: Pick<
+    DiffOptions,
+    'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'
+  >,
 ): Pick<DiffOptions, 'shortSequenceThreshold' | 'maxQuadraticSequenceCost' | 'heckelUniqueRatio'> {
   return {
     shortSequenceThreshold: options.shortSequenceThreshold,

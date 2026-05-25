@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { DiffChange, DiffOptions, PrimaryOp } from '../types'
 import { diffMarkdown, flatten } from './test-helpers'
 
-function hasPrimary(result: Awaited<ReturnType<typeof diffMarkdown>>, ...ops: PrimaryOp[]): boolean {
+function hasPrimary(
+  result: Awaited<ReturnType<typeof diffMarkdown>>,
+  ...ops: PrimaryOp[]
+): boolean {
   return flatten(result.root).some((change) => ops.includes(change.primaryOp))
 }
 
@@ -16,7 +19,10 @@ function anyChange(result: Awaited<ReturnType<typeof diffMarkdown>>): boolean {
   )
 }
 
-function firstByKindOrType(result: Awaited<ReturnType<typeof diffMarkdown>>, key: string): DiffChange | undefined {
+function firstByKindOrType(
+  result: Awaited<ReturnType<typeof diffMarkdown>>,
+  key: string,
+): DiffChange | undefined {
   return flatten(result.root).find((change) => change.kind === key || change.blockType === key)
 }
 
@@ -26,11 +32,17 @@ describe('testing philosophy remaining batch', () => {
     ['EQ-003', '# A\n\ntext'],
     ['EQ-007', '- a\n  1. b\n  2. c\n- d'],
     ['EQ-011', '[^1]: note'],
-    ['EQ-016', '# A\n\ntext\n\n```js\nconst a=1\n```\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n- item'],
+    [
+      'EQ-016',
+      '# A\n\ntext\n\n```js\nconst a=1\n```\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n- item',
+    ],
     ['EQ-017', '# 标题 ©™✓'],
     ['EQ-018', '# 你好世界 🌍'],
     ['EQ-019', 'x'.repeat(10000)],
-    ['EQ-020', Array.from({ length: 100 }, (_, index) => `## H${index}\n\nbody ${index}`).join('\n\n')],
+    [
+      'EQ-020',
+      Array.from({ length: 100 }, (_, index) => `## H${index}\n\nbody ${index}`).join('\n\n'),
+    ],
   ])('%s equal document stays equal', async (_id, markdown) => {
     const result = await diffMarkdown(markdown)
     expect(anyChange(result)).toBe(false)
@@ -160,7 +172,11 @@ describe('testing philosophy remaining batch', () => {
     ['PG-011', 'a **b** c', 'a *d* `e` f'],
     ['PG-013', '', 'new'],
     ['PG-014', 'old', ''],
-    ['PG-015', Array.from({ length: 5000 }, () => 'a').join(' '), Array.from({ length: 5000 }, (_, i) => (i === 10 ? 'b' : 'a')).join(' ')],
+    [
+      'PG-015',
+      Array.from({ length: 5000 }, () => 'a').join(' '),
+      Array.from({ length: 5000 }, (_, i) => (i === 10 ? 'b' : 'a')).join(' '),
+    ],
     ['PG-016', 'A'.repeat(10000), 'B'.repeat(10000)],
     ['PG-017', '<span>a</span>', '<span>b</span>'],
     ['PG-018', 'a\\*b', 'a\\*c'],
@@ -183,29 +199,69 @@ describe('testing philosophy remaining batch', () => {
     ['CD-010', '```\n```', '```\ncode\n```'],
     ['CD-011', '```\n# not heading\n```', '```\n## still not\n```'],
     ['CD-012', '```\na\n\nb\n```', '```\na\nb\n```'],
-    ['CD-014', `\`\`\`\n${Array.from({ length: 5000 }, (_, i) => (i === 2500 ? 'x' : 'a')).join('\n')}\n\`\`\``, `\`\`\`\n${Array.from({ length: 5000 }, (_, i) => (i === 2500 ? 'y' : 'a')).join('\n')}\n\`\`\``],
-  ])('%s code block change detected', async (_id, oldMarkdown, newMarkdown) => {
-    const result = await diffMarkdown(oldMarkdown, newMarkdown)
-    const code = firstByKindOrType(result, 'code')
-    expect(code).toBeDefined()
-    expect(anyChange(result)).toBe(true)
-  }, 20_000)
+    [
+      'CD-014',
+      `\`\`\`\n${Array.from({ length: 5000 }, (_, i) => (i === 2500 ? 'x' : 'a')).join('\n')}\n\`\`\``,
+      `\`\`\`\n${Array.from({ length: 5000 }, (_, i) => (i === 2500 ? 'y' : 'a')).join('\n')}\n\`\`\``,
+    ],
+  ])(
+    '%s code block change detected',
+    async (_id, oldMarkdown, newMarkdown) => {
+      const result = await diffMarkdown(oldMarkdown, newMarkdown)
+      const code = firstByKindOrType(result, 'code')
+      expect(code).toBeDefined()
+      expect(anyChange(result)).toBe(true)
+    },
+    20_000,
+  )
 
   it.each([
-    ['TB-001', '| a | b |\n| --- | --- |\n| 1 | 2 |', '| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |'],
-    ['TB-002', '| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |', '| a | b |\n| --- | --- |\n| 1 | 2 |'],
-    ['TB-003', '| a | b |\n| --- | --- |\n| 1 | 2 |', '| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |'],
-    ['TB-004', '| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |', '| a | b |\n| --- | --- |\n| 1 | 2 |'],
+    [
+      'TB-001',
+      '| a | b |\n| --- | --- |\n| 1 | 2 |',
+      '| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |',
+    ],
+    [
+      'TB-002',
+      '| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |',
+      '| a | b |\n| --- | --- |\n| 1 | 2 |',
+    ],
+    [
+      'TB-003',
+      '| a | b |\n| --- | --- |\n| 1 | 2 |',
+      '| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |',
+    ],
+    [
+      'TB-004',
+      '| a | b |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |',
+      '| a | b |\n| --- | --- |\n| 1 | 2 |',
+    ],
     ['TB-005', '| a | b |\n| --- | --- |\n| x | 2 |', '| a | b |\n| --- | --- |\n| y | 2 |'],
     ['TB-006', '| a | b |\n| :-- | :-- |\n| 1 | 2 |', '| a | b |\n| :--: | :--: |\n| 1 | 2 |'],
     ['TB-007', '| A | B |\n| --- | --- |\n| 1 | 2 |', '| X | B |\n| --- | --- |\n| 1 | 2 |'],
     ['TB-008', '| A | B |\n| --- | --- |', '| A | B |\n| --- | --- |\n| x | y |'],
-    ['TB-010', '| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 |', '| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 9 | 4 | 5 |'],
+    [
+      'TB-010',
+      '| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 3 | 4 | 5 |',
+      '| A | B | C | D | E |\n| --- | --- | --- | --- | --- |\n| 1 | 2 | 9 | 4 | 5 |',
+    ],
     ['TB-011', '| a | |\n| --- | --- |\n| 1 | 2 |', '| a | b |\n| --- | --- |\n| 1 | 2 |'],
     ['TB-012', '| a | b |\n| --- | --- |\n| 1 | 2 |', 'text'],
     ['TB-013', '| a | b |', '| a | b |\n| --- | --- |'],
     ['TB-014', '| a | b |\n| --- | --- |\n| 1 | 2 | 3 |', '| a | b |\n| --- | --- |\n| 1 | 2 |'],
-    ['TB-015', (() => { const rows = ['| H1 | H2 |\n| --- | --- |']; for (let i=0;i<50;i++) rows.push(`| ${i} | ${i===25?'x':'a'} |`); return rows.join('\n') })(), (() => { const rows = ['| H1 | H2 |\n| --- | --- |']; for (let i=0;i<50;i++) rows.push(`| ${i} | ${i===25?'y':'a'} |`); return rows.join('\n') })()],
+    [
+      'TB-015',
+      (() => {
+        const rows = ['| H1 | H2 |\n| --- | --- |']
+        for (let i = 0; i < 50; i++) rows.push(`| ${i} | ${i === 25 ? 'x' : 'a'} |`)
+        return rows.join('\n')
+      })(),
+      (() => {
+        const rows = ['| H1 | H2 |\n| --- | --- |']
+        for (let i = 0; i < 50; i++) rows.push(`| ${i} | ${i === 25 ? 'y' : 'a'} |`)
+        return rows.join('\n')
+      })(),
+    ],
   ])('%s table change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
     expect(anyChange(result)).toBe(true)
@@ -225,7 +281,11 @@ describe('testing philosophy remaining batch', () => {
     ['LS-011', '- [ ] a\n- b', '- [x] a\n- b'],
     ['LS-012', '- a\n- b', 'paragraph'],
     ['LS-013', '1. a', '- a'],
-    ['LS-014', '- a\n  - b\n    - c\n      - d\n        - e', '- a\n  - b\n    - c\n      - d\n        - f'],
+    [
+      'LS-014',
+      '- a\n  - b\n    - c\n      - d\n        - e',
+      '- a\n  - b\n    - c\n      - d\n        - f',
+    ],
   ])('%s list change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
     expect(anyChange(result)).toBe(true)
@@ -297,7 +357,11 @@ describe('testing philosophy remaining batch', () => {
     ['EM-001', '# A\n## B', '# A\n## B\n# C'],
     ['EM-002', '# A\n# B', '# A\n# C'],
     ['EM-003', '# A\n## B\n### C\n#### D\n##### E', '# X\n\n# A\n## B\n### C\n#### D\n##### E'],
-    ['EM-004', Array.from({ length: 10 }, () => '## A\n\nbody').join('\n\n'), Array.from({ length: 10 }, () => '## A\n\nbody').join('\n\n')],
+    [
+      'EM-004',
+      Array.from({ length: 10 }, () => '## A\n\nbody').join('\n\n'),
+      Array.from({ length: 10 }, () => '## A\n\nbody').join('\n\n'),
+    ],
     ['EM-005', '# any', '# any other'],
   ])('%s structural exact-match scenario runs', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
@@ -329,9 +393,16 @@ describe('testing philosophy remaining batch', () => {
     ['LR-001', '## hello-world\n\nbody', '## hello world\n\nbody'],
     ['LR-002', '## Hello World\n\nbody', '## Hello World!\n\nbody'],
     ['LR-004', '# Alpha\n\n> old\n\n- first', '# Beta\n\n> new\n\n- second'],
-    ['LR-005', '# Alpha\n\n## Body One\n\nsame\n\n## Body Two\n\nsame', '# Beta\n\n## Body 1\n\nsame\n\n## Body 2\n\nsame'],
+    [
+      'LR-005',
+      '# Alpha\n\n## Body One\n\nsame\n\n## Body Two\n\nsame',
+      '# Beta\n\n## Body 1\n\nsame\n\n## Body 2\n\nsame',
+    ],
   ])('%s local recovery change detected', async (_id, oldMarkdown, newMarkdown) => {
-    const result = await diffMarkdown(oldMarkdown, newMarkdown, { enhancedLocalRecovery: true, minSimilarity: 0.55 })
+    const result = await diffMarkdown(oldMarkdown, newMarkdown, {
+      enhancedLocalRecovery: true,
+      minSimilarity: 0.55,
+    })
     expect(anyChange(result)).toBe(true)
   })
 
@@ -376,7 +447,11 @@ describe('testing philosophy remaining batch', () => {
   })
 
   it.each([
-    ['TD-001', '| a | b |\n| --- | --- |\n| 1 | 2 |', '| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |'],
+    [
+      'TD-001',
+      '| a | b |\n| --- | --- |\n| 1 | 2 |',
+      '| a | b | c |\n| --- | --- | --- |\n| 1 | 2 | 3 |',
+    ],
     ['TD-002', '| a |\n| --- |\n| hello world |', '| a |\n| --- |\n| hello there |'],
   ])('%s table diff produced', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
@@ -397,21 +472,38 @@ describe('testing philosophy remaining batch', () => {
   })
 
   it('DG-002 extreme cost limit still produces valid result', async () => {
-    const oldMd = Array.from({ length: 400 }, (_, i) => `# H${i}\n\n${'x '.repeat(100)}`).join('\n\n')
-    const newMd = Array.from({ length: 400 }, (_, i) => `# H${i}\n\n${'y '.repeat(100)}`).join('\n\n')
+    const oldMd = Array.from({ length: 400 }, (_, i) => `# H${i}\n\n${'x '.repeat(100)}`).join(
+      '\n\n',
+    )
+    const newMd = Array.from({ length: 400 }, (_, i) => `# H${i}\n\n${'y '.repeat(100)}`).join(
+      '\n\n',
+    )
     const result = await diffMarkdown(oldMd, newMd, { maxRecursiveAlignmentCost: 10 })
     expect(result.root).toBeDefined()
     expect(result.quality).toBeDefined()
   })
 
   it.each([
-    ['DG-003', '# Root\n\n' + Array.from({ length: 200 }, (_, i) => `## H${i}\n\nbody ${i}`).join('\n\n'), '# Root\n\n' + Array.from({ length: 200 }, (_, i) => `## X${i}\n\nbody ${i}`).join('\n\n'), { maxLocalAlignmentCost: 10 }],
-    ['DG-004', '# A\n\n> old\n\n- first', '# B\n\n> new\n\n- second', { enhancedLocalRecovery: true, maxAptedCost: 1, minSimilarity: 0.55 }],
-  ])('%s degraded/fallback scenario produces valid diff', async (_id, oldMarkdown, newMarkdown, options) => {
-    const result = await diffMarkdown(oldMarkdown, newMarkdown, options)
-    expect(anyChange(result)).toBe(true)
-    expect(result.quality).toBeDefined()
-  })
+    [
+      'DG-003',
+      '# Root\n\n' + Array.from({ length: 200 }, (_, i) => `## H${i}\n\nbody ${i}`).join('\n\n'),
+      '# Root\n\n' + Array.from({ length: 200 }, (_, i) => `## X${i}\n\nbody ${i}`).join('\n\n'),
+      { maxLocalAlignmentCost: 10 },
+    ],
+    [
+      'DG-004',
+      '# A\n\n> old\n\n- first',
+      '# B\n\n> new\n\n- second',
+      { enhancedLocalRecovery: true, maxAptedCost: 1, minSimilarity: 0.55 },
+    ],
+  ])(
+    '%s degraded/fallback scenario produces valid diff',
+    async (_id, oldMarkdown, newMarkdown, options) => {
+      const result = await diffMarkdown(oldMarkdown, newMarkdown, options)
+      expect(anyChange(result)).toBe(true)
+      expect(result.quality).toBeDefined()
+    },
+  )
 
   it.each([
     ['QS-002', 'a '.repeat(6000), 'b '.repeat(6000), { maxInlineDiffMatrixCost: 0 }],
@@ -426,7 +518,11 @@ describe('testing philosophy remaining batch', () => {
     ['SH-001', '# A\n\nlong text', '# B\n\nlong text'],
     ['SH-002', '# AB\n\ntxt', '# CD\n\ntxt'],
     ['SH-003', '# ABC\n\ntext', '# ABD\n\ntext'],
-    ['SH-004', Array.from({ length: 10 }, (_, i) => `## A${i}\n\nbody`).join('\n\n'), Array.from({ length: 10 }, (_, i) => `## B${9 - i}\n\nbody`).join('\n\n')],
+    [
+      'SH-004',
+      Array.from({ length: 10 }, (_, i) => `## A${i}\n\nbody`).join('\n\n'),
+      Array.from({ length: 10 }, (_, i) => `## B${9 - i}\n\nbody`).join('\n\n'),
+    ],
   ])('%s short-heading fallback change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
     expect(anyChange(result)).toBe(true)
@@ -438,7 +534,11 @@ describe('testing philosophy remaining batch', () => {
     ['SR-004', '# A\n# B\n# C', '# X\n# A\n# B\n# C'],
     ['SR-005', '# A\n# B\n# C', '# B\n# C'],
     ['SR-006', '## N\n\nbody1\n\n## N\n\nbody2', '## N\n\nbody2\n\n## N\n\nbody1'],
-    ['SR-007', '## Intro\n\nbody1\n\n## Overview\n\nbody2', '## Overview\n\nbody2\n\n## Intro\n\nbody1'],
+    [
+      'SR-007',
+      '## Intro\n\nbody1\n\n## Overview\n\nbody2',
+      '## Overview\n\nbody2\n\n## Intro\n\nbody1',
+    ],
   ])('%s reorder change detected', async (_id, oldMarkdown, newMarkdown) => {
     const result = await diffMarkdown(oldMarkdown, newMarkdown)
     expect(anyChange(result)).toBe(true)
@@ -447,7 +547,11 @@ describe('testing philosophy remaining batch', () => {
   it.each([
     ['MX-001', '# A\n\ntextA\n\n# B\n\ntextB', '# B\n\ntextB2\n\n# Renamed A\n\ntextA2'],
     ['MX-002', '# A\n\n# B', '# X\n\n# Renamed A\n\n# B'],
-    ['MX-003', '---\na:1\n---\n# A\n\ntext\n\n```js\nx=1\n```\n\n|a|b|\n|---|---|\n|1|2|\n\nText[^1]\n\n[^1]: note', '---\na:2\n---\n# B\n\ntext2\n\n```ts\nx=2\n```\n\n|a|b|\n|---|---|\n|1|3|\n\nText[^2]\n\n[^2]: note'],
+    [
+      'MX-003',
+      '---\na:1\n---\n# A\n\ntext\n\n```js\nx=1\n```\n\n|a|b|\n|---|---|\n|1|2|\n\nText[^1]\n\n[^1]: note',
+      '---\na:2\n---\n# B\n\ntext2\n\n```ts\nx=2\n```\n\n|a|b|\n|---|---|\n|1|3|\n\nText[^2]\n\n[^2]: note',
+    ],
     ['MX-004', '# A\n\n' + 'old '.repeat(2000), '# B\n\n' + 'new '.repeat(2000)],
     ['MX-005', '- [ ] task', '- [x] task'],
   ])('%s mixed complex change detected', async (_id, oldMarkdown, newMarkdown) => {

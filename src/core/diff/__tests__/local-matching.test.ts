@@ -41,17 +41,26 @@ function makeMockNode(overrides: Record<string, any> = {}) {
 }
 
 function makePair(oldId: string, newId: string): MatchPair {
-  return { oldId, newId, pairKind: 'match', pairKey: `match:${oldId}:${newId}`, matchKind: 'exact-self', score: 1 }
+  return {
+    oldId,
+    newId,
+    pairKind: 'match',
+    pairKey: `match:${oldId}:${newId}`,
+    matchKind: 'exact-self',
+    score: 1,
+  }
 }
 
-function makeContext(overrides: {
-  oldNodes?: Record<string, any>[]
-  newNodes?: Record<string, any>[]
-  oldChildren?: Map<string, string[]>
-  newChildren?: Map<string, string[]>
-  matchesByOld?: Map<string, MatchPair>
-  matchesByNew?: Map<string, MatchPair>
-} = {}): DiffContext {
+function makeContext(
+  overrides: {
+    oldNodes?: Record<string, any>[]
+    newNodes?: Record<string, any>[]
+    oldChildren?: Map<string, string[]>
+    newChildren?: Map<string, string[]>
+    matchesByOld?: Map<string, MatchPair>
+    matchesByNew?: Map<string, MatchPair>
+  } = {},
+): DiffContext {
   const oldByIdEntries = (overrides.oldNodes ?? []).map((n) => {
     const node = makeMockNode(n)
     return [node.id, node] as const
@@ -85,7 +94,9 @@ describe('local-matching module', () => {
 
     it('returns undefined for heading without headingBodyHash', () => {
       const node = makeMockNode({
-        entity: 'section', kind: 'heading', headingBodyHash: undefined,
+        entity: 'section',
+        kind: 'heading',
+        headingBodyHash: undefined,
         section: { headingDepth: 2, listDepth: 0, quoteDepth: 0 },
       })
       expect(headingBodyLocalKey(node as any)).toBeUndefined()
@@ -93,7 +104,9 @@ describe('local-matching module', () => {
 
     it('returns depth-composite key for heading with headingBodyHash', () => {
       const node = makeMockNode({
-        entity: 'section', kind: 'heading', headingBodyHash: 'body-hash-1',
+        entity: 'section',
+        kind: 'heading',
+        headingBodyHash: 'body-hash-1',
         section: { headingDepth: 2, listDepth: 1, quoteDepth: 0 },
       })
       expect(headingBodyLocalKey(node as any)).toBe('2:1:0:body-hash-1')
@@ -101,7 +114,9 @@ describe('local-matching module', () => {
 
     it('uses empty string for missing depth values', () => {
       const node = makeMockNode({
-        entity: 'section', kind: 'heading', headingBodyHash: 'bh',
+        entity: 'section',
+        kind: 'heading',
+        headingBodyHash: 'bh',
         section: {},
       })
       expect(headingBodyLocalKey(node as any)).toBe(':::bh')
@@ -232,7 +247,13 @@ describe('local-matching module', () => {
         oldChildren: new Map([['p1', ['o1', 'o2', 'o3']]]),
         newChildren: new Map([['p2', ['n1', 'n2', 'n3']]]),
       })
-      const result = boundCandidateIdsBySiblingAnchors(context, oldNode as any, ['n1', 'n2', 'n3'], 'p1', 'p2')
+      const result = boundCandidateIdsBySiblingAnchors(
+        context,
+        oldNode as any,
+        ['n1', 'n2', 'n3'],
+        'p1',
+        'p2',
+      )
       expect(result).toEqual(['n1', 'n2', 'n3'])
     })
 
@@ -254,7 +275,13 @@ describe('local-matching module', () => {
         newChildren: new Map([['p2', ['n1', 'n2', 'n3']]]),
         matchesByOld: new Map([['o1', pair]]),
       })
-      const result = boundCandidateIdsBySiblingAnchors(context, oldNode as any, ['n1', 'n2', 'n3'], 'p1', 'p2')
+      const result = boundCandidateIdsBySiblingAnchors(
+        context,
+        oldNode as any,
+        ['n1', 'n2', 'n3'],
+        'p1',
+        'p2',
+      )
       expect(result.length).toBeGreaterThan(0)
       expect(result.length).toBeLessThanOrEqual(3)
     })
@@ -267,14 +294,26 @@ describe('local-matching module', () => {
         oldChildren: new Map([['p1', ['o1', 'o2']]]),
         newChildren: new Map([['p2', []]]),
       })
-      const result = boundCandidateIdsBySiblingAnchors(context, oldNode as any, ['n1', 'n2'], 'p1', 'p2')
+      const result = boundCandidateIdsBySiblingAnchors(
+        context,
+        oldNode as any,
+        ['n1', 'n2'],
+        'p1',
+        'p2',
+      )
       expect(result).toEqual(['n1', 'n2'])
     })
   })
 
   describe('recallComparableNodes', () => {
     it('returns same-shape unmatched nodes when count <= maxComparableNodes', () => {
-      const oldNode = makeMockNode({ id: 'o1', entity: 'block', blockType: 'paragraph', siblingIndex: 0, parentId: 'p1' })
+      const oldNode = makeMockNode({
+        id: 'o1',
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: 0,
+        parentId: 'p1',
+      })
       const context = makeContext({
         oldNodes: [oldNode],
         newNodes: [
@@ -290,7 +329,13 @@ describe('local-matching module', () => {
     })
 
     it('filters out nodes with different shape', () => {
-      const oldNode = makeMockNode({ id: 'o1', entity: 'block', blockType: 'paragraph', siblingIndex: 0, parentId: 'p1' })
+      const oldNode = makeMockNode({
+        id: 'o1',
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: 0,
+        parentId: 'p1',
+      })
       const context = makeContext({
         oldNodes: [oldNode],
         newNodes: [
@@ -307,7 +352,13 @@ describe('local-matching module', () => {
     })
 
     it('filters out already-matched new nodes', () => {
-      const oldNode = makeMockNode({ id: 'o1', entity: 'block', blockType: 'paragraph', siblingIndex: 0, parentId: 'p1' })
+      const oldNode = makeMockNode({
+        id: 'o1',
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: 0,
+        parentId: 'p1',
+      })
       const matchedPair = makePair('ox', 'n1')
       const context = makeContext({
         oldNodes: [oldNode],
@@ -325,9 +376,18 @@ describe('local-matching module', () => {
     })
 
     it('truncates to maxComparableNodes when more candidates exist', () => {
-      const oldNode = makeMockNode({ id: 'o1', entity: 'block', blockType: 'paragraph', siblingIndex: 0, parentId: 'p1' })
+      const oldNode = makeMockNode({
+        id: 'o1',
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: 0,
+        parentId: 'p1',
+      })
       const newNodes = Array.from({ length: 10 }, (_, i) => ({
-        id: `n${i}`, entity: 'block', blockType: 'paragraph', siblingIndex: i,
+        id: `n${i}`,
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: i,
       }))
       const context = makeContext({
         oldNodes: [oldNode],
@@ -335,17 +395,27 @@ describe('local-matching module', () => {
         oldChildren: new Map([['p1', ['o1']]]),
         newChildren: new Map([['p2', newNodes.map((n) => n.id)]]),
       })
-      const result = recallComparableNodes(context, oldNode as any, newNodes.map((n) => n.id), 'p1', 'p2')
+      const result = recallComparableNodes(
+        context,
+        oldNode as any,
+        newNodes.map((n) => n.id),
+        'p1',
+        'p2',
+      )
       expect(result.length).toBeLessThanOrEqual(6)
     })
 
     it('returns empty array when no same-shape candidates', () => {
-      const oldNode = makeMockNode({ id: 'o1', entity: 'block', blockType: 'paragraph', siblingIndex: 0, parentId: 'p1' })
+      const oldNode = makeMockNode({
+        id: 'o1',
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: 0,
+        parentId: 'p1',
+      })
       const context = makeContext({
         oldNodes: [oldNode],
-        newNodes: [
-          { id: 'n1', entity: 'block', blockType: 'code', siblingIndex: 0 },
-        ],
+        newNodes: [{ id: 'n1', entity: 'block', blockType: 'code', siblingIndex: 0 }],
         oldChildren: new Map([['p1', ['o1']]]),
         newChildren: new Map([['p2', ['n1']]]),
       })
@@ -355,11 +425,18 @@ describe('local-matching module', () => {
 
     it('falls back to unranked sameShape when all SimHash distances exceed threshold', () => {
       const oldNode = makeMockNode({
-        id: 'o1', entity: 'block', blockType: 'paragraph', siblingIndex: 0, parentId: 'p1',
+        id: 'o1',
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: 0,
+        parentId: 'p1',
         textSimHash: 'ffffffffffffffff',
       })
       const newNodes = Array.from({ length: 8 }, (_, i) => ({
-        id: `n${i}`, entity: 'block', blockType: 'paragraph', siblingIndex: i,
+        id: `n${i}`,
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: i,
         textSimHash: '0000000000000000',
       }))
       const context = makeContext({
@@ -368,7 +445,13 @@ describe('local-matching module', () => {
         oldChildren: new Map([['p1', ['o1']]]),
         newChildren: new Map([['p2', newNodes.map((n) => n.id)]]),
       })
-      const result = recallComparableNodes(context, oldNode as any, newNodes.map((n) => n.id), 'p1', 'p2')
+      const result = recallComparableNodes(
+        context,
+        oldNode as any,
+        newNodes.map((n) => n.id),
+        'p1',
+        'p2',
+      )
       expect(result.length).toBeGreaterThan(0)
     })
   })

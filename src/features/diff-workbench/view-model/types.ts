@@ -13,7 +13,15 @@ import type {
 } from '@/core/diff'
 import type { Block, Section } from '@/core/transformer'
 
-export type Tone = 'plain' | 'insert' | 'delete' | 'replace' | 'move' | 'meta' | 'rename' | 'reorder'
+export type Tone =
+  | 'plain'
+  | 'insert'
+  | 'delete'
+  | 'replace'
+  | 'move'
+  | 'meta'
+  | 'rename'
+  | 'reorder'
 export type HighlightFilter = Tone | 'warning'
 
 export interface MergedRow {

@@ -1,4 +1,11 @@
-import type { DiffChange, DiffNode, DiffOptions, MatchKind, MatchPair, SemanticIndex } from '../types'
+import type {
+  DiffChange,
+  DiffNode,
+  DiffOptions,
+  MatchKind,
+  MatchPair,
+  SemanticIndex,
+} from '../types'
 
 export interface MatchCandidate {
   oldId: string

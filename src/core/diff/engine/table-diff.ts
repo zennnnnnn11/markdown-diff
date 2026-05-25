@@ -10,10 +10,7 @@ import type {
   TableDiff,
   TableRowEdit,
 } from '../types'
-import {
-  maxColumns,
-  readTableData,
-} from '../utils'
+import { maxColumns, readTableData } from '../utils'
 import { createStatus, extractInlineText } from './helpers'
 import { diffInlineNodes, diffWordTextSync, hasMeaningfulInlineDiff } from './inline-diff'
 

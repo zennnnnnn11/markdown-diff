@@ -1,8 +1,4 @@
-import type {
-  DiffChange,
-  MatchKind,
-  MatchPair,
-} from '../types'
+import type { DiffChange, MatchKind, MatchPair } from '../types'
 import { makePairKey } from '../utils'
 import type { DiffContext } from './context'
 
@@ -39,7 +35,11 @@ export function addMatch(
   return pair
 }
 
-export function convertChangeToMove(change: DiffChange, pair: MatchPair, role: 'source' | 'target'): void {
+export function convertChangeToMove(
+  change: DiffChange,
+  pair: MatchPair,
+  role: 'source' | 'target',
+): void {
   change.primaryOp = 'move'
   change.pairKind = 'match'
   change.pairKey = pair.pairKey

@@ -8,7 +8,11 @@ export function decodeBase64(base64: string): Uint8Array {
     return bytes
   }
 
-  const bufferCtor = (globalThis as typeof globalThis & { Buffer?: { from(data: string, encoding: string): Uint8Array } }).Buffer
+  const bufferCtor = (
+    globalThis as typeof globalThis & {
+      Buffer?: { from(data: string, encoding: string): Uint8Array }
+    }
+  ).Buffer
   if (bufferCtor) {
     return Uint8Array.from(bufferCtor.from(base64, 'base64'))
   }

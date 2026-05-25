@@ -39,18 +39,27 @@ function makeMockNode(overrides: Record<string, any> = {}) {
 }
 
 function makePair(oldId: string, newId: string): MatchPair {
-  return { oldId, newId, pairKind: 'match', pairKey: `match:${oldId}:${newId}`, matchKind: 'exact-self', score: 1 }
+  return {
+    oldId,
+    newId,
+    pairKind: 'match',
+    pairKey: `match:${oldId}:${newId}`,
+    matchKind: 'exact-self',
+    score: 1,
+  }
 }
 
-function makeContext(overrides: {
-  oldNodes?: Record<string, any>[]
-  newNodes?: Record<string, any>[]
-  oldChildren?: Map<string, string[]>
-  newChildren?: Map<string, string[]>
-  matchesByOld?: Map<string, MatchPair>
-  matchesByNew?: Map<string, MatchPair>
-  options?: Partial<Parameters<typeof resolveDiffOptions>[0]>
-} = {}): DiffContext {
+function makeContext(
+  overrides: {
+    oldNodes?: Record<string, any>[]
+    newNodes?: Record<string, any>[]
+    oldChildren?: Map<string, string[]>
+    newChildren?: Map<string, string[]>
+    matchesByOld?: Map<string, MatchPair>
+    matchesByNew?: Map<string, MatchPair>
+    options?: Partial<Parameters<typeof resolveDiffOptions>[0]>
+  } = {},
+): DiffContext {
   const oldByIdEntries = (overrides.oldNodes ?? []).map((n) => {
     const node = makeMockNode(n)
     return [node.id, node] as const
@@ -77,17 +86,27 @@ function makeContext(overrides: {
 
 function makeDeleteChange(oldId: string, overrides: Partial<DiffChange> = {}): DiffChange {
   return {
-    entity: 'section', primaryOp: 'delete', oldId,
-    status: makeStatus({ selfChanged: true }), summary: `Delete ${oldId}`,
-    children: [], warnings: [], ...overrides,
+    entity: 'section',
+    primaryOp: 'delete',
+    oldId,
+    status: makeStatus({ selfChanged: true }),
+    summary: `Delete ${oldId}`,
+    children: [],
+    warnings: [],
+    ...overrides,
   }
 }
 
 function makeInsertChange(newId: string, overrides: Partial<DiffChange> = {}): DiffChange {
   return {
-    entity: 'section', primaryOp: 'insert', newId,
-    status: makeStatus({ selfChanged: true }), summary: `Insert ${newId}`,
-    children: [], warnings: [], ...overrides,
+    entity: 'section',
+    primaryOp: 'insert',
+    newId,
+    status: makeStatus({ selfChanged: true }),
+    summary: `Insert ${newId}`,
+    children: [],
+    warnings: [],
+    ...overrides,
   }
 }
 
@@ -103,7 +122,9 @@ describe('threshold boundaries', () => {
         newNodes: [{ id: 'n1', entity: 'block', blockType: 'paragraph', depth: depthDiff }],
         options: { moveDepthDiffMax: 2 },
       })
-      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(expected)
+      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(
+        expected,
+      )
     })
   })
 
@@ -114,11 +135,17 @@ describe('threshold boundaries', () => {
       { oldSize: 2, newSize: 10, label: 'BELOW (ratio=0.2)', expected: false },
     ])('$label → allowed=$expected', ({ oldSize, newSize, expected }) => {
       const context = makeContext({
-        oldNodes: [{ id: 'o1', entity: 'section', kind: 'heading', subtreeSize: oldSize, depth: 0 }],
-        newNodes: [{ id: 'n1', entity: 'section', kind: 'heading', subtreeSize: newSize, depth: 0 }],
+        oldNodes: [
+          { id: 'o1', entity: 'section', kind: 'heading', subtreeSize: oldSize, depth: 0 },
+        ],
+        newNodes: [
+          { id: 'n1', entity: 'section', kind: 'heading', subtreeSize: newSize, depth: 0 },
+        ],
         options: { moveSubtreeSizeRatioMin: 0.3, moveSubtreeSizeRatioMax: 100 },
       })
-      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(expected)
+      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(
+        expected,
+      )
     })
   })
 
@@ -129,18 +156,25 @@ describe('threshold boundaries', () => {
       { oldSize: 31, newSize: 10, label: 'ABOVE (ratio=3.1)', expected: false },
     ])('$label → allowed=$expected', ({ oldSize, newSize, expected }) => {
       const context = makeContext({
-        oldNodes: [{ id: 'o1', entity: 'section', kind: 'heading', subtreeSize: oldSize, depth: 0 }],
-        newNodes: [{ id: 'n1', entity: 'section', kind: 'heading', subtreeSize: newSize, depth: 0 }],
+        oldNodes: [
+          { id: 'o1', entity: 'section', kind: 'heading', subtreeSize: oldSize, depth: 0 },
+        ],
+        newNodes: [
+          { id: 'n1', entity: 'section', kind: 'heading', subtreeSize: newSize, depth: 0 },
+        ],
         options: { moveSubtreeSizeRatioMin: 0, moveSubtreeSizeRatioMax: 3 },
       })
-      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(expected)
+      expect(moveCandidateAllowed(context, makeDeleteChange('o1'), makeInsertChange('n1'))).toBe(
+        expected,
+      )
     })
   })
 
   describe('minSimilarity (default: 0.55)', () => {
     it('high similarity markdown produces match pairs', async () => {
       const oldMd = '# Title\n\nThis is a paragraph with specific content about testing.'
-      const newMd = '# Title\n\nThis is a paragraph with specific content about testing with minor edits.'
+      const newMd =
+        '# Title\n\nThis is a paragraph with specific content about testing with minor edits.'
       const result = await diffMarkdown(oldMd, newMd, { minSimilarity: 0.1 })
       const changes = flatten(result.root)
       const matched = changes.filter((c) => c.status.isMatchPair || c.status.isAlignedPair)
@@ -201,7 +235,10 @@ describe('threshold boundaries', () => {
   describe('maxInlineDiffMatrixCost', () => {
     it('low cost limit triggers inline-deferred warning', async () => {
       const makeHeavy = (prefix: string) =>
-        Array.from({ length: 30 }, (_, i) => `**${prefix}${i}** _${prefix}${i}_ [${prefix}${i}](u${i})`).join(' ')
+        Array.from(
+          { length: 30 },
+          (_, i) => `**${prefix}${i}** _${prefix}${i}_ [${prefix}${i}](u${i})`,
+        ).join(' ')
       const oldMd = `# Title\n\n${makeHeavy('old')}`
       const newMd = `# Title\n\n${makeHeavy('new')}`
       const result = await diffMarkdown(oldMd, newMd, { maxInlineDiffMatrixCost: 1 })
@@ -245,17 +282,47 @@ describe('threshold boundaries', () => {
   describe('shortHeadingSiblingTolerance (heuristic: 1)', () => {
     it('allows fallback when sibling distance <= tolerance', () => {
       const old = makeMockNode({
-        id: 'o1', entity: 'section', kind: 'heading', siblingIndex: 0,
-        section: { headingDepth: 2 }, headingBodyHash: 'same', logicalChildren: [],
+        id: 'o1',
+        entity: 'section',
+        kind: 'heading',
+        siblingIndex: 0,
+        section: { headingDepth: 2 },
+        headingBodyHash: 'same',
+        logicalChildren: [],
       })
       const nw = makeMockNode({
-        id: 'n1', entity: 'section', kind: 'heading', siblingIndex: 1,
-        section: { headingDepth: 2 }, headingBodyHash: 'same', logicalChildren: [],
+        id: 'n1',
+        entity: 'section',
+        kind: 'heading',
+        siblingIndex: 1,
+        section: { headingDepth: 2 },
+        headingBodyHash: 'same',
+        logicalChildren: [],
       })
       const parentPair = makePair('p1', 'p2')
       const context = makeContext({
-        oldNodes: [old, { id: 'o1-sib', entity: 'section', kind: 'heading', siblingIndex: 1, section: { headingDepth: 2 }, titleSlug: 'other' }],
-        newNodes: [nw, { id: 'n1-sib', entity: 'section', kind: 'heading', siblingIndex: 0, section: { headingDepth: 2 }, titleSlug: 'other2' }],
+        oldNodes: [
+          old,
+          {
+            id: 'o1-sib',
+            entity: 'section',
+            kind: 'heading',
+            siblingIndex: 1,
+            section: { headingDepth: 2 },
+            titleSlug: 'other',
+          },
+        ],
+        newNodes: [
+          nw,
+          {
+            id: 'n1-sib',
+            entity: 'section',
+            kind: 'heading',
+            siblingIndex: 0,
+            section: { headingDepth: 2 },
+            titleSlug: 'other2',
+          },
+        ],
         oldChildren: new Map([['p1', ['o1', 'o1-sib']]]),
         newChildren: new Map([['p2', ['n1-sib', 'n1']]]),
         matchesByOld: new Map([['p1', parentPair]]),
@@ -266,12 +333,22 @@ describe('threshold boundaries', () => {
 
     it('rejects fallback when sibling distance > tolerance', () => {
       const old = makeMockNode({
-        id: 'o1', entity: 'section', kind: 'heading', siblingIndex: 0,
-        section: { headingDepth: 2 }, headingBodyHash: 'same', logicalChildren: [],
+        id: 'o1',
+        entity: 'section',
+        kind: 'heading',
+        siblingIndex: 0,
+        section: { headingDepth: 2 },
+        headingBodyHash: 'same',
+        logicalChildren: [],
       })
       const nw = makeMockNode({
-        id: 'n1', entity: 'section', kind: 'heading', siblingIndex: 3,
-        section: { headingDepth: 2 }, headingBodyHash: 'same', logicalChildren: [],
+        id: 'n1',
+        entity: 'section',
+        kind: 'heading',
+        siblingIndex: 3,
+        section: { headingDepth: 2 },
+        headingBodyHash: 'same',
+        logicalChildren: [],
       })
       const parentPair = makePair('p1', 'p2')
       const context = makeContext({
@@ -286,9 +363,18 @@ describe('threshold boundaries', () => {
 
   describe('maxComparableNodes (heuristic: 6)', () => {
     it('returns all candidates when count is at threshold', () => {
-      const oldNode = makeMockNode({ id: 'o1', entity: 'block', blockType: 'paragraph', siblingIndex: 0, parentId: 'p1' })
+      const oldNode = makeMockNode({
+        id: 'o1',
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: 0,
+        parentId: 'p1',
+      })
       const newNodes = Array.from({ length: 6 }, (_, i) => ({
-        id: `n${i}`, entity: 'block', blockType: 'paragraph', siblingIndex: i,
+        id: `n${i}`,
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: i,
       }))
       const context = makeContext({
         oldNodes: [oldNode],
@@ -296,14 +382,29 @@ describe('threshold boundaries', () => {
         oldChildren: new Map([['p1', ['o1']]]),
         newChildren: new Map([['p2', newNodes.map((n) => n.id)]]),
       })
-      const result = recallComparableNodes(context, oldNode as any, newNodes.map((n) => n.id), 'p1', 'p2')
+      const result = recallComparableNodes(
+        context,
+        oldNode as any,
+        newNodes.map((n) => n.id),
+        'p1',
+        'p2',
+      )
       expect(result.length).toBe(6)
     })
 
     it('truncates candidates when count exceeds threshold', () => {
-      const oldNode = makeMockNode({ id: 'o1', entity: 'block', blockType: 'paragraph', siblingIndex: 0, parentId: 'p1' })
+      const oldNode = makeMockNode({
+        id: 'o1',
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: 0,
+        parentId: 'p1',
+      })
       const newNodes = Array.from({ length: 7 }, (_, i) => ({
-        id: `n${i}`, entity: 'block', blockType: 'paragraph', siblingIndex: i,
+        id: `n${i}`,
+        entity: 'block',
+        blockType: 'paragraph',
+        siblingIndex: i,
       }))
       const context = makeContext({
         oldNodes: [oldNode],
@@ -311,7 +412,13 @@ describe('threshold boundaries', () => {
         oldChildren: new Map([['p1', ['o1']]]),
         newChildren: new Map([['p2', newNodes.map((n) => n.id)]]),
       })
-      const result = recallComparableNodes(context, oldNode as any, newNodes.map((n) => n.id), 'p1', 'p2')
+      const result = recallComparableNodes(
+        context,
+        oldNode as any,
+        newNodes.map((n) => n.id),
+        'p1',
+        'p2',
+      )
       expect(result.length).toBeLessThanOrEqual(6)
     })
   })

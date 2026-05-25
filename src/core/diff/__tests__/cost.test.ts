@@ -34,27 +34,18 @@ describe('cost module', () => {
     })
 
     it('returns linear cost when one side has no children', () => {
-      const context = makeContextWithChildren(
-        { a: ['c1', 'c2', 'c3'] },
-        {},
-      )
+      const context = makeContextWithChildren({ a: ['c1', 'c2', 'c3'] }, {})
       expect(estimateSectionAlignmentCost(context, makeNode('a'), makeNode('b'))).toBe(3)
     })
 
     it('returns quadratic-plus-linear cost for non-trivial case', () => {
-      const context = makeContextWithChildren(
-        { a: ['c1', 'c2'] },
-        { b: ['c3', 'c4', 'c5'] },
-      )
+      const context = makeContextWithChildren({ a: ['c1', 'c2'] }, { b: ['c3', 'c4', 'c5'] })
       const cost = estimateSectionAlignmentCost(context, makeNode('a'), makeNode('b'))
       expect(cost).toBe(2 * 3 + 2 + 3)
     })
 
     it('is symmetric for equal-sized children', () => {
-      const context = makeContextWithChildren(
-        { a: ['c1', 'c2'] },
-        { b: ['c3', 'c4'] },
-      )
+      const context = makeContextWithChildren({ a: ['c1', 'c2'] }, { b: ['c3', 'c4'] })
       const cost = estimateSectionAlignmentCost(context, makeNode('a'), makeNode('b'))
       expect(cost).toBe(2 * 2 + 2 + 2)
     })
@@ -62,10 +53,7 @@ describe('cost module', () => {
     it('scales with large subtrees', () => {
       const oldIds = Array.from({ length: 10 }, (_, i) => `o${i}`)
       const newIds = Array.from({ length: 20 }, (_, i) => `n${i}`)
-      const context = makeContextWithChildren(
-        { a: oldIds },
-        { b: newIds },
-      )
+      const context = makeContextWithChildren({ a: oldIds }, { b: newIds })
       const cost = estimateSectionAlignmentCost(context, makeNode('a'), makeNode('b'))
       expect(cost).toBe(10 * 20 + 10 + 20)
     })
@@ -77,9 +65,7 @@ describe('cost module', () => {
         primaryOp: 'equal',
         summary: 'root',
         status: makeStatus(),
-        children: [
-          makeChange({ primaryOp: 'equal', summary: 'child', status: makeStatus() }),
-        ],
+        children: [makeChange({ primaryOp: 'equal', summary: 'child', status: makeStatus() })],
       })
       expect(estimateAptedRecoveryCost(change)).toBe(0)
     })
@@ -102,9 +88,7 @@ describe('cost module', () => {
         primaryOp: 'equal',
         summary: 'root',
         status: makeStatus(),
-        children: [
-          makeChange({ primaryOp: 'insert', summary: 'ins1', status: makeStatus() }),
-        ],
+        children: [makeChange({ primaryOp: 'insert', summary: 'ins1', status: makeStatus() })],
       })
       expect(estimateAptedRecoveryCost(change)).toBe(0)
     })
@@ -165,10 +149,7 @@ describe('cost module', () => {
     it('cost.ts does not import from helpers', async () => {
       const fs = await import('fs')
       const path = await import('path')
-      const source = fs.readFileSync(
-        path.resolve(__dirname, '../engine/cost.ts'),
-        'utf-8',
-      )
+      const source = fs.readFileSync(path.resolve(__dirname, '../engine/cost.ts'), 'utf-8')
       expect(source).not.toContain("from './helpers'")
     })
 

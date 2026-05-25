@@ -34,7 +34,7 @@ export function buildSideInlineSegments(
   const spans = change.kind === 'heading' ? change.titleInlineSpans : change.inlineSpans
   if (!spans?.length) return undefined
 
-  const tone = change.kind === 'heading' ? 'rename' : tonesForChange(change)[0] ?? 'replace'
+  const tone = change.kind === 'heading' ? 'rename' : (tonesForChange(change)[0] ?? 'replace')
   const prefix = change.kind === 'heading' ? headingPrefix(change) : ''
   const segments: ProjectionSegment[] = []
 
@@ -72,7 +72,8 @@ export function buildCodeSegment(
   replaceTone: Tone,
 ): ProjectionSegment | undefined {
   if (span.op === 'equal') {
-    const text = side === 'old' ? (span.oldText ?? span.newText ?? '') : (span.newText ?? span.oldText ?? '')
+    const text =
+      side === 'old' ? (span.oldText ?? span.newText ?? '') : (span.newText ?? span.oldText ?? '')
     return text ? { text, tone: 'plain' } : undefined
   }
   if (span.op === 'insert') {
@@ -216,7 +217,8 @@ function buildSideSpanSegment(
   tone: Tone,
 ): ProjectionSegment | undefined {
   if (span.op === 'equal') {
-    const text = side === 'old' ? (span.oldText ?? span.newText ?? '') : (span.newText ?? span.oldText ?? '')
+    const text =
+      side === 'old' ? (span.oldText ?? span.newText ?? '') : (span.newText ?? span.oldText ?? '')
     return text ? { text, tone: 'plain' } : undefined
   }
 
@@ -242,7 +244,8 @@ function buildSideWordSegment(
   tone: Tone,
 ): ProjectionSegment | undefined {
   if (span.op === 'equal') {
-    const text = side === 'old' ? (span.oldText ?? span.newText ?? '') : (span.newText ?? span.oldText ?? '')
+    const text =
+      side === 'old' ? (span.oldText ?? span.newText ?? '') : (span.newText ?? span.oldText ?? '')
     return text ? { text, tone: 'plain' } : undefined
   }
 

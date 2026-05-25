@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  foldLongCodeSpans,
-  coalesceLineDiffSpans,
-  diffCodeLines,
-} from '../engine/presentation'
+import { foldLongCodeSpans, coalesceLineDiffSpans, diffCodeLines } from '../engine/presentation'
 import { resolveDiffOptions } from '../options'
 import type { LineDiffSpan } from '../types'
 
@@ -23,24 +19,20 @@ function makeSpan(op: LineDiffSpan['op'], overrides: Partial<LineDiffSpan> = {})
 describe('presentation module', () => {
   describe('foldLongCodeSpans', () => {
     it('returns all spans when all are changes', () => {
-      const spans: LineDiffSpan[] = [
-        makeSpan('delete'),
-        makeSpan('insert'),
-        makeSpan('replace'),
-      ]
+      const spans: LineDiffSpan[] = [makeSpan('delete'), makeSpan('insert'), makeSpan('replace')]
       const result = foldLongCodeSpans(spans, 2)
       expect(result.length).toBe(3)
     })
 
     it('keeps context lines around changes plus first/last lines', () => {
       const spans: LineDiffSpan[] = [
-        makeSpan('equal'),  // 0: kept (first contextLines)
-        makeSpan('equal'),  // 1: filtered
-        makeSpan('equal'),  // 2: kept (change-1)
+        makeSpan('equal'), // 0: kept (first contextLines)
+        makeSpan('equal'), // 1: filtered
+        makeSpan('equal'), // 2: kept (change-1)
         makeSpan('delete'), // 3: kept (change)
-        makeSpan('equal'),  // 4: kept (change+1)
-        makeSpan('equal'),  // 5: filtered
-        makeSpan('equal'),  // 6: kept (last contextLines)
+        makeSpan('equal'), // 4: kept (change+1)
+        makeSpan('equal'), // 5: filtered
+        makeSpan('equal'), // 6: kept (last contextLines)
       ]
       const result = foldLongCodeSpans(spans, 1)
       expect(result.length).toBe(5)
@@ -72,11 +64,7 @@ describe('presentation module', () => {
     })
 
     it('handles contextLines=0', () => {
-      const spans: LineDiffSpan[] = [
-        makeSpan('equal'),
-        makeSpan('delete'),
-        makeSpan('equal'),
-      ]
+      const spans: LineDiffSpan[] = [makeSpan('equal'), makeSpan('delete'), makeSpan('equal')]
       const result = foldLongCodeSpans(spans, 0)
       expect(result.some((s) => s.op === 'delete')).toBe(true)
     })
@@ -143,7 +131,12 @@ describe('presentation module', () => {
         { op: 'delete' as const, oldIndex: 0 },
         { op: 'insert' as const, newIndex: 0 },
       ]
-      const result = coalesceLineDiffSpans(edits, ['old line'], ['new line'], resolveDiffOptions({}))
+      const result = coalesceLineDiffSpans(
+        edits,
+        ['old line'],
+        ['new line'],
+        resolveDiffOptions({}),
+      )
       expect(result.length).toBe(1)
       expect(result[0]!.op).toBe('replace')
       expect(result[0]!.oldLine).toBe('old line')
@@ -155,7 +148,12 @@ describe('presentation module', () => {
         { op: 'delete' as const, oldIndex: 0 },
         { op: 'insert' as const, newIndex: 0 },
       ]
-      const result = coalesceLineDiffSpans(edits, ['hello world'], ['hello earth'], resolveDiffOptions({}))
+      const result = coalesceLineDiffSpans(
+        edits,
+        ['hello world'],
+        ['hello earth'],
+        resolveDiffOptions({}),
+      )
       expect(result[0]!.op).toBe('replace')
       expect(result[0]!.charSpans).toBeDefined()
     })
@@ -224,7 +222,11 @@ describe('presentation module', () => {
       const newLines = [...lines]
       newLines[125] = 'changed line 125'
       const newCode = newLines.join('\n')
-      const result = diffCodeLines(oldCode, newCode, resolveDiffOptions({ longCodeLineThreshold: 200 }))
+      const result = diffCodeLines(
+        oldCode,
+        newCode,
+        resolveDiffOptions({ longCodeLineThreshold: 200 }),
+      )
       expect(result.length).toBeLessThan(250)
     })
 

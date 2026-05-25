@@ -22,7 +22,10 @@ describe('testing philosophy operations batch', () => {
       ['EQ-017', '# 标题 ©™✓'],
       ['EQ-018', '# 你好世界 🌍'],
       ['EQ-019', 'x'.repeat(10000)],
-      ['EQ-020', Array.from({ length: 100 }, (_, index) => `## H${index}\n\nbody ${index}`).join('\n\n')],
+      [
+        'EQ-020',
+        Array.from({ length: 100 }, (_, index) => `## H${index}\n\nbody ${index}`).join('\n\n'),
+      ],
     ])('%s stays fully equal', async (_id, markdown) => {
       const result = await diffMarkdown(markdown)
       expect(result.stats).toEqual({
@@ -48,17 +51,27 @@ describe('testing philosophy operations batch', () => {
       ['IN-008', 'para', 'para\n\n| a | b |\n| --- | --- |', 'insert'],
       ['IN-009', 'para', 'para\n\n> quote', 'insert'],
       ['IN-010', '[^1]: a', '[^1]: a\n[^2]: b', 'insert'],
-      ['IN-011', '[a]: https://example.com/a', '[a]: https://example.com/a\n[b]: https://example.com/b', 'insert'],
+      [
+        'IN-011',
+        '[a]: https://example.com/a',
+        '[a]: https://example.com/a\n[b]: https://example.com/b',
+        'insert',
+      ],
       ['IN-012', '---\na: 1\n---', '---\na: 1\nb: 2\n---', 'meta-update'],
       ['IN-013', '---\na:\n  x: 1\n---', '---\na:\n  x: 1\n  y: 2\n---', 'meta-update'],
       ['IN-014', '---\ntags: [a]\n---', '---\ntags: [a, b]\n---', 'meta-update'],
       ['IN-015', '', '---\na: 1\n---', 'insert'],
       ['IN-017', '# A', '# A\n\np1\n\np2\n\np3', 'insert'],
       ['IN-018', '', '\n\n# A', 'insert'],
-    ])('%s surfaces an insertion-oriented change', async (_id, oldMarkdown, newMarkdown, expectedPrimary) => {
-      const result = await diffMarkdown(oldMarkdown, newMarkdown)
-      expect(flatten(result.root).some((change) => change.primaryOp === expectedPrimary)).toBe(true)
-    })
+    ])(
+      '%s surfaces an insertion-oriented change',
+      async (_id, oldMarkdown, newMarkdown, expectedPrimary) => {
+        const result = await diffMarkdown(oldMarkdown, newMarkdown)
+        expect(flatten(result.root).some((change) => change.primaryOp === expectedPrimary)).toBe(
+          true,
+        )
+      },
+    )
 
     it('IN-016: trailing blank lines do not materialize an empty paragraph insertion', async () => {
       const result = await diffMarkdown('# A', '# A\n\n\n')
@@ -85,7 +98,11 @@ describe('testing philosophy operations batch', () => {
       ['DL-017', '---\na: 1\n---', ''],
     ])('%s surfaces a delete-oriented change', async (_id, oldMarkdown, newMarkdown) => {
       const result = await diffMarkdown(oldMarkdown, newMarkdown)
-      expect(flatten(result.root).some((change) => change.primaryOp === 'delete' || change.primaryOp === 'meta-update')).toBe(true)
+      expect(
+        flatten(result.root).some(
+          (change) => change.primaryOp === 'delete' || change.primaryOp === 'meta-update',
+        ),
+      ).toBe(true)
     })
 
     it('DL-009: deleting content inside a blockquote keeps the quote paired instead of deleting the whole section', async () => {
@@ -94,7 +111,10 @@ describe('testing philosophy operations batch', () => {
       expect(hasAnySemanticChange(result)).toBe(true)
       expect(
         flatten(result.root).some(
-          (change) => change.kind === 'blockquote' && change.primaryOp !== 'delete' && change.primaryOp !== 'insert',
+          (change) =>
+            change.kind === 'blockquote' &&
+            change.primaryOp !== 'delete' &&
+            change.primaryOp !== 'insert',
         ),
       ).toBe(true)
     })
@@ -105,7 +125,12 @@ describe('testing philosophy operations batch', () => {
       ['RP-001', 'old text', 'new text', 'replace-or-meta'],
       ['RP-002', 'hello world', 'hello there', 'replace-or-meta'],
       ['RP-003', '# Old Title', '# New Title', 'rename'],
-      ['RP-005', '| a | b |\n| --- | --- |\n| 1 | 2 |', '| a | b |\n| --- | --- |\n| 1 | 3 |', 'replace-or-meta'],
+      [
+        'RP-005',
+        '| a | b |\n| --- | --- |\n| 1 | 2 |',
+        '| a | b |\n| --- | --- |\n| 1 | 3 |',
+        'replace-or-meta',
+      ],
       ['RP-006', '- old', '- new', 'replace-or-meta'],
       ['RP-007', '> old', '> new', 'replace-or-meta'],
       ['RP-008', '# A', 'paragraph', 'any-change'],
@@ -114,23 +139,32 @@ describe('testing philosophy operations batch', () => {
       ['RP-011', '- a', 'paragraph', 'any-change'],
       ['RP-013', '---\na: 1\n---', '---\na: 2\n---', 'replace-or-meta'],
       ['RP-014', '---\na:\n  x: 1\n---', '---\na:\n  x: 2\n---', 'replace-or-meta'],
-    ])('%s surfaces the expected replacement-oriented semantics', async (_id, oldMarkdown, newMarkdown, expectation) => {
-      const result = await diffMarkdown(oldMarkdown, newMarkdown)
+    ])(
+      '%s surfaces the expected replacement-oriented semantics',
+      async (_id, oldMarkdown, newMarkdown, expectation) => {
+        const result = await diffMarkdown(oldMarkdown, newMarkdown)
 
-      if (expectation === 'rename') {
-        expect(flatten(result.root).some((change) => change.kind === 'heading' && change.status.renamed)).toBe(true)
-        return
-      }
+        if (expectation === 'rename') {
+          expect(
+            flatten(result.root).some(
+              (change) => change.kind === 'heading' && change.status.renamed,
+            ),
+          ).toBe(true)
+          return
+        }
 
-      if (expectation === 'any-change') {
-        expect(hasAnySemanticChange(result)).toBe(true)
-        return
-      }
+        if (expectation === 'any-change') {
+          expect(hasAnySemanticChange(result)).toBe(true)
+          return
+        }
 
-      expect(
-        flatten(result.root).some((change) => change.primaryOp === 'replace' || change.primaryOp === 'meta-update'),
-      ).toBe(true)
-    })
+        expect(
+          flatten(result.root).some(
+            (change) => change.primaryOp === 'replace' || change.primaryOp === 'meta-update',
+          ),
+        ).toBe(true)
+      },
+    )
   })
 
   describe('meta-update coverage', () => {
@@ -141,17 +175,20 @@ describe('testing philosophy operations batch', () => {
       ['MU-006', '[text](old)', '[text](new)'],
       ['MU-007', '![alt](old)', '![alt](new)'],
       ['MU-008', '---\ndate: 2024\n---', '---\ndate: 2025\n---'],
-    ])('%s surfaces metadata-oriented or inline change semantics', async (_id, oldMarkdown, newMarkdown) => {
-      const result = await diffMarkdown(oldMarkdown, newMarkdown)
-      expect(
-        flatten(result.root).some(
-          (change) =>
-            change.primaryOp === 'meta-update' ||
-            change.primaryOp === 'replace' ||
-            (change.inlineSpans?.length ?? 0) > 0,
-        ),
-      ).toBe(true)
-    })
+    ])(
+      '%s surfaces metadata-oriented or inline change semantics',
+      async (_id, oldMarkdown, newMarkdown) => {
+        const result = await diffMarkdown(oldMarkdown, newMarkdown)
+        expect(
+          flatten(result.root).some(
+            (change) =>
+              change.primaryOp === 'meta-update' ||
+              change.primaryOp === 'replace' ||
+              (change.inlineSpans?.length ?? 0) > 0,
+          ),
+        ).toBe(true)
+      },
+    )
   })
 
   describe('html/math/yaml/toml block coverage', () => {

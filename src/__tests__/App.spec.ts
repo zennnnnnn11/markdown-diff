@@ -17,7 +17,9 @@ describe('App', () => {
     const wrapper = mount(App, { attachTo: document.body })
 
     try {
-      await waitFor(() => wrapper.findAll('.stat-card').length > 0 && !wrapper.text().includes('比对中...'))
+      await waitFor(
+        () => wrapper.findAll('.stat-card').length > 0 && !wrapper.text().includes('比对中...'),
+      )
 
       expect(wrapper.text()).toContain('Markdown Diff')
       expect(wrapper.findAll('.markdown-editor')).toHaveLength(2)
@@ -32,7 +34,9 @@ describe('App', () => {
       expect(targetRow?.exists()).toBe(true)
 
       await targetRow!.trigger('click')
-      await flushPromises()
+      await waitFor(
+        () => document.body.querySelector('[data-testid="detail-modal-backdrop"]') !== null,
+      )
 
       expect(document.body.textContent).toContain('旧')
       expect(document.body.textContent).toContain('新')
@@ -46,7 +50,9 @@ describe('App', () => {
     const wrapper = mount(App, { attachTo: document.body })
 
     try {
-      await waitFor(() => wrapper.findAll('.stat-card').length > 0 && !wrapper.text().includes('比对中...'))
+      await waitFor(
+        () => wrapper.findAll('.stat-card').length > 0 && !wrapper.text().includes('比对中...'),
+      )
 
       const statButton = wrapper.find('.stat-card')
       expect(wrapper.find('.unified-table').attributes('data-active-filter')).toBeUndefined()

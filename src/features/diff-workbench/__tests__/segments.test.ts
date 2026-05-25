@@ -17,20 +17,14 @@ function seg(text: string, tone: Tone): ProjectionSegment {
 describe('segments module', () => {
   describe('mergeAdjacentSegments', () => {
     it('merges segments with same tone', () => {
-      const result = mergeAdjacentSegments([
-        seg('hello ', 'plain'),
-        seg('world', 'plain'),
-      ])
+      const result = mergeAdjacentSegments([seg('hello ', 'plain'), seg('world', 'plain')])
       expect(result.length).toBe(1)
       expect(result[0]!.text).toBe('hello world')
       expect(result[0]!.tone).toBe('plain')
     })
 
     it('does not merge segments with different tones', () => {
-      const result = mergeAdjacentSegments([
-        seg('old', 'delete'),
-        seg('new', 'insert'),
-      ])
+      const result = mergeAdjacentSegments([seg('old', 'delete'), seg('new', 'insert')])
       expect(result.length).toBe(2)
     })
 
@@ -88,7 +82,10 @@ describe('segments module', () => {
     })
 
     it('falls back to oldNode when newNode is undefined', () => {
-      const change = { newNode: undefined, oldNode: { kind: 'heading', depth: 2, headingDepth: 2 } } as any
+      const change = {
+        newNode: undefined,
+        oldNode: { kind: 'heading', depth: 2, headingDepth: 2 },
+      } as any
       expect(headingPrefix(change)).toBe('## ')
     })
 
@@ -284,9 +281,7 @@ describe('segments module', () => {
 
   describe('buildPreciseWordSegments', () => {
     it('positions word segments correctly for ASCII text', () => {
-      const wordSpans = [
-        { op: 'replace' as const, oldText: 'world', newText: 'planet' },
-      ]
+      const wordSpans = [{ op: 'replace' as const, oldText: 'world', newText: 'planet' }]
       const result = buildPreciseWordSegments('hello world', wordSpans, 'old', 'replace')
       expect(result).toBeDefined()
       expect(result!.find((s) => s.tone === 'delete')?.text).toBe('world')
@@ -294,26 +289,20 @@ describe('segments module', () => {
     })
 
     it('bails out for Turkish İ where toLowerCase changes string length', () => {
-      const wordSpans = [
-        { op: 'replace' as const, oldText: 'İstanbul', newText: 'Ankara' },
-      ]
+      const wordSpans = [{ op: 'replace' as const, oldText: 'İstanbul', newText: 'Ankara' }]
       const result = buildPreciseWordSegments('İstanbul Güzel', wordSpans, 'old', 'replace')
       expect(result).toBeUndefined()
     })
 
     it('works normally for non-problematic Unicode', () => {
-      const wordSpans = [
-        { op: 'replace' as const, oldText: '世界', newText: '地球' },
-      ]
+      const wordSpans = [{ op: 'replace' as const, oldText: '世界', newText: '地球' }]
       const result = buildPreciseWordSegments('你好 世界', wordSpans, 'old', 'replace')
       expect(result).toBeDefined()
       expect(result!.find((s) => s.tone === 'delete')?.text).toBe('世界')
     })
 
     it('returns undefined when word is not found in source', () => {
-      const wordSpans = [
-        { op: 'replace' as const, oldText: 'missing', newText: 'gone' },
-      ]
+      const wordSpans = [{ op: 'replace' as const, oldText: 'missing', newText: 'gone' }]
       const result = buildPreciseWordSegments('hello world', wordSpans, 'old', 'replace')
       expect(result).toBeUndefined()
     })

@@ -16,7 +16,10 @@ import type { DiffResult } from '@/core/diff'
 import { runMarkdownDiff } from '../view-model/run-markdown-diff'
 
 function mergedRowsFromMarkdown(oldMd: string, newMd: string, result: DiffResult) {
-  return buildMergedRows(buildOldProjectionLines(oldMd, result), buildProjectionLines(newMd, result))
+  return buildMergedRows(
+    buildOldProjectionLines(oldMd, result),
+    buildProjectionLines(newMd, result),
+  )
 }
 
 describe('diff workbench view-model', () => {
@@ -24,7 +27,9 @@ describe('diff workbench view-model', () => {
     const result = await runMarkdownDiff('# Intro\n\nhello old world', '# Intro\n\nhello new world')
     const lines = buildProjectionLines('# Intro\n\nhello new world', result)
     const paragraphLine = lines[2]
-    const paragraphChange = flattenChanges(result.root).find((change) => change.blockType === 'paragraph')
+    const paragraphChange = flattenChanges(result.root).find(
+      (change) => change.blockType === 'paragraph',
+    )
     const detail = buildDetailPanel(paragraphChange)
 
     expect(paragraphLine).toBeDefined()
@@ -38,19 +43,27 @@ describe('diff workbench view-model', () => {
       'The default configuration favors conservative matching.',
       'The default configuration favors balanced matching.',
     )
-    const paragraphChange = flattenChanges(result.root).find((change) => change.blockType === 'paragraph')
+    const paragraphChange = flattenChanges(result.root).find(
+      (change) => change.blockType === 'paragraph',
+    )
     const detail = buildDetailPanel(paragraphChange)
 
     expect(detail?.newInlineSegments?.map((segment) => segment.text).join('')).toBe(
       'The default configuration favors balanced matching.',
     )
-    expect(detail?.newInlineSegments?.some((segment) => segment.text === ' balanced' || segment.text === 'balanced')).toBe(true)
+    expect(
+      detail?.newInlineSegments?.some(
+        (segment) => segment.text === ' balanced' || segment.text === 'balanced',
+      ),
+    ).toBe(true)
   })
 
   it('projects heading renames as rename tone and exposes detail metadata', async () => {
     const result = await runMarkdownDiff('# Old Name\n\nBody', '# New Name\n\nBody')
     const lines = buildProjectionLines('# New Name\n\nBody', result)
-    const headingChange = flattenChanges(result.root).find((change) => change.kind === 'heading' && change.status.renamed)
+    const headingChange = flattenChanges(result.root).find(
+      (change) => change.kind === 'heading' && change.status.renamed,
+    )
     const detail = buildDetailPanel(headingChange)
 
     expect(lines[0]?.baseTone).toBe('rename')
@@ -63,7 +76,9 @@ describe('diff workbench view-model', () => {
 
   it('strips heading prefix from title segments for all heading depths', async () => {
     const result = await runMarkdownDiff('### Old\n\nBody', '### New\n\nBody')
-    const headingChange = flattenChanges(result.root).find((change) => change.kind === 'heading' && change.status.renamed)
+    const headingChange = flattenChanges(result.root).find(
+      (change) => change.kind === 'heading' && change.status.renamed,
+    )
     const detail = buildDetailPanel(headingChange)
 
     expect(detail?.oldTitle).toBe('Old')
@@ -90,39 +105,32 @@ describe('diff workbench view-model', () => {
       '---\nreview:\n  required: true\n  reviewer: bob\n---',
       '---\nreview:\n  required: true\n  reviewer: dana\n---',
     )
-    const frontmatterChange = flattenChanges(result.root).find((change) => change.kind === 'frontmatter')
+    const frontmatterChange = flattenChanges(result.root).find(
+      (change) => change.kind === 'frontmatter',
+    )
     const detail = buildDetailPanel(frontmatterChange)
 
     expect(detail?.metadataChanges?.[0]?.path).toBe('$.review.reviewer')
     expect(detail?.metadataChanges?.[0]?.oldValueText).toBe('bob')
     expect(detail?.metadataChanges?.[0]?.newValueText).toBe('dana')
-    expect(detail?.newHighlightedLines?.[3]?.segments?.some((segment) => segment.tone === 'meta')).toBe(true)
-    expect(detail?.newHighlightedLines?.[3]?.segments?.map((segment) => segment.text).join('')).toBe(
-      '  reviewer: dana',
-    )
+    expect(
+      detail?.newHighlightedLines?.[3]?.segments?.some((segment) => segment.tone === 'meta'),
+    ).toBe(true)
+    expect(
+      detail?.newHighlightedLines?.[3]?.segments?.map((segment) => segment.text).join(''),
+    ).toBe('  reviewer: dana')
   })
 
   it('falls back to highlighting the full frontmatter block for list metadata changes', async () => {
     const result = await runMarkdownDiff(
-      [
-        '---',
-        'features:',
-        '  - parser',
-        '  - transformer',
-        '  - diff',
-        '---',
-      ].join('\n'),
-      [
-        '---',
-        'features:',
-        '  - parser',
-        '  - transformer',
-        '  - diff',
-        '  - renderer',
-        '---',
-      ].join('\n'),
+      ['---', 'features:', '  - parser', '  - transformer', '  - diff', '---'].join('\n'),
+      ['---', 'features:', '  - parser', '  - transformer', '  - diff', '  - renderer', '---'].join(
+        '\n',
+      ),
     )
-    const frontmatterChange = flattenChanges(result.root).find((change) => change.kind === 'frontmatter')
+    const frontmatterChange = flattenChanges(result.root).find(
+      (change) => change.kind === 'frontmatter',
+    )
     const detail = buildDetailPanel(frontmatterChange)
     const featureBlock = detail?.newHighlightedLines?.slice(1, 6) ?? []
 
@@ -146,22 +154,32 @@ describe('diff workbench view-model', () => {
     const detail = buildDetailPanel(codeChange)
     const changedLine = detail?.codeLines?.find((line) => line.newLine?.includes('const value'))
 
-    expect(changedLine?.segments?.map((segment) => segment.text).join('')).toBe('const value = name')
+    expect(changedLine?.segments?.map((segment) => segment.text).join('')).toBe(
+      'const value = name',
+    )
     expect(changedLine?.segments?.some((segment) => segment.tone === 'replace')).toBe(true)
     expect(changedLine?.segments?.map((segment) => segment.text).join('')).not.toContain('oldName')
   })
 
   it('highlights code fence metadata updates when code content stays the same', async () => {
     const result = await runMarkdownDiff(
-      '```ts title=\"old\"\nconst value = 1\n```',
-      '```tsx title=\"new\"\nconst value = 1\n```',
+      '```ts title="old"\nconst value = 1\n```',
+      '```tsx title="new"\nconst value = 1\n```',
     )
-    const codeChange = flattenChanges(result.root).find((change) => change.blockType === 'code' && change.primaryOp === 'meta-update')
+    const codeChange = flattenChanges(result.root).find(
+      (change) => change.blockType === 'code' && change.primaryOp === 'meta-update',
+    )
     const detail = buildDetailPanel(codeChange)
 
     expect(detail?.codeLines).toBeUndefined()
-    expect(detail?.newHighlightedLines?.[0]?.segments?.some((segment) => segment.text.includes('tsx'))).toBe(true)
-    expect(detail?.newHighlightedLines?.[0]?.segments?.some((segment) => segment.text.includes('title=\"new\"'))).toBe(true)
+    expect(
+      detail?.newHighlightedLines?.[0]?.segments?.some((segment) => segment.text.includes('tsx')),
+    ).toBe(true)
+    expect(
+      detail?.newHighlightedLines?.[0]?.segments?.some((segment) =>
+        segment.text.includes('title="new"'),
+      ),
+    ).toBe(true)
     expect(detail?.newContent).toContain('```tsx title="new"')
   })
 
@@ -181,23 +199,29 @@ describe('diff workbench view-model', () => {
 
   it('highlights changed definition metadata fields on the new side', async () => {
     const result = await runMarkdownDiff(
-      '[ref]: https://old.example.com \"Old\"\n\nbody',
-      '[ref]: https://new.example.com \"New\"\n\nbody',
+      '[ref]: https://old.example.com "Old"\n\nbody',
+      '[ref]: https://new.example.com "New"\n\nbody',
     )
-    const definitionChange = flattenChanges(result.root).find((change) => change.blockType === 'definition' && change.oldId && change.newId)
+    const definitionChange = flattenChanges(result.root).find(
+      (change) => change.blockType === 'definition' && change.oldId && change.newId,
+    )
     const detail = buildDetailPanel(definitionChange)
     const line = detail?.newHighlightedLines?.[0]
 
-    expect(line?.segments?.some((segment) => segment.text.includes('https://new.example.com'))).toBe(true)
+    expect(
+      line?.segments?.some((segment) => segment.text.includes('https://new.example.com')),
+    ).toBe(true)
     expect(line?.segments?.some((segment) => segment.text.includes('New'))).toBe(true)
   })
 
   it('highlights pure definition renames on the new side', async () => {
     const result = await runMarkdownDiff(
-      '[ref]: https://example.com/docs \"Docs\"\n\nbody',
-      '[ref-new]: https://example.com/docs \"Docs\"\n\nbody',
+      '[ref]: https://example.com/docs "Docs"\n\nbody',
+      '[ref-new]: https://example.com/docs "Docs"\n\nbody',
     )
-    const definitionChange = flattenChanges(result.root).find((change) => change.blockType === 'definition' && change.oldId && change.newId)
+    const definitionChange = flattenChanges(result.root).find(
+      (change) => change.blockType === 'definition' && change.oldId && change.newId,
+    )
     const detail = buildDetailPanel(definitionChange)
     const line = detail?.newHighlightedLines?.[0]
 
@@ -233,14 +257,19 @@ describe('diff workbench view-model', () => {
 
   it('exposes pairKind in detail panel for matched changes', async () => {
     const result = await runMarkdownDiff('# Title\n\nParagraph text', '# Title\n\nParagraph text')
-    const headingChange = flattenChanges(result.root).find((change) => change.kind === 'heading' && change.pairKind === 'match')
+    const headingChange = flattenChanges(result.root).find(
+      (change) => change.kind === 'heading' && change.pairKind === 'match',
+    )
     const detail = buildDetailPanel(headingChange)
 
     expect(detail?.pairKind).toBe('match')
   })
 
   it('exposes pairKind in detail panel for aligned (replace) changes', async () => {
-    const result = await runMarkdownDiff('# Old Title\n\nold paragraph', '# New Title\n\nnew paragraph')
+    const result = await runMarkdownDiff(
+      '# Old Title\n\nold paragraph',
+      '# New Title\n\nnew paragraph',
+    )
     const headingChange = flattenChanges(result.root).find(
       (change) => change.kind === 'heading' && change.pairKind === 'align',
     )
@@ -264,8 +293,14 @@ describe('diff workbench view-model', () => {
       oldNode: { kind: 'heading', title: 'Moved Heading', headingDepth: 2, items: [] },
       pairKind: 'match',
       status: {
-        isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false,
-        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
         inlineStructureChanged: false,
       },
       summary: 'Move source',
@@ -285,8 +320,14 @@ describe('diff workbench view-model', () => {
       newNode: { kind: 'heading', title: 'Moved Heading', headingDepth: 2, items: [] },
       pairKind: 'match',
       status: {
-        isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false,
-        renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false,
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
         inlineStructureChanged: false,
       },
       summary: 'Move target',
@@ -302,7 +343,9 @@ describe('diff workbench view-model', () => {
     }
 
     const newIndex = {
-      byId: new Map([['b3', { sourceRange: { start: { line: 5, column: 1 }, end: { line: 7, column: 1 } } }]]),
+      byId: new Map([
+        ['b3', { sourceRange: { start: { line: 5, column: 1 }, end: { line: 7, column: 1 } } }],
+      ]),
     } as any
 
     const detail = buildDetailPanel(sourceChange, changeIndex as any, newIndex)
@@ -336,12 +379,25 @@ describe('diff workbench view-model', () => {
 
   it('has labels for all 19 matchKind values', () => {
     const kinds = [
-      'forced-root', 'exact-subtree', 'exact-subtree-resolved', 'exact-self',
-      'exact-self-with-context', 'exact-direct', 'frontmatter-anchor',
-      'footnote-identity', 'footnote-identifier', 'definition-identity',
-      'definition-identifier', 'local-heading-slug', 'local-heading-body',
-      'local-similarity', 'local-identity',
-      'move-exact', 'move-direct', 'move-heading', 'move-code',
+      'forced-root',
+      'exact-subtree',
+      'exact-subtree-resolved',
+      'exact-self',
+      'exact-self-with-context',
+      'exact-direct',
+      'frontmatter-anchor',
+      'footnote-identity',
+      'footnote-identifier',
+      'definition-identity',
+      'definition-identifier',
+      'local-heading-slug',
+      'local-heading-body',
+      'local-similarity',
+      'local-identity',
+      'move-exact',
+      'move-direct',
+      'move-heading',
+      'move-code',
     ] as const
 
     for (const kind of kinds) {
@@ -378,7 +434,9 @@ describe('diff workbench view-model', () => {
     const nonPlainLines = lines.filter((line) => line.baseTone !== 'plain')
     // All non-plain lines with defined pairKind have either 'match' or 'align'
     const withPairKind = nonPlainLines.filter((line) => line.pairKind !== undefined)
-    expect(withPairKind.every((line) => line.pairKind === 'match' || line.pairKind === 'align')).toBe(true)
+    expect(
+      withPairKind.every((line) => line.pairKind === 'match' || line.pairKind === 'align'),
+    ).toBe(true)
   })
 
   it('propagates same pairKind across multiple lines of the same change', async () => {
@@ -415,10 +473,12 @@ describe('diff workbench view-model', () => {
 
   it('sets pairKind match in detail for meta-update changes', async () => {
     const result = await runMarkdownDiff(
-      '```ts title=\"old\"\nconst x = 1\n```',
-      '```tsx title=\"new\"\nconst x = 1\n```',
+      '```ts title="old"\nconst x = 1\n```',
+      '```tsx title="new"\nconst x = 1\n```',
     )
-    const metaChange = flattenChanges(result.root).find((change) => change.primaryOp === 'meta-update')
+    const metaChange = flattenChanges(result.root).find(
+      (change) => change.primaryOp === 'meta-update',
+    )
     const detail = buildDetailPanel(metaChange)
 
     expect(metaChange).toBeDefined()
@@ -430,22 +490,56 @@ describe('diff workbench view-model', () => {
   it('builds moveInfo for target role', () => {
     const movePeerKey = 'move:t1:t3'
     const sourceChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'source', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: 'match:t1:t3', oldId: 't1',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'source',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:t1:t3',
+      oldId: 't1',
       oldNode: { kind: 'heading', title: 'Src', headingDepth: 1, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 'src', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'src',
+      children: [],
+      warnings: [],
     }
     const targetChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'target', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: 'match:t1:t3', newId: 't3',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'target',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:t1:t3',
+      newId: 't3',
       newNode: { kind: 'heading', title: 'Tgt', headingDepth: 1, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 'tgt', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 'tgt',
+      children: [],
+      warnings: [],
     }
     const changeIndex = {
       byOldId: new Map([['t1', sourceChange]]),
@@ -467,13 +561,30 @@ describe('diff workbench view-model', () => {
 
   it('returns no moveInfo when changeIndex is not provided', () => {
     const change: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'source', movePeerKey: 'move:a1:a3', logicalMoveId: 'move:a1:a3',
-      pairKey: 'match:a1:a3', oldId: 'a1',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'source',
+      movePeerKey: 'move:a1:a3',
+      logicalMoveId: 'move:a1:a3',
+      pairKey: 'match:a1:a3',
+      oldId: 'a1',
       oldNode: { kind: 'heading', title: 'H', headingDepth: 2, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 's', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 's',
+      children: [],
+      warnings: [],
     }
 
     const detail = buildDetailPanel(change, undefined, undefined)
@@ -483,15 +594,37 @@ describe('diff workbench view-model', () => {
 
   it('returns no moveInfo when peer change is absent from changeIndex', () => {
     const change: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'source', movePeerKey: 'move:orphan:1', logicalMoveId: 'move:orphan:1',
-      pairKey: 'match:orphan:1', oldId: 'orphan',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'source',
+      movePeerKey: 'move:orphan:1',
+      logicalMoveId: 'move:orphan:1',
+      pairKey: 'match:orphan:1',
+      oldId: 'orphan',
       oldNode: { kind: 'heading', title: 'H', headingDepth: 2, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 's', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 's',
+      children: [],
+      warnings: [],
     }
-    const emptyIndex = { byOldId: new Map(), byNewId: new Map(), byPairKey: new Map(), byLogicalMoveId: new Map() }
+    const emptyIndex = {
+      byOldId: new Map(),
+      byNewId: new Map(),
+      byPairKey: new Map(),
+      byLogicalMoveId: new Map(),
+    }
 
     const detail = buildDetailPanel(change, emptyIndex as any, undefined)
 
@@ -501,22 +634,56 @@ describe('diff workbench view-model', () => {
   it('returns moveInfo without peerLineNumber when peer has no sourceRange', () => {
     const movePeerKey = 'move:nr1:nr3'
     const sourceChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'source', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: 'match:nr1:nr3', oldId: 'nr1',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'source',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:nr1:nr3',
+      oldId: 'nr1',
       oldNode: { kind: 'heading', title: 'NoRange', headingDepth: 3, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 's', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 's',
+      children: [],
+      warnings: [],
     }
     const targetChange: any = {
-      entity: 'section', kind: 'heading', primaryOp: 'move',
-      moveRole: 'target', movePeerKey, logicalMoveId: movePeerKey,
-      pairKey: 'match:nr1:nr3', newId: 'nr3',
+      entity: 'section',
+      kind: 'heading',
+      primaryOp: 'move',
+      moveRole: 'target',
+      movePeerKey,
+      logicalMoveId: movePeerKey,
+      pairKey: 'match:nr1:nr3',
+      newId: 'nr3',
       newNode: { kind: 'heading', title: 'NoRange', headingDepth: 3, items: [] },
       pairKind: 'match',
-      status: { isMatchPair: true, isAlignedPair: false, moved: true, movedWithinParent: false, renamed: false, selfChanged: false, descendantChanged: false, metaChanged: false, inlineStructureChanged: false },
-      summary: 't', children: [], warnings: [],
+      status: {
+        isMatchPair: true,
+        isAlignedPair: false,
+        moved: true,
+        movedWithinParent: false,
+        renamed: false,
+        selfChanged: false,
+        descendantChanged: false,
+        metaChanged: false,
+        inlineStructureChanged: false,
+      },
+      summary: 't',
+      children: [],
+      warnings: [],
     }
     const changeIndex = {
       byOldId: new Map([['nr1', sourceChange]]),
@@ -548,7 +715,9 @@ describe('diff workbench view-model', () => {
     expect(detail?.newInlineSegments).toBeUndefined()
   })
 
-  it.todo('omits title comparison for heading replace (align, not confirmed rename) — engine produces match+rename for this input, not an align pair')
+  it.todo(
+    'omits title comparison for heading replace (align, not confirmed rename) — engine produces match+rename for this input, not an align pair',
+  )
 
   it('omits title comparison for paragraph changes', async () => {
     const result = await runMarkdownDiff('# Title\n\nold text', '# Title\n\nnew text')
@@ -562,7 +731,9 @@ describe('diff workbench view-model', () => {
     expect(detail?.newInlineSegments).toBeDefined()
   })
 
-  it.todo('omits title comparison for footnote renames — engine treats different-identifier footnotes as delete+insert, not rename')
+  it.todo(
+    'omits title comparison for footnote renames — engine treats different-identifier footnotes as delete+insert, not rename',
+  )
 
   // ─── matchKind — absence conditions ───
 
@@ -627,10 +798,7 @@ describe('diff workbench view-model', () => {
 
     expect(reorderedChanges.length).toBeGreaterThan(0)
 
-    const lines = buildProjectionLines(
-      '# Beta\n\nbeta content\n\n# Alpha\n\nalpha content',
-      result,
-    )
+    const lines = buildProjectionLines('# Beta\n\nbeta content\n\n# Alpha\n\nalpha content', result)
     const reorderLines = lines.filter((line) => line.matchedTones.includes('reorder'))
     expect(reorderLines.length).toBeGreaterThan(0)
   })
@@ -669,10 +837,7 @@ describe('diff workbench view-model', () => {
   // ─── descendantChanged ───
 
   it('marks heading line with descendant change when child content differs', async () => {
-    const result = await runMarkdownDiff(
-      '# Title\n\nold paragraph',
-      '# Title\n\nnew paragraph',
-    )
+    const result = await runMarkdownDiff('# Title\n\nold paragraph', '# Title\n\nnew paragraph')
     const lines = buildProjectionLines('# Title\n\nnew paragraph', result)
     const headingLine = lines[0]
 
@@ -691,7 +856,9 @@ describe('diff workbench view-model', () => {
 
   // ─── backlink info ───
 
-  it.todo('collects affected lines for footnote renames with backlinks — engine treats different-identifier footnotes as delete+insert, not rename')
+  it.todo(
+    'collects affected lines for footnote renames with backlinks — engine treats different-identifier footnotes as delete+insert, not rename',
+  )
 
   it('returns no backlinkInfo for non-footnote/definition changes', async () => {
     const result = await runMarkdownDiff('# Title\n\nparagraph', '# Title\n\nparagraph')
@@ -741,10 +908,7 @@ describe('diff workbench view-model', () => {
   })
 
   it('projects old document frontmatter metadata change with meta tone', async () => {
-    const result = await runMarkdownDiff(
-      '---\nversion: 1.0\n---',
-      '---\nversion: 2.0\n---',
-    )
+    const result = await runMarkdownDiff('---\nversion: 1.0\n---', '---\nversion: 2.0\n---')
     const oldLines = buildOldProjectionLines('---\nversion: 1.0\n---', result)
     const metaLine = oldLines.find((line) => line.baseTone === 'meta')
 
@@ -816,10 +980,7 @@ describe('diff workbench view-model', () => {
   })
 
   it('marks code block change inside nested blockquote list as replace', async () => {
-    const result = await runMarkdownDiff(
-      '> - `old code`\n',
-      '> - `new code`\n',
-    )
+    const result = await runMarkdownDiff('> - `old code`\n', '> - `new code`\n')
     const lines = buildProjectionLines('> - `new code`\n', result)
     const replaced = lines.find((line) => line.matchedTones.includes('replace'))
 
@@ -842,10 +1003,7 @@ describe('diff workbench view-model', () => {
   })
 
   it('marks inline code token change within a paragraph', async () => {
-    const result = await runMarkdownDiff(
-      'use `oldApi` function',
-      'use `newApi` function',
-    )
+    const result = await runMarkdownDiff('use `oldApi` function', 'use `newApi` function')
     const paragraph = flattenChanges(result.root).find((change) => change.blockType === 'paragraph')
     const detail = buildDetailPanel(paragraph)
 
@@ -865,7 +1023,10 @@ describe('diff workbench view-model', () => {
   })
 
   it('detects table column count change as structural diff', async () => {
-    const result = await runMarkdownDiff('| a | b |\n| - | - |\n| 1 | 2 |', '| a | b | c |\n| - | - | - |\n| 1 | 2 | 3 |')
+    const result = await runMarkdownDiff(
+      '| a | b |\n| - | - |\n| 1 | 2 |',
+      '| a | b | c |\n| - | - | - |\n| 1 | 2 | 3 |',
+    )
     const table = flattenChanges(result.root).find((change) => change.blockType === 'table')
 
     expect(table?.tableDiff?.structureChanged).toBe(true)
@@ -902,7 +1063,10 @@ describe('diff workbench view-model', () => {
   })
 
   it('detects frontmatter format change with identical values as unchanged', async () => {
-    const result = await runMarkdownDiff('---\nkey: value\n---\n\nbody', '+++\nkey = "value"\n+++\n\nbody')
+    const result = await runMarkdownDiff(
+      '---\nkey: value\n---\n\nbody',
+      '+++\nkey = "value"\n+++\n\nbody',
+    )
     const fm = flattenChanges(result.root).find((change) => change.kind === 'frontmatter')
 
     // Same logical values in different formats → no metadata changes
@@ -962,7 +1126,8 @@ describe('diff workbench view-model', () => {
       'Body[^a] and [^b2]\n\n[^a]: note A\n[^b2]: note B',
     )
     const unchanged = flattenChanges(result.root).find(
-      (change) => change.kind === 'footnote' && change.pairKind === 'match' && !change.status.renamed,
+      (change) =>
+        change.kind === 'footnote' && change.pairKind === 'match' && !change.status.renamed,
     )
     const renamed = flattenChanges(result.root).find(
       (change) => change.kind === 'footnote' && change.status.renamed,
@@ -973,8 +1138,13 @@ describe('diff workbench view-model', () => {
   })
 
   it('reports backlinks for definition change including the definition node itself', async () => {
-    const result = await runMarkdownDiff('[ref]: https://old.example.com\n', '[ref]: https://new.example.com\n')
-    const defChange = flattenChanges(result.root).find((change) => change.blockType === 'definition')
+    const result = await runMarkdownDiff(
+      '[ref]: https://old.example.com\n',
+      '[ref]: https://new.example.com\n',
+    )
+    const defChange = flattenChanges(result.root).find(
+      (change) => change.blockType === 'definition',
+    )
 
     const detail = buildDetailPanel(defChange, undefined, result.newIndex, result.oldIndex)
 
@@ -1036,7 +1206,9 @@ describe('diff workbench view-model', () => {
     const rows = mergedRowsFromMarkdown('', '# New\n\ncontent', result)
 
     expect(rows.length).toBeGreaterThan(0)
-    const hasNewContent = rows.some((row) => row.newLine !== null && row.newLine.baseTone !== 'plain')
+    const hasNewContent = rows.some(
+      (row) => row.newLine !== null && row.newLine.baseTone !== 'plain',
+    )
     expect(hasNewContent).toBe(true)
   })
 
@@ -1062,7 +1234,11 @@ describe('diff workbench view-model', () => {
       '# Title\n\nline one\nline two',
       '# Title\n\nline one\nline three',
     )
-    const rows = mergedRowsFromMarkdown('# Title\n\nline one\nline two', '# Title\n\nline one\nline three', result)
+    const rows = mergedRowsFromMarkdown(
+      '# Title\n\nline one\nline two',
+      '# Title\n\nline one\nline three',
+      result,
+    )
     const replaced = rows.filter(
       (row) => row.oldLine?.baseTone === 'replace' || row.newLine?.baseTone === 'replace',
     )
@@ -1368,9 +1544,7 @@ describe('diff workbench view-model', () => {
     const rows = mergedRowsFromMarkdown(oldMd, newMd, result)
 
     const fuzzyRow = rows.find(
-      (row) =>
-        row.oldLine?.text === 'alpha beta gamma' &&
-        row.newLine?.text === 'alpha BETA gamma',
+      (row) => row.oldLine?.text === 'alpha beta gamma' && row.newLine?.text === 'alpha BETA gamma',
     )
     expect(fuzzyRow).toBeDefined()
   })
@@ -1479,6 +1653,6 @@ describe('tokenizeForSimilarity', () => {
     const tokens = tokenizeForSimilarity('文档version2.0')
     expect(tokens).toContain('文')
     expect(tokens).toContain('档')
-    expect(tokens.some(t => t.includes('version'))).toBe(true)
+    expect(tokens.some((t) => t.includes('version'))).toBe(true)
   })
 })

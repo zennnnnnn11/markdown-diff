@@ -16,9 +16,7 @@ import {
   uniqueHeadingSiblingNames,
   upgradeToMatch,
 } from './helpers'
-import {
-  rewriteChildrenWithExistingMatches,
-} from './alignment'
+import { rewriteChildrenWithExistingMatches } from './alignment'
 import {
   computeTableMetadataChange,
   isStructuralOnlyTableChange,

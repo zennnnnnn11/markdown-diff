@@ -56,7 +56,9 @@ describe('text extraction', () => {
       expect(extractText(node('html', { value: '<br />' }))).toBe('<br />')
     })
     it('T04c-img: returns alt text for image node', () => {
-      expect(extractText(node('image', { url: 'pic.png', alt: 'sunset photo' }))).toBe('sunset photo')
+      expect(extractText(node('image', { url: 'pic.png', alt: 'sunset photo' }))).toBe(
+        'sunset photo',
+      )
     })
     it('T04c-img-null: returns empty string for image with null alt', () => {
       expect(extractText(node('image', { url: 'pic.png', alt: null }))).toBe('')
@@ -169,7 +171,9 @@ describe('text extraction', () => {
         children: [
           node('list', {
             children: [
-              node('listItem', { children: [node('paragraph', { children: [text('quoted item')] })] }),
+              node('listItem', {
+                children: [node('paragraph', { children: [text('quoted item')] })],
+              }),
             ],
           }),
         ],

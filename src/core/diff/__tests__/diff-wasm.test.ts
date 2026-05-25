@@ -10,9 +10,7 @@ function totalCost(
 }
 
 function simplify<T>(edits: SequenceEdit<T>[]): string[] {
-  return edits.map(
-    (e) => `${e.op}:${String(e.value)}:${e.oldIndex ?? ''}:${e.newIndex ?? ''}`,
-  )
+  return edits.map((e) => `${e.op}:${String(e.value)}:${e.oldIndex ?? ''}:${e.newIndex ?? ''}`)
 }
 
 describe('diff-wasm hungarian', () => {
@@ -78,7 +76,15 @@ describe('diff-wasm hungarian', () => {
       [0, 0],
     ])
     expect(result).toHaveLength(2)
-    expect(totalCost([[0, 0], [0, 0]], result)).toBe(0)
+    expect(
+      totalCost(
+        [
+          [0, 0],
+          [0, 0],
+        ],
+        result,
+      ),
+    ).toBe(0)
   })
 
   it('returns empty for empty matrix', () => {
@@ -99,29 +105,17 @@ describe('diff-wasm hungarian', () => {
 describe('diff-wasm myers', () => {
   it('handles identical sequences', () => {
     const edits = myersDiffWasm(['a', 'b', 'c'], ['a', 'b', 'c'])
-    expect(simplify(edits)).toEqual([
-      'equal:a:0:0',
-      'equal:b:1:1',
-      'equal:c:2:2',
-    ])
+    expect(simplify(edits)).toEqual(['equal:a:0:0', 'equal:b:1:1', 'equal:c:2:2'])
   })
 
   it('handles single insertion', () => {
     const edits = myersDiffWasm(['a', 'c'], ['a', 'b', 'c'])
-    expect(simplify(edits)).toEqual([
-      'equal:a:0:0',
-      'insert:b::1',
-      'equal:c:1:2',
-    ])
+    expect(simplify(edits)).toEqual(['equal:a:0:0', 'insert:b::1', 'equal:c:1:2'])
   })
 
   it('handles single deletion', () => {
     const edits = myersDiffWasm(['a', 'b', 'c'], ['a', 'c'])
-    expect(simplify(edits)).toEqual([
-      'equal:a:0:0',
-      'delete:b:1:',
-      'equal:c:2:1',
-    ])
+    expect(simplify(edits)).toEqual(['equal:a:0:0', 'delete:b:1:', 'equal:c:2:1'])
   })
 
   it('handles completely different sequences', () => {
@@ -132,18 +126,12 @@ describe('diff-wasm myers', () => {
 
   it('handles empty old', () => {
     const edits = myersDiffWasm([], ['a', 'b'])
-    expect(simplify(edits)).toEqual([
-      'insert:a::0',
-      'insert:b::1',
-    ])
+    expect(simplify(edits)).toEqual(['insert:a::0', 'insert:b::1'])
   })
 
   it('handles empty new', () => {
     const edits = myersDiffWasm(['a', 'b'], [])
-    expect(simplify(edits)).toEqual([
-      'delete:a:0:',
-      'delete:b:1:',
-    ])
+    expect(simplify(edits)).toEqual(['delete:a:0:', 'delete:b:1:'])
   })
 
   it('handles both empty', () => {

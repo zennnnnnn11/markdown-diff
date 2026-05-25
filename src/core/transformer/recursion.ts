@@ -65,7 +65,10 @@ export function blockquoteToSection(
   return section
 }
 
-export function transformFootnoteDefinition(ctx: TransformContext, node: FootnoteDefinition | Node): void {
+export function transformFootnoteDefinition(
+  ctx: TransformContext,
+  node: FootnoteDefinition | Node,
+): void {
   const block = createBlock(node, ctx)
   const section = createFootnoteSection(block)
   section.id = generateId(ctx)
@@ -80,11 +83,7 @@ export function transformFootnoteDefinition(ctx: TransformContext, node: Footnot
 
 // ---- internal ----
 
-function processContainerChildren(
-  ctx: TransformContext,
-  parent: Section,
-  children: Node[],
-): void {
+function processContainerChildren(ctx: TransformContext, parent: Section, children: Node[]): void {
   for (const child of children) {
     if (isList(child)) {
       processChildList(ctx, parent, child)
@@ -113,11 +112,7 @@ function processContainerChildren(
   }
 }
 
-function processChildList(
-  ctx: TransformContext,
-  parent: Section,
-  list: List,
-): void {
+function processChildList(ctx: TransformContext, parent: Section, list: List): void {
   if (!list.children) return
 
   let idx = 0

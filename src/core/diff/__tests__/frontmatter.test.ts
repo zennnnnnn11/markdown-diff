@@ -9,10 +9,7 @@ describe('frontmatter diff', () => {
 
   it('parses yaml and toml frontmatter payloads', () => {
     expect(
-      parseFrontmatter(
-        'yaml',
-        ['title: Test', 'tags:', '  - diff', 'enabled: true'].join('\n'),
-      ),
+      parseFrontmatter('yaml', ['title: Test', 'tags:', '  - diff', 'enabled: true'].join('\n')),
     ).toEqual({
       title: 'Test',
       tags: ['diff'],
@@ -20,10 +17,7 @@ describe('frontmatter diff', () => {
     })
 
     expect(
-      parseFrontmatter(
-        'toml',
-        ['title = "Test"', 'enabled = true', 'count = 2'].join('\n'),
-      ),
+      parseFrontmatter('toml', ['title = "Test"', 'enabled = true', 'count = 2'].join('\n')),
     ).toEqual({
       title: 'Test',
       enabled: true,
@@ -35,7 +29,9 @@ describe('frontmatter diff', () => {
     expect(
       parseFrontmatter(
         'toml',
-        ['title = "Test"', 'features = ["diff", "render"]', '[limits]', 'max_nodes = 16000'].join('\n'),
+        ['title = "Test"', 'features = ["diff", "render"]', '[limits]', 'max_nodes = 16000'].join(
+          '\n',
+        ),
       ),
     ).toEqual({
       title: 'Test',
@@ -73,12 +69,7 @@ describe('frontmatter diff', () => {
   })
 
   it('falls back to whole-value metadata diff when only one side parses successfully', () => {
-    const changes = diffFrontmatter(
-      'yaml',
-      'title: Old',
-      'toml',
-      'title = ',
-    )
+    const changes = diffFrontmatter('yaml', 'title: Old', 'toml', 'title = ')
 
     expect(changes).toEqual([
       {
@@ -91,12 +82,7 @@ describe('frontmatter diff', () => {
   })
 
   it('falls back to whole-value metadata diff when parsing fails', () => {
-    const changes = diffFrontmatter(
-      'yaml',
-      'title: [unterminated',
-      'yaml',
-      'title: fixed',
-    )
+    const changes = diffFrontmatter('yaml', 'title: [unterminated', 'yaml', 'title: fixed')
 
     expect(changes).toEqual([
       {
@@ -110,12 +96,7 @@ describe('frontmatter diff', () => {
 
   it('handles deletes and scalar root replacements through metadata diff fallback', () => {
     expect(
-      diffFrontmatter(
-        'yaml',
-        ['title: Old', 'owner: alice'].join('\n'),
-        'yaml',
-        'title: Old',
-      ),
+      diffFrontmatter('yaml', ['title: Old', 'owner: alice'].join('\n'), 'yaml', 'title: Old'),
     ).toEqual([{ path: '$.owner', oldValue: 'alice', op: 'delete' }])
 
     expect(diffFrontmatter('yaml', '42', 'yaml', '43')).toEqual([
@@ -134,7 +115,12 @@ describe('frontmatter diff', () => {
         ['features:', '  - parser', '  - renderer'].join('\n'),
       ),
     ).toEqual([
-      { path: '$.features', oldValue: ['parser', 'diff'], newValue: ['parser', 'renderer'], op: 'replace' },
+      {
+        path: '$.features',
+        oldValue: ['parser', 'diff'],
+        newValue: ['parser', 'renderer'],
+        op: 'replace',
+      },
     ])
   })
 })

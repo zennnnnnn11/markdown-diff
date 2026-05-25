@@ -1,22 +1,10 @@
 import { computeAptedMatches, type AptedNode } from '../apted'
 import { DIFF_HEURISTICS } from '../heuristics'
 import { computeNodeSimilarity, isSameShape, uniquenessMargin } from '../similarity'
-import type {
-  AlignedPair,
-  DiffChange,
-  SemanticIndex,
-} from '../types'
-import {
-  makePairKey,
-  multisetJaccardSimilarity,
-  simHashHammingDistance,
-} from '../utils'
+import type { AlignedPair, DiffChange, SemanticIndex } from '../types'
+import { makePairKey, multisetJaccardSimilarity, simHashHammingDistance } from '../utils'
 import type { AptedDiffMeta, DiffContext } from './context'
-import {
-  estimateAptedRecoveryCost,
-  parentContextScore,
-  push,
-} from './helpers'
+import { estimateAptedRecoveryCost, parentContextScore, push } from './helpers'
 import { rewriteChildrenWithFallbackPairs } from './alignment'
 
 export async function maybeApplyStructuralFallback(
@@ -166,7 +154,10 @@ export function collectStructuralFallbackPairs(
   return pairs
 }
 
-export function buildAptedTree(index: SemanticIndex, id: string): AptedNode<AptedDiffMeta> | undefined {
+export function buildAptedTree(
+  index: SemanticIndex,
+  id: string,
+): AptedNode<AptedDiffMeta> | undefined {
   const node = index.byId.get(id)
   if (!node) return undefined
   return {
